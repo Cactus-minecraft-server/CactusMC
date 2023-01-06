@@ -1012,7 +1012,6 @@ impl Optional {
         }
 
         let value: DataTypeContent = DataTypeContent::from_bytes(data, data_type)?;
-
         Ok(Self {
             bytes: data[..value.get_bytes().len()].to_vec(),
             value: Some(value),
@@ -1065,6 +1064,64 @@ impl Default for Optional {
             value: None,
             bytes: vec![0x00],
         }
+    }
+}
+
+/// Represents a signed byte (two's complement)
+#[derive(Debug, Default, Clone, PartialEq, Eq)]
+struct Byte {
+    value: i8,
+    bytes: [i8; 1],
+}
+
+impl Byte {
+    /// Reads the first 8 bytes of the provided data in Big Endian format.
+    fn read<T: AsRef<[u8]>>(bytes: T) -> Result<i8, CodecError> {
+        let data: &[u8] = bytes.as_ref();
+
+        if data.len() < 8 {
+            return Err(CodecError::Decoding(
+                DataType::Byte,
+                ErrorReason::ValueTooSmall,
+            ));
+        }
+
+        let bits_byte = data[0..8]
+            .try_into()
+            .map_err(|err: std::array::TryFromSliceError| {
+                CodecError::Encoding(DataType::Byte, ErrorReason::InvalidFormat(err.to_string()))
+            })?;
+
+        Ok(i8::from_be_bytes(bits_byte))
+    }
+
+    /// Returns the Big Endian representation of an u16.
+    ///
+    /// There is 1 byte in a i8.
+    fn write(value: i8) -> [u8; 1] {
+        value.to_be_bytes()
+    }
+}
+
+impl Encodable for Byte {
+    fn from_bytes<T: AsRef<[u8]>>(bytes: T) -> Result<Self, CodecError> {
+        todo!()
+    }
+
+    type ValueInput;
+
+    fn from_value(value: Self::ValueInput) -> Result<Self, CodecError> {
+        todo!()
+    }
+
+    fn get_bytes(&self) -> &[u8] {
+        todo!()
+    }
+
+    type ValueOutput;
+
+    fn get_value(&self) -> Self::ValueOutput {
+        todo!()
     }
 }
 
