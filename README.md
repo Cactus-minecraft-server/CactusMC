@@ -54,5 +54,6 @@ Distribué sous la licence MIT. Voir `LICENSE` pour plus d'informations.
 - [Protocole Minecraft](https://wiki.vg/Protocol)
 
 ---
+Le projet a commencé le 5/07/2024 à 00:20:58
 
 Pour toute question ou commentaire, n'hésitez pas à ouvrir une issue ou à me contacter directement.
