@@ -44,7 +44,7 @@ Les contributions sont les bienvenues ! Si vous souhaitez contribuer à ce proje
 
 ## Licence
 
-Distribué sous la licence MIT. Voir `LICENSE` pour plus d'informations.
+Distribué sous la licence Mozilla Public License Version 2.0. Voir `LICENSE` pour plus d'informations.
 
 ## Remerciements
 
