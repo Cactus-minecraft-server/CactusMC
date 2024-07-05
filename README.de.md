@@ -44,7 +44,7 @@ Beiträge sind willkommen! Wenn Sie zu diesem Projekt beitragen möchten, befolg
 
 ## Lizenz
 
-Veröffentlicht unter der MIT-Lizenz. Siehe [LICENSE](./LICENSE) für weitere Informationen.
+Veröffentlicht unter der Mozilla Public License Version 2.0-Lizenz. Siehe [LICENSE](./LICENSE) für weitere Informationen.
 
 ## Danksagungen
 
