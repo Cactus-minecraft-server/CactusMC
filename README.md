@@ -12,7 +12,7 @@
 
 Welcome to the Minecraft Server in Rust project. Choose your preferred language from the list above.
 
-This project is meant to be an insurmountable task that challenges our capacities! 
+**This project is meant to be an insurmountable task that challenges our capacities!**
 
 ---
 
