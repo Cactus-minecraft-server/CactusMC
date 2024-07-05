@@ -1,4 +1,4 @@
-# 🎮 Serveur Minecraft en Rust
+# 🎮 Serveur Minecraft en Rust / Minecraft Server in Rust / Minecraft-Serverprojekt in Rust / сервера Minecraft на Rust
 
 ## Languages / Langues / Idiomas / Sprachen / Языки
 
