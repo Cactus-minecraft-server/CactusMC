@@ -44,7 +44,7 @@ Contributions are welcome! If you want to contribute to this project, please fol
 
 ## License
 
-Distributed under the MIT License. See `LICENSE` for more information.
+Distributed under the Mozilla Public License Version 2.0 License. See `LICENSE` for more information.
 
 ## Acknowledgements
 

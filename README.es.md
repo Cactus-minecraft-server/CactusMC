@@ -44,7 +44,7 @@ Este proyecto tiene como objetivo crear un servidor de Minecraft utilizando el l
 
 ## Licencia
 
-Distribuido bajo la licencia MIT. Ver `LICENSE` para más información.
+Distribuido bajo la licencia Mozilla Public License Version 2.0. Ver `LICENSE` para más información.
 
 ## Agradecimientos
 
