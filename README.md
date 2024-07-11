@@ -12,6 +12,8 @@
 
 Welcome to the Minecraft Server in Rust project. Choose your preferred language from the list above.
 
+**This project is meant to be an insurmountable task that challenges our capacities!**
+
 ---
 
 Bienvenue dans le projet de serveur Minecraft en Rust. Choisissez votre langue préférée dans la liste ci-dessus.
