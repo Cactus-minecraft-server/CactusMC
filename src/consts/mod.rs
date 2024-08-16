@@ -5,12 +5,12 @@
 
 /// Module where we store information relevant to the Minecraft server.
 pub mod minecraft {
-    pub const VERSION: &'static str = "1.21.1"; // I just change the game version to 1.20.6 -> 1.21.1
+    pub const VERSION: &'static str = "1.21"; // I just change the game version to 1.20.6 -> 1.21.1
     pub const PROTOCOL_VERSION: usize = 766;
 }
 
 /// Module where we store constant file paths used by the server.
 pub mod filepaths {
     /// server.properties file, used to store server settings.
-    pub const PROPERTIES: &'static str = "server.properties";
+    pub const PROPERTIES: &'static str = "server.properties"; //let's keep that, if it's not working put a .toml
 }
