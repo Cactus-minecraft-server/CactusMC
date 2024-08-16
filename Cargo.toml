@@ -6,4 +6,4 @@ edition = "2021"
 [dependencies]
 dot-properties = "0.2.0"
 colored = "2.1.0"
-tokio = "1.39.2"
+integer-encoding = "4.0.2"
