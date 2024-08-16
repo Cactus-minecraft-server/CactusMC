@@ -8,6 +8,7 @@ mod config;
 mod consts;
 mod packet;
 mod slp;
+
 use colored::*;
 
 // TODO: Add and setup a loggin module.
@@ -37,7 +38,8 @@ fn test() {
 
     let p = packet::Packet::new();
 
-    println!("There are {} bytes in the packet p", p.count_bytes());
+    let nn = packet::codec::encode::varint(255).unwrap();
+    println!("{}", nn.)
 
     println!("END test()");
 }

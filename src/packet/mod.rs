@@ -1,6 +1,9 @@
 //! This module abstracts away a Minecraft packet, so that it can be used in a simple and
 //! standardized way.
 
+pub mod codec;
+pub mod utils;
+
 // TODO: contains abstraction over a Minecraft packet. And helper functions in adjacent files like
 // VarInt, VarLong, String, ... encoding.
 
@@ -24,6 +27,11 @@ impl Packet {
     /// Initalizes a new `Packet` with an empty `data` buffer.
     pub fn new() -> Self {
         Self { data: Vec::new() }
+    }
+
+    /// Returns a reference to `data`
+    pub fn get_raw_bytes(&self) -> &Vec<u8> {
+        &self.data
     }
 
     /// A simple "mock" function
