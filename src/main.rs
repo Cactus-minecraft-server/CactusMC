@@ -47,6 +47,8 @@ fn test() {
 
     println!("{} --VarInt-decoded--> {}", hex, varint_decoded);
 
+    println!("Hello");
+
     println!("{}", "\n[ END test() ]\n".blue());
 }
 
