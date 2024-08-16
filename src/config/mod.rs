@@ -1,10 +1,12 @@
 //! This module is the interface between the server.properties file. Querying for server settings.
-
+// !TODO generator_settings
+// !Todo text-filtering-config
 use dot_properties::{read_properties, Properties};
 use std::fs::File;
 use std::io::BufReader;
 use std::io::{Error, ErrorKind};
 use std::path::Path;
+use std::sync::Arc;
 
 /// Function to get a `Properties` object to which the caller can then query keys.
 ///
@@ -40,8 +42,7 @@ enum WorlPreset{
     AMPLIFIED,
     SINGLEBIOMESURFACE,
 }
-//!TODO generator_settings
-//!Todo text-filtering-config
+
 struct Settings{
     enable_jmx_monitoring: bool,
     rcon_port: u16,
@@ -99,8 +100,24 @@ struct Settings{
     resource_pack_sha1: Option<String>,
     max_world_size: u32,
 }
-pub fn read(filepath: &Path) -> std::io::Result<Properties> {
+
+fn read(filepath: &Path) -> std::io::Result<Properties> {
     let file = File::open(filepath)?;
     let mut reader = BufReader::new(file);
     read_properties(&mut reader).map_err(|e| Error::new(ErrorKind::Other, e.to_string()))
+}
+
+impl Settings{
+    pub fn new(filepath: &Path) -> Self{
+         let config_file = read(Path::new(crate::consts::filepaths::PROPERTIES)).expect("Error reading server.properties file");
+
+
+
+
+        Self{
+            enable_jmx_monitoring: config_file.get_property("enable_jmx_monitoring").unwrap().parse::<bool>().unwrap(),
+            rcon_port: config_file.get_property("rcon_port").unwrap().parse::<u16>().unwrap(),
+        }
+
+    }
 }
