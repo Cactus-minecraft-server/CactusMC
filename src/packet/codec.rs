@@ -1,3 +1,4 @@
+/// This sub-module contains various encoding algorithms.
 pub mod encode {
     use integer_encoding::VarInt;
 
@@ -20,6 +21,7 @@ pub mod encode {
     }
 }
 
+/// This sub-module contains various decoding algorithms.
 pub mod decode {
     use integer_encoding::VarInt;
 
@@ -33,3 +35,5 @@ pub mod decode {
         i64::decode_var(data)
     }
 }
+
+// TODO: Write unit-tests for this file, it shouldn't be very difficult.

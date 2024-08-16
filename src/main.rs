@@ -34,14 +34,20 @@ fn init() {
 #[cfg(debug_assertions)]
 /// A test fonction that'll only run in debug-mode. (cargo run) and not (cargo run --release)
 fn test() {
-    println!("BEGIN test()");
+    println!("{}", "\n[ BEGIN test() ]\n".blue());
 
     let p = packet::Packet::new();
 
-    let nn = packet::codec::encode::varint(255).unwrap();
-    println!("{}", nn.)
+    let val: i32 = 255;
+    let varint_encoded: Vec<u8> = packet::codec::encode::varint(val).unwrap();
+    let varint_decoded = packet::codec::decode::varint(&varint_encoded).unwrap().0;
 
-    println!("END test()");
+    let hex = packet::utils::print_hex_repr(&varint_encoded);
+    println!("{} VarInt-encoded is: {}", val, hex);
+
+    println!("{} --VarInt-decoded--> {}", hex, varint_decoded);
+
+    println!("{}", "\n[ END test() ]\n".blue());
 }
 
 // TODO: How should we run the SLP & the game loop at the same time? That's a tough question,
