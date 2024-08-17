@@ -101,7 +101,7 @@ struct Settings{
     max_world_size: u32,
 }
 
-fn read(filepath: &Path) -> std::io::Result<Properties> {
+pub fn read(filepath: &Path) -> std::io::Result<Properties> { //do not forget to remove the pub when function new is finish!
     let file = File::open(filepath)?;
     let mut reader = BufReader::new(file);
     read_properties(&mut reader).map_err(|e| Error::new(ErrorKind::Other, e.to_string()))
