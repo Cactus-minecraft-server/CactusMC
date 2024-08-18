@@ -99,8 +99,8 @@ struct Settings{
     spawn_protection: u16,
     resource_pack_sha1: Option<String>,
     max_world_size: u32,
-    generator_settings:todo!(),
-    text_filtering_config:todo!(),
+    //generator_settings:todo!(),
+    //text_filtering_config:todo!(),
 
 }
 
@@ -109,6 +109,7 @@ pub fn read(filepath: &Path) -> std::io::Result<Properties> { //do not forget to
     let mut reader = BufReader::new(file);
     read_properties(&mut reader).map_err(|e| Error::new(ErrorKind::Other, e.to_string()))
 }
+
 
 impl Settings{
     pub fn new(filepath: &Path) -> Self{
@@ -120,8 +121,17 @@ impl Settings{
         Self{
             enable_jmx_monitoring: config_file.get_property("enable_jmx_monitoring").unwrap().parse::<bool>().unwrap(),
             rcon_port: config_file.get_property("rcon_port").unwrap().parse::<u16>().unwrap(),
-            level_seed: todo!(),
-            gamemode: todo!(),
+            level_seed: match config_file.get_property("level_seed").unwrap() {
+                "" => None,
+                s => Some(s.parse::<i64>().unwrap()),
+            },
+            gamemode: match config_file.get_property("gamemode").unwrap().as_str() {
+                "creative" => Gamemode::CREATIVE,
+                "survival" => Gamemode::SURVIVAL,
+                "spectator" => Gamemode::SPECTATOR,
+                "adventure" => Gamemode::ADVENTURE,
+                _ => Gamemode::SURVIVAL, // Valeur par défaut si aucun match n'est trouvé
+            },
             enable_command_block: todo!(),
             enable_query: todo!(),
             enforce_secure_profile: todo!(),
@@ -173,11 +183,12 @@ impl Settings{
             spawn_protection: todo!(),
             resource_pack_sha1: todo!(),
             max_world_size: todo!(),
-            generator_settings: todo!(),
-            text_filtering_config: todo!(),
+            //generator_settings: todo!(),
+            //text_filtering_config: todo!(),
 
 
         }
 
     }
+    //fn gamemode_to_enum(inp)
 }
