@@ -6,6 +6,7 @@ use consts::filepaths;
 use std::path::Path;
 mod config;
 mod consts;
+mod net;
 mod packet;
 mod slp;
 
@@ -25,8 +26,8 @@ fn main() {
 }
 
 fn init() {
-    let config_file = config::read(Path::new(consts::filepaths::PROPERTIES))
-        .expect("Error reading server.properties file");
+    //let config_file = config::read(Path::new(consts::filepaths::PROPERTIES))
+    //   .expect("Error reading server.properties file");
 
     // init_slp(config_file) or just instantiate the config file in the init_slp function
 }
@@ -49,6 +50,9 @@ fn test() {
 
     println!("Hello");
     println!("Hello2");
+
+    let a = config::Settings::new();
+    println!("{}", a.server_port);
 
     println!("{}", "\n[ END test() ]\n".blue());
 }
