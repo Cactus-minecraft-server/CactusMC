@@ -173,6 +173,8 @@ impl Settings{
             spawn_protection: todo!(),
             resource_pack_sha1: todo!(),
             max_world_size: todo!(),
+            generator_settings: todo!(),
+            text_filtering_config: todo!(),
 
 
         }
