@@ -5,6 +5,7 @@ use dot_properties::{read_properties, Properties};
 use std::fs::File;
 use std::io::BufReader;
 use std::io::{Error, ErrorKind};
+use std::net::Ipv4Addr;
 use std::path::Path;
 use std::sync::Arc;
 
@@ -69,7 +70,7 @@ struct Settings{
     initial_disabled_packs: Option<String>,
     broadcast_rcon_to_ops: bool,
     view_distance: u8,
-    server_ip: Option<String>,
+    server_ip: Option<Ipv4Addr>,
     resource_pack_prompt: Option<String>,
     allow_nether: bool,
     server_port: u16,
@@ -115,9 +116,6 @@ impl Settings{
     pub fn new(filepath: &Path) -> Self{
          let config_file = read(Path::new(crate::consts::filepaths::PROPERTIES)).expect("Error reading server.properties file");
 
-
-
-
         Self{
             enable_jmx_monitoring: config_file.get_property("enable_jmx_monitoring").unwrap().parse::<bool>().unwrap(),
             rcon_port: config_file.get_property("rcon_port").unwrap().parse::<u16>().unwrap(),
@@ -125,36 +123,59 @@ impl Settings{
                 "" => None,
                 s => Some(s.parse::<i64>().unwrap()),
             },
-            gamemode: match config_file.get_property("gamemode").unwrap().as_str() {
+            gamemode: match config_file.get_property("gamemode").unwrap() {
                 "creative" => Gamemode::CREATIVE,
                 "survival" => Gamemode::SURVIVAL,
                 "spectator" => Gamemode::SPECTATOR,
                 "adventure" => Gamemode::ADVENTURE,
-                _ => Gamemode::SURVIVAL, // Valeur par défaut si aucun match n'est trouvé
+                _ => Gamemode::SURVIVAL, // default value
             },
-            enable_command_block: todo!(),
-            enable_query: todo!(),
-            enforce_secure_profile: todo!(),
-            level_name: todo!(),
-            motd: todo!(),
-            query_port: todo!(),
-            pvp: todo!(),
-            generate_structures: todo!(),
-            max_chained_neighbor_updates: todo!(),
-            difficulty: todo!(),
-            network_compression_threshold: todo!(),
-            max_tick_time: todo!(),
-            require_resource_pack: todo!(),
-            use_native_transport: todo!(),
-            max_players: todo!(),
-            online_mode: todo!(),
-            enable_status: todo!(),
-            allow_flight: todo!(),
-            initial_disabled_packs: todo!(),
-            broadcast_rcon_to_ops: todo!(),
-            view_distance: todo!(),
-            server_ip: todo!(),
-            resource_pack_prompt: todo!(),
+            enable_command_block: config_file.get_property("enable_command_block").unwrap().parse::<bool>().unwrap(),
+            enable_query: config_file.get_property("enable_query").unwrap().parse::<bool>().unwrap(),
+            enforce_secure_profile: config_file.get_property("enforce_secure_profile").unwrap().parse::<bool>().unwrap(),
+            level_name: match config_file.get_property("level_name").unwrap() {
+                "" => None,
+                s => Some(s.parse::<String>().unwrap()),
+            },
+            motd: match config_file.get_property("motd").unwrap() {
+                "" => None,
+                s => Some(s.parse::<String>().unwrap()),
+            },
+            query_port: config_file.get_property("enable_command_block").unwrap().parse::<u16>().unwrap(),
+            pvp: config_file.get_property("pvp").unwrap().parse::<bool>().unwrap(),
+            generate_structures: config_file.get_property("generate_structures").unwrap().parse::<bool>().unwrap(),
+            max_chained_neighbor_updates: match config_file.get_property("motd").unwrap() {
+                "" => None,
+                s => Some(s.parse::<i32>().unwrap()),
+            },
+            difficulty: match config_file.get_property("difficulty").unwrap() {
+                "normal" => Difficulty::NORMAL,
+                "easy" => Difficulty::EASY,
+                "hard" => Difficulty::HARD,
+                _ => Difficulty::EASY, // default value
+            },
+            network_compression_threshold: config_file.get_property("network_compression_threshold").unwrap().parse::<i32>().unwrap(),
+            max_tick_time: config_file.get_property("max_tick_time").unwrap().parse::<i64>().unwrap(),
+            require_resource_pack: config_file.get_property("require_resource_pack").unwrap().parse::<bool>().unwrap(),
+            use_native_transport: config_file.get_property("use_native_transport").unwrap().parse::<bool>().unwrap(),
+            max_players: config_file.get_property("use_native_transport").unwrap().parse::<u32>().unwrap(),
+            online_mode: config_file.get_property("online_mode").unwrap().parse::<bool>().unwrap(),
+            enable_status: config_file.get_property("enable_status").unwrap().parse::<bool>().unwrap(),
+            allow_flight: config_file.get_property("allow_flight").unwrap().parse::<bool>().unwrap(),
+            initial_disabled_packs: match config_file.get_property("initial_disabled_packs").unwrap() {
+                "" => None,
+                s => Some(s.parse::<String>().unwrap()),
+            },
+            broadcast_rcon_to_ops: config_file.get_property("broadcast_rcon_to_ops").unwrap().parse::<bool>().unwrap(),
+            view_distance: config_file.get_property("view_distance").unwrap().parse::<u8>().unwrap(),
+            server_ip: match config_file.get_property("server_ip").unwrap() {
+                "" => None,
+                s => Some(s.parse::<Ipv4Addr>().unwrap()),
+            },
+            resource_pack_prompt: match config_file.get_property("resource_pack_prompt").unwrap() {
+                "" => None,
+                s => Some(s.parse::<String>().unwrap()),
+            },
             allow_nether: todo!(),
             server_port: todo!(),
             enable_rcon: todo!(),
