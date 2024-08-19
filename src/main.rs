@@ -1,9 +1,9 @@
 //! The entrypoint of the server.
 
-use std::{path::PathBuf, str::FromStr};
+// use std::{path::PathBuf, str::FromStr};
 
-use consts::filepaths;
-use std::path::Path;
+// use consts::filepaths;
+// use std::path::Path;
 mod config;
 mod consts;
 mod net;
@@ -30,7 +30,7 @@ fn init() {
     //   .expect("Error reading server.properties file");
 
     // init_slp(config_file) or just instantiate the config file in the init_slp function
-    net::listen();
+     net::listen();
 }
 
 #[cfg(debug_assertions)]
@@ -38,7 +38,7 @@ fn init() {
 fn test() {
     println!("{}", "\n[ BEGIN test() ]\n".blue());
 
-    let p = packet::Packet::default();
+    let _p = packet::Packet::default();
 
     let val: i32 = 255;
     let varint_encoded: Vec<u8> = packet::codec::encode::varint(val).unwrap();
