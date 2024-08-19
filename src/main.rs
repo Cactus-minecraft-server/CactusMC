@@ -30,6 +30,7 @@ fn init() {
     //   .expect("Error reading server.properties file");
 
     // init_slp(config_file) or just instantiate the config file in the init_slp function
+    net::listen();
 }
 
 #[cfg(debug_assertions)]
@@ -37,13 +38,13 @@ fn init() {
 fn test() {
     println!("{}", "\n[ BEGIN test() ]\n".blue());
 
-    let p = packet::Packet::new();
+    let p = packet::Packet::default();
 
     let val: i32 = 255;
     let varint_encoded: Vec<u8> = packet::codec::encode::varint(val).unwrap();
     let varint_decoded = packet::codec::decode::varint(&varint_encoded).unwrap().0;
 
-    let hex = packet::utils::print_hex_repr(&varint_encoded);
+    let hex = packet::utils::get_hex_repr(&varint_encoded);
     println!("{} VarInt-encoded is: {}", val, hex);
 
     println!("{} --VarInt-decoded--> {}", hex, varint_decoded);
