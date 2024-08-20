@@ -13,7 +13,6 @@ use thiserror::Error;
 
 /// An abstraction for a Minecraft packet.
 pub struct Packet<'a> {
-    length: usize,
     /// An ID that each Packet has, varint-decoded.
     id: Result<PacketId, PacketError>,
     /// The raw bytes making the packet.
@@ -31,9 +30,8 @@ pub struct Packet<'a> {
 
 impl<'a> Packet<'a> {
     /// Initalizes a new `Packet` with an empty `data` buffer.
-    pub fn new(data: &'a [u8], length: usize) -> Self {
+    pub fn new(data: &'a [u8]) -> Self {
         Self {
-            length,
             id: PacketId::try_from(data),
             data,
         }
@@ -51,10 +49,6 @@ impl<'a> Packet<'a> {
 
     /// Returns the number of elements inside `data`.
     pub fn len(&self) -> usize {
-        self.length
-    }
-
-    pub fn len_data(&self) -> usize {
         self.data.len()
     }
 }
@@ -67,7 +61,6 @@ impl<'a> Packet<'a> {
 impl<'a> Default for Packet<'a> {
     fn default() -> Self {
         Self {
-            length: 0,
             id: Ok(PacketId::default()),
             data: &[],
         }
@@ -86,13 +79,14 @@ pub enum PacketType {
     Todo,
 }
 
+// TODO: Implement std::Display. Print packet type (if found) and value.
 pub struct PacketId {
     id: i32,
     id_length: usize,
 }
 
 impl PacketId {
-    pub fn get_id(&self) -> i32 {
+    pub fn get_value(&self) -> i32 {
         self.id
     }
 
@@ -184,7 +178,7 @@ mod tests {
         let data = [1, 2, 3, 4, 5, 6, 7, 8, 9, 10];
         let length = 4;
 
-        let packet = Packet::new(&data, length);
+        let packet = Packet::new(&data);
 
         let data = [0; 1024];
         let length = 1024;

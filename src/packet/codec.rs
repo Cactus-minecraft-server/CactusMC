@@ -36,4 +36,32 @@ pub mod decode {
     }
 }
 
-// TODO: Write unit-tests for this file, it shouldn't be very difficult.
+// TODO: Finish writing unit-tests
+
+#[cfg(test)]
+mod tests {
+    use std::collections::HashMap;
+
+    use super::*;
+
+    #[test]
+    fn test_encode_varint() {
+        let mut values: HashMap<i32, Vec<u8>> = HashMap::new();
+
+        values.insert(0, vec![0x00]);
+        values.insert(1, vec![0x01]);
+        values.insert(127, vec![0x7F]);
+        values.insert(128, vec![0x80, 0x01]);
+        values.insert(255, vec![0xFF, 0x01]);
+        values.insert(25565, vec![0xDD, 0xC7, 0x01]);
+        values.insert(2097151, vec![0xFF, 0xFF, 0x7F]);
+        values.insert(2147483647, vec![0xFF, 0xFF, 0xFF, 0xFF, 0x07]);
+        values.insert(-1, vec![0xff, 0xff, 0xff, 0xff, 0x0f]);
+        values.insert(-2147483648, vec![0x80, 0x80, 0x80, 0x80, 0x08]);
+
+        for (value, bytes) in values {
+            let encoded_varint: Vec<u8> = encode::varint(value).expect("Failed to encode varint");
+            assert_eq!(encoded_varint, bytes);
+        }
+    }
+}
