@@ -41,7 +41,7 @@ impl<'a> Packet<'a> {
 
     pub fn encode_varint(value: i32) -> Vec<u8> {
         let mut buffer = Vec::new();
-        let mut v = value as u32; // Utiliser u32 pour s'assurer que les bits sont manipulés correctement
+        let mut v = value as u32; //use u32 (chatgpt) cuz varint use this ?
 
         while v >= 0x80 {
             buffer.push((v as u8) | 0x80);
@@ -197,7 +197,7 @@ mod tests {
         assert_eq!(packet.data, data);
     }
     #[test]
-    #[test]
+
     fn test_encode_varint() {
         let expected_varint: Vec<u8> = vec![0xD2, 0x06]; // Valeur correcte pour 850 en Varint
         let returned_varint = Packet::encode_varint(850); // Appel de la fonction corrigée
