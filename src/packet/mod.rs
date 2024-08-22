@@ -39,11 +39,19 @@ impl<'a> Packet<'a> {
         }
     }
 
-    pub fn encode_varint(value:i32) -> Vec<u8> {
-        let mut buffer:Vec<u8> =vec![];
-        buffer.write_i32_varint(value).unwrap();
-        return buffer;
+    pub fn encode_varint(value: i32) -> Vec<u8> {
+        let mut buffer = Vec::new();
+        let mut v = value as u32; // Utiliser u32 pour s'assurer que les bits sont manipulés correctement
+
+        while v >= 0x80 {
+            buffer.push((v as u8) | 0x80);
+            v >>= 7;
+        }
+        buffer.push(v as u8);
+
+        buffer
     }
+
     /// Returns a reference to the packet `data`.
     pub fn get_data(&self) -> &[u8] {
         self.data
@@ -188,9 +196,12 @@ mod tests {
         let packet = Packet::new(&data);
         assert_eq!(packet.data, data);
     }
+    #[test]
+    #[test]
     fn test_encode_varint() {
-        let true_varint: Vec<u8> = vec![174, 2];
-        let returned_varint = Packet::encode_varint(302);
-        assert_eq!(true_varint,returned_varint);
+        let expected_varint: Vec<u8> = vec![0xD2, 0x06]; // Valeur correcte pour 850 en Varint
+        let returned_varint = Packet::encode_varint(850); // Appel de la fonction corrigée
+        assert_eq!(expected_varint, returned_varint);
     }
+
 }
