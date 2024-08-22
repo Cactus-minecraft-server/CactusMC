@@ -6,7 +6,9 @@ pub mod utils;
 
 use core::fmt;
 
+use serde::de::value;
 use thiserror::Error;
+use varint_rs::VarintWriter;
 
 // TODO: contains abstraction over a Minecraft packet. And helper functions in adjacent files like
 // VarInt, VarLong, String, ... encoding.
@@ -37,6 +39,11 @@ impl<'a> Packet<'a> {
         }
     }
 
+    pub fn encode_varint(value:i32) -> Vec<u8> {
+        let mut buffer:Vec<u8> =vec![];
+        buffer.write_i32_varint(value).unwrap();
+        return buffer;
+    }
     /// Returns a reference to the packet `data`.
     pub fn get_data(&self) -> &[u8] {
         self.data
@@ -171,6 +178,8 @@ pub enum PacketError {
 
 #[cfg(test)]
 mod tests {
+    use codec::encode;
+
     use super::*;
 
     #[test]
@@ -178,5 +187,10 @@ mod tests {
         let data = [1, 2, 3, 4, 5];
         let packet = Packet::new(&data);
         assert_eq!(packet.data, data);
+    }
+    fn test_encode_varint() {
+        let true_varint: Vec<u8> = vec![174, 2];
+        let returned_varint = Packet::encode_varint(302);
+        assert_eq!(true_varint,returned_varint);
     }
 }
