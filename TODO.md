@@ -1,6 +1,6 @@
 # SLP
 
-- [ ] Parse server.properties file for info
+- [X] Parse server.properties file for info
 
 - [ ] Globals like server version
 

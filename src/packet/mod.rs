@@ -175,14 +175,8 @@ mod tests {
 
     #[test]
     fn test_packet_creation() {
-        let data = [1, 2, 3, 4, 5, 6, 7, 8, 9, 10];
-        let length = 4;
-
+        let data = [1, 2, 3, 4, 5];
         let packet = Packet::new(&data);
-
-        let data = [0; 1024];
-        let length = 1024;
-
         assert_eq!(packet.data, data);
     }
 }
