@@ -15,12 +15,12 @@ use colored::*;
 // TODO: Add and setup a loggin module.
 
 fn main() {
+    #[cfg(debug_assertions)]
+    test();
+
     //println!("[ SERVER STARTED ]";
     println!("{}", "[ SERVER STARTED ]".green());
     init();
-
-    #[cfg(debug_assertions)]
-    test();
 
     println!("{}", "[ SERVER EXITED ]".red());
 }
@@ -30,30 +30,27 @@ fn init() {
     //   .expect("Error reading server.properties file");
 
     // init_slp(config_file) or just instantiate the config file in the init_slp function
-     net::listen();
+    let _ = net::listen();
 }
 
 #[cfg(debug_assertions)]
 /// A test fonction that'll only run in debug-mode. (cargo run) and not (cargo run --release)
 fn test() {
+    use packet::data_types;
+
     println!("{}", "\n[ BEGIN test() ]\n".blue());
 
     let _p = packet::Packet::default();
-
-    let val: i32 = 255;
-    let varint_encoded: Vec<u8> = packet::codec::encode::varint(val).unwrap();
-    let varint_decoded = packet::codec::decode::varint(&varint_encoded).unwrap().0;
-
-    let hex = packet::utils::get_hex_repr(&varint_encoded);
-    println!("{} VarInt-encoded is: {}", val, hex);
-
-    println!("{} --VarInt-decoded--> {}", hex, varint_decoded);
 
     println!("Hello");
     println!("Hello2");
 
     let a = config::Settings::new();
     println!("{}", a.server_port);
+
+    println!("---------------------\n\n\n");
+
+    let varint_25565 = [0xff, 0xff, 0xff, 0xff, 0x0f, 127, 255, 23, 55, 99, 11];
 
     println!("{}", "\n[ END test() ]\n".blue());
 }
