@@ -6,7 +6,7 @@ pub mod utils;
 
 use core::fmt;
 
-use serde::de::value;
+
 use thiserror::Error;
 use varint_rs::VarintWriter;
 
