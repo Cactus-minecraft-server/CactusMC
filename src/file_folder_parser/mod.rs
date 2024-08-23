@@ -23,23 +23,20 @@ pub fn create_server_properties(content:&str,file_path:&'static str) -> io::Resu
 
 pub fn create_eula(content:&str,file_path:&'static str) -> io::Result<()> {
     let path = Path::new(file_path);
-    if path.exists() {
-        println!("You already agreed too {}",file_path.blue());
+    if path.exists() && check_eula(file_path) == true {
+        println!("You already agreed too {}",file_path.green());
     } else {
         let mut file = File::create(path)?;
         file.write_all(content.as_bytes())?;
-        println!("You have to agree to {} before run the server",file_path.blue())
+        println!("You have to agree to {} before run the server",file_path.red())
     }
     Ok(())
 }
 pub fn check_eula(file_path:&'static str) ->bool{
     let path = Path::new(file_path);
     let eula_result = config::read(path).expect("error reading eula_file");
-    let agree = eula_result.get_property("eula");
-    if agree == "true" {
-        return true
-    } else {
-        return false
-    }
+    let agree = eula_result.get_property("eula").unwrap().parse::<bool>().unwrap();
+    agree
+
 
 }
