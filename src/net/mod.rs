@@ -2,7 +2,7 @@
 
 use crate::config;
 use crate::packet::{Packet, PacketId};
-use log::{debug, error};
+use log::{debug, error, warn};
 use std::net::SocketAddr;
 use tokio::io::{AsyncReadExt, AsyncWriteExt};
 use tokio::net::TcpListener;
@@ -26,7 +26,7 @@ pub async fn listen() -> Result<(), Box<dyn std::error::Error>> {
         let (socket, addr) = listener.accept().await?;
         tokio::spawn(async move {
             if let Err(e) = handle_connection(socket, addr).await {
-                error!("Error handling connection from {addr}: {e}");
+                warn!("Error handling connection from {addr}: {e}");
             }
         });
     }

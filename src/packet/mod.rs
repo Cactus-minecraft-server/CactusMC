@@ -228,7 +228,8 @@ pub enum PacketError {
     LengthDecodingError,
 }
 
-// TODO: continue tests
+// TODO: I wonder if having "invalid" value, like a too short/long Length should propagate an error
+// when creating a Packet.
 
 #[cfg(test)]
 mod tests {
@@ -242,7 +243,13 @@ mod tests {
         // Data = &[1, 2, 3]
         let init_data = &[4, 4, 1, 2, 3];
 
-        let _packet: Packet = Packet::new(init_data).expect("Failed to create packet");
+        let packet: Packet = Packet::new(init_data).expect("Failed to create packet");
+
+        assert_eq!(packet.get_length(), 4);
+        assert_eq!(packet.len(), init_data.len());
+        assert_eq!(packet.get_id().get_value(), 4);
+        assert_eq!(packet.get_payload(), &[1, 2, 3]);
+        assert_eq!(packet.get_full_packet(), init_data);
     }
 
     #[test]
@@ -252,7 +259,13 @@ mod tests {
         // Data = &[1, 2, 3]
         let init_data = &[1, 4, 1, 2, 3];
 
-        let _packet: Packet = Packet::new(init_data).expect("Failed to create packet");
+        let packet: Packet = Packet::new(init_data).expect("Failed to create packet");
+
+        assert_eq!(packet.get_length(), 1);
+        assert_eq!(packet.len(), init_data.len());
+        assert_eq!(packet.get_id().get_value(), 4);
+        assert_eq!(packet.get_payload(), &[1, 2, 3]);
+        assert_eq!(packet.get_full_packet(), init_data);
     }
 
     #[test]
@@ -267,7 +280,14 @@ mod tests {
         init_data.push(2);
         init_data.push(3);
 
-        let _packet: Packet = Packet::new(&init_data).expect("Failed to create packet");
+        let packet: Packet = Packet::new(&init_data).expect("Failed to create packet");
+
+        assert_eq!(packet.get_length(), 2048);
+        assert_eq!(packet.get_id().get_value(), 4);
+        assert_eq!(packet.get_payload(), &[1, 2, 3]);
+
+        assert_eq!(packet.get_full_packet(), init_data);
+        assert_eq!(packet.len(), init_data.len());
     }
 
     #[test]
@@ -278,9 +298,17 @@ mod tests {
 
         let mut init_data: Vec<u8> = varint::write(256);
         init_data.push(4);
-        init_data.extend(1..=255);
+        let data: &[u8] = &(1..=255).collect::<Vec<u8>>()[..];
+        init_data.extend(data);
 
-        let _packet: Packet = Packet::new(&init_data).expect("Failed to create packet");
+        let packet: Packet = Packet::new(&init_data).expect("Failed to create packet");
+
+        assert_eq!(packet.get_length(), 256);
+        assert_eq!(packet.get_id().get_value(), 4);
+        assert_eq!(packet.get_payload(), data);
+
+        assert_eq!(packet.get_full_packet(), init_data);
+        assert_eq!(packet.len(), init_data.len());
     }
 
     #[test]
@@ -295,9 +323,16 @@ mod tests {
 
         let mut init_data = Vec::new();
         init_data.extend(length);
-        init_data.extend(id);
+        init_data.extend(&id);
         init_data.extend(data);
 
-        let _packet: Packet = Packet::new(&init_data).expect("Failed to create packet");
+        let packet: Packet = Packet::new(&init_data).expect("Failed to create packet");
+
+        assert_eq!(packet.get_length(), id.len() + data.len());
+        assert_eq!(packet.get_id().get_value(), 1000);
+        assert_eq!(packet.get_payload(), data);
+
+        assert_eq!(packet.get_full_packet(), init_data);
+        assert_eq!(packet.len(), init_data.len());
     }
 }
