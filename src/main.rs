@@ -9,16 +9,16 @@ mod consts;
 mod logging;
 mod net;
 mod packet;
+mod file_folder_parser;
 
 mod slp;
-
-use log::{debug, error, info, warn};
+use log::{error, info, warn};
 
 fn main() {
     // A testing function, only in debug mode
     #[cfg(debug_assertions)]
     test();
-
+    let server_properties_write = file_folder_parser::create_server_properties(consts::file_content::SERVER_PROPERTIES)
     logging::init(log::LevelFilter::Debug);
 
     ctrlc::set_handler(move || {
