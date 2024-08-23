@@ -109,3 +109,5 @@ fabric.properties
 
 
 .idea/
+.server.properties
+.src/server.properties
