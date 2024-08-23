@@ -11,7 +11,7 @@ pub fn create_server_properties(content:&str,file_name:&'static str) -> io::Resu
         println!("the file \"{}\" already exist, the programm will use this one.",file_name);
     } else {
         let mut file = File::create(path)?;
-        file.write_all(content.as_bytes())?; // chatgpt says me rust want have bytes for write anything ...
+        file.write_all(content.as_bytes())?;
         println!("the file \"{}\" have been created.",file_name)
     }
     Ok(())
