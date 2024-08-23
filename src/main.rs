@@ -6,58 +6,68 @@
 // use std::path::Path;
 mod config;
 mod consts;
+mod logging;
 mod net;
 mod packet;
+
 mod slp;
 
-use colored::*;
-
-// TODO: Add and setup a loggin module.
+use log::{debug, error, info, warn};
 
 fn main() {
+    // A testing function, only in debug mode
     #[cfg(debug_assertions)]
     test();
 
-    //println!("[ SERVER STARTED ]";
-    println!("{}", "[ SERVER STARTED ]".green());
-    init();
+    logging::init(log::LevelFilter::Debug);
 
-    println!("{}", "[ SERVER EXITED ]".red());
+    ctrlc::set_handler(move || {
+        info!("Received Ctrl+C, shutting down...");
+        exit(0);
+    })
+    .expect("Error setting Ctrl+C handler");
+
+    info!("[ SERVER STARTED ]");
+
+    if let Err(e) = init() {
+        error!("Failed to start the server: {e}. \nExiting...");
+        exit(-1);
+    }
+
+    info!("[ SERVER EXITED ]");
 }
 
-fn init() {
+fn init() -> Result<(), Box<dyn std::error::Error>> {
     //let config_file = config::read(Path::new(consts::filepaths::PROPERTIES))
     //   .expect("Error reading server.properties file");
 
     // init_slp(config_file) or just instantiate the config file in the init_slp function
-    let _ = net::listen();
+
+    net::listen().map_err(|e| {
+        error!("Failed to listen for packets: {e}");
+        e
+    })?;
+
+    Ok(())
 }
 
 #[cfg(debug_assertions)]
 /// A test fonction that'll only run in debug-mode. (cargo run) and not (cargo run --release)
 fn test() {
-    use packet::data_types;
+    info!("[ BEGIN test() ]");
 
-    println!("{}", "\n[ BEGIN test() ]\n".blue());
+    info!("Hello, world from test()!");
 
-    let _p = packet::Packet::default();
-
-    println!("Hello");
-    println!("Hello2");
-
-    let a = config::Settings::new();
-    println!("{}", a.server_port);
-
-    println!("---------------------\n\n\n");
-
-    let varint_25565 = [0xff, 0xff, 0xff, 0xff, 0x0f, 127, 255, 23, 55, 99, 11];
-
-    println!("{}", "\n[ END test() ]\n".blue());
+    info!("[ END test()]");
 }
 
-// TODO: How should we run the SLP & the game loop at the same time? That's a tough question,
-// I think I'll just avoid the problem by making the SLP run in a separate thread :)
+/// Exits the server.
+fn exit(code: i32) -> ! {
+    if code == 0 {
+        info!("[ SERVER EXITED ]");
+    } else {
+        warn!("[ SERVER EXITED WITH ERROR CODE ({code}) ]");
+    }
 
-fn init_slp() {
-    todo!();
+    std::process::exit(code);
 }

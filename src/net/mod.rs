@@ -1,8 +1,8 @@
 //! This module manages the TCP server and how/where the packets are managed/sent.
 
 use crate::config;
-use crate::packet::utils::print;
-use crate::packet::{utils, Packet};
+use crate::packet::{Packet, PacketId};
+use log::{debug, error};
 use std::net::SocketAddr;
 use tokio::io::{AsyncReadExt, AsyncWriteExt};
 use tokio::net::TcpListener;
@@ -26,7 +26,7 @@ pub async fn listen() -> Result<(), Box<dyn std::error::Error>> {
         let (socket, addr) = listener.accept().await?;
         tokio::spawn(async move {
             if let Err(e) = handle_connection(socket, addr).await {
-                eprintln!("Error handling connection from {}: {}", addr, e);
+                error!("Error handling connection from {addr}: {e}");
             }
         });
     }
@@ -43,29 +43,31 @@ async fn handle_connection(
     mut socket: TcpStream,
     addr: SocketAddr,
 ) -> Result<(), Box<dyn std::error::Error>> {
-    println!("New connection: {}", addr);
+    debug!("New connection: {addr}");
     // TODO: Maybe have a bigger/dynamic buffer?
     let mut buf = [0; BUFFER_SIZE];
 
     loop {
         let n = socket.read(&mut buf).await?;
         if n == 0 {
-            println!("Connection closed: {}", addr);
+            debug!("Connection closed: {addr}");
             return Ok(());
         }
 
-        let response = handle_packet(&buf[..n]).await;
+        let response = handle_packet(&buf[..n]).await?;
         socket.write_all(&response).await?;
     }
 }
 
 /// This function takes the buffer, an array of bytes,
-async fn handle_packet(buffer: &[u8]) -> Vec<u8> {
-    let packet = Packet::new(buffer);
-    print::blue(&format!("NEW PACKET ({}): {}", packet.len(), packet));
+async fn handle_packet(buffer: &[u8]) -> Result<Vec<u8>, Box<dyn std::error::Error>> {
+    print!("\n\n\n"); // Give some separation
 
-    let packet_id = packet.get_id().as_ref().expect("Could not get packet ID!");
-    println!("PACKET ID: {}", packet_id.get_value());
+    let packet = Packet::new(buffer)?;
+    debug!("NEW PACKET ({}): {}", packet.len(), packet);
+
+    let packet_id: PacketId = packet.get_id();
+    debug!("PACKET ID: {}", packet_id.get_value());
 
     // create a response
 
@@ -74,5 +76,5 @@ async fn handle_packet(buffer: &[u8]) -> Vec<u8> {
     response.extend_from_slice(buffer);
 
     print!("\n\n\n");
-    response
+    Ok(response)
 }
