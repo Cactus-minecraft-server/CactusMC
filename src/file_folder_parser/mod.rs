@@ -15,4 +15,4 @@ pub fn create_server_properties(content:&str,file_name:&'static str) -> io::Resu
         println!("the file \"{}\" have been created.",file_name)
     }
     Ok(())
-}
+}//to test
