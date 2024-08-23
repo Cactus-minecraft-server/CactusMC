@@ -114,7 +114,7 @@ pub fn read(filepath: &Path) -> std::io::Result<Properties> {
 impl Settings {
     pub fn new() -> Self {
         let config_file = read(Path::new(crate::consts::filepaths::PROPERTIES))
-            .expect("Error reading server.properties file");
+            .expect("Error reading {server.properties} file");
 
         Self {
             enable_jmx_monitoring: config_file
