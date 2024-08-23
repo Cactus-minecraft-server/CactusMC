@@ -17,7 +17,7 @@ Ce projet vise à créer un serveur Minecraft en utilisant le langage de program
 ## Technologies Utilisées
 
 - **Langage de programmation :** Rust
-- **Bibliothèques principales :** Tokio, Serde
+- **Bibliothèques principales :** Tokio, colorized
 
 ## Structure du Projet
 
