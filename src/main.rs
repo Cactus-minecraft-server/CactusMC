@@ -11,10 +11,14 @@ mod net;
 mod packet;
 mod file_folder_parser;
 mod slp;
+use colored::Colorize;
 use log::{error, info, warn};
 
 fn main() {
+    let welcome = "Hello, world MiFerris";
+    println!("{}",welcome.green());
     let server_properties_write = file_folder_parser::create_server_properties(consts::file_content::SERVER_PROPERTIES,consts::filepaths::PROPERTIES);
+    let eula_create = file_folder_parser::create_eula(consts::file_content::EULA, consts::filepaths::EULA);
     // A testing function, only in debug mode
     #[cfg(debug_assertions)]
     test();

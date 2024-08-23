@@ -13,6 +13,7 @@ pub mod minecraft {
 pub mod filepaths {
     /// server.properties file, used to store server settings.
     pub const PROPERTIES: &'static str = "server.properties"; //let's keep that, if it's not working put a .toml
+    pub const EULA: &'static str = "eula.txt";
 }
 pub mod file_content{
     pub const SERVER_PROPERTIES:&str = r#"enable-jmx-monitoring=false
@@ -72,4 +73,10 @@ enforce-whitelist=false
 spawn-protection=16
 resource-pack-sha1=
 max-world-size=29999984"#;
+
+
+pub const EULA:&str= r#"#By changing the setting below to TRUE you are indicating your agreement to our EULA (https://account.mojang.com/documents/minecraft_eula).
+#Mon Mar 20 21:15:37 PDT 2017
+eula=false"#;
 }
+
