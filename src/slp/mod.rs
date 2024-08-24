@@ -8,6 +8,15 @@
 
 // TODO: Add logging.
 
+use log::info;
+
+use crate::packet::Packet;
+
 pub fn init() {}
 
 fn thread_loop() {}
+
+pub fn slp_callback(connection: i32, packet: &Packet) {
+    info!("In slp_callback()");
+    // I guess this function will use `connection` to respond.
+}

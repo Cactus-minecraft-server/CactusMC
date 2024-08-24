@@ -1,12 +1,15 @@
 //! This module is the interface between the server.properties file. Querying for server settings.
 // !TODO generator_settings
 // !Todo text-filtering-config
-use dot_properties::{read_properties, Properties};
+// use dot_properties::{read_properties, Properties};
 use std::fs::File;
 use std::io::BufReader;
 use std::io::{Error, ErrorKind};
 use std::net::Ipv4Addr;
 use std::path::Path;
+
+use read_properties::Properties;
+mod read_properties;
 //use std::sync::Arc;
 
 /// Function to get a `Properties` object to which the caller can then query keys.
@@ -104,17 +107,16 @@ pub struct Settings {
     //text_filtering_config:todo!(),
 }
 
-pub fn read(filepath: &Path) -> std::io::Result<Properties> {
-    //do not forget to remove the pub when function new is finish!
+fn read(filepath: &Path) -> std::io::Result<Properties> {
     let file = File::open(filepath)?;
     let mut reader = BufReader::new(file);
-    read_properties(&mut reader).map_err(|e| Error::new(ErrorKind::Other, e.to_string()))
+    return read_properties::read_properties(&mut reader).map_err(|e| Error::new(ErrorKind::Other, e.to_string()))
 }
 
 impl Settings {
     pub fn new() -> Self {
         let config_file = read(Path::new(crate::consts::filepaths::PROPERTIES))
-            .expect("Error reading server.properties file");
+            .expect("Error reading {server.properties} file");
 
         Self {
             enable_jmx_monitoring: config_file

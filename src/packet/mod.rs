@@ -6,21 +6,34 @@ pub mod utils;
 
 use core::fmt;
 
+use data_types::varint;
+use log::warn;
 use thiserror::Error;
 
-// TODO: contains abstraction over a Minecraft packet. And helper functions in adjacent files like
-// VarInt, VarLong, String, ... encoding.
+// It is true that I could lazily evaluate the length, and Id for more performance but I chose to do it eagerly.
 
 /// An abstraction for a Minecraft packet.
+///
+/// Structure of a normal uncompressed Packet:
+///
+/// Length (VarInt): Length of Packet ID + Data
+/// Packet ID (VarInt): An ID each packet has
+/// Data (Byte Array): Actual data bytes
 pub struct Packet<'a> {
-    /// An ID that each Packet has, varint-decoded.
-    id: Result<PacketId, PacketError>,
-    /// The raw bytes making the packet.
-    data: &'a [u8],
-}
+    /// Length of `id` + `data`
+    length: usize,
 
-// TODO: Implement some functions or overload the `new()` method to initialize the packet with
-// actual bytes.
+    /// An ID that each Packet has, varint-decoded.
+    id: PacketId,
+
+    /// The raw bytes making the packet. (so it contains ALL of the packet, Length, Packet ID and
+    /// the data bytes)
+    data: &'a [u8],
+
+    /// The raw bytes making the PAYLOAD of the packet. (so this slice does not contain the length
+    /// and acket ID)
+    payload: &'a [u8],
+}
 
 // TODO: Implement printing functions to see the bytes in hexadecimal in order and in the reverse
 // order.
@@ -30,26 +43,73 @@ pub struct Packet<'a> {
 
 impl<'a> Packet<'a> {
     /// Initalizes a new `Packet` with an empty `data` buffer.
-    pub fn new(data: &'a [u8]) -> Self {
-        Self {
-            id: PacketId::try_from(data),
+    pub fn new(data: &'a [u8]) -> Result<Self, PacketError> {
+        let parsed = Self::parse_packet(data)?;
+        Ok(Self {
+            length: parsed.0,
+            id: parsed.1,
             data,
-        }
+            payload: parsed.2,
+        })
     }
 
-    /// Returns a reference to the packet `data`.
-    pub fn get_data(&self) -> &[u8] {
+    /// This is the WHOLE packet.
+    pub fn get_full_packet(&self) -> &[u8] {
         self.data
     }
 
-    /// Returns a reference to the packet `id`.
-    pub fn get_id(&self) -> &Result<PacketId, PacketError> {
-        &self.id
+    /// This is the PAYLOAD. So the the bytes except the Packet Length and the Packet ID.
+    pub fn get_payload(&self) -> &[u8] {
+        self.payload
     }
 
-    /// Returns the number of elements inside `data`.
+    /// Copies/Clone (I don't quite know) PacketId from the Packet.
+    pub fn get_id(&self) -> PacketId {
+        self.id
+    }
+
+    /// Returns the `Packet` `length` attribute. From protocol.
+    pub fn get_length(&self) -> usize {
+        self.length
+    }
+
+    /// Returns the number of bytes in the payload.
+    pub fn len_payload(&self) -> usize {
+        self.data.len()
+    }
+
+    /// Returns the number of bytes bytes in the packet.
+    /// To be clear, this is the length of the received TCP packet.
     pub fn len(&self) -> usize {
         self.data.len()
+    }
+
+    /// Tries to parse raw bytes and return in order:
+    /// (Packet Length, Packet ID, Packet payload bytes)
+    fn parse_packet(data: &[u8]) -> Result<(usize, PacketId, &[u8]), PacketError> {
+        let packet_length: (i32, usize) = varint::read(data).map_err(|e| {
+            warn!("Failed to decode packet length: {e}");
+            PacketError::LengthDecodingError
+        })?;
+
+        // We don't add + 1 because we're dealing with 0-indexing.
+        let except_length = &data[packet_length.1..];
+        let packet_id: (i32, usize) = varint::read(except_length).map_err(|e| {
+            warn!("Failed to decode packet ID: {e}");
+            PacketError::IdDecodingError
+        })?;
+
+        // So this is essentially "except_length_and_id", the continuation of `except_length`
+        let payload = &except_length[packet_id.1..];
+
+        let length_value: usize = packet_length.0.try_into().map_err(|e| {
+            warn!("Failed to cast length i32 -> usize: {e}");
+            PacketError::LengthDecodingError
+        })?;
+
+        let id_obj = PacketId::new(packet_id.0, packet_id.1);
+
+        Ok((length_value, id_obj, payload))
     }
 }
 
@@ -61,7 +121,9 @@ impl<'a> Packet<'a> {
 impl<'a> Default for Packet<'a> {
     fn default() -> Self {
         Self {
-            id: Ok(PacketId::default()),
+            length: usize::default(),
+            id: PacketId::default(),
+            payload: &[],
             data: &[],
         }
     }
@@ -80,29 +142,25 @@ pub enum PacketType {
 }
 
 // TODO: Implement std::Display. Print packet type (if found) and value.
+
+/// id_length is the length in bytes of the Packet ID VarInt.
+#[derive(Clone, Copy)]
 pub struct PacketId {
     id: i32,
     id_length: usize,
 }
 
 impl PacketId {
+    // Instantiates a new PacketId with given id and id_length.
+    // To be clear, id_length is the length in bytes of the VarInt.
+    pub fn new(id: i32, id_length: usize) -> Self {
+        Self { id, id_length }
+    }
+
     pub fn get_value(&self) -> i32 {
         self.id
     }
 
-    /// Returns the length in bytes of the id.
-    /// Due to VarInt encoding, ids larger than 0x7F (127) will have a length greater than 1 byte.
-    /// Values are encoded in 7-bit chunks, with the 8th bit indicating whether another byte follows.
-    ///
-    /// # Examples
-    ///
-    /// ```rust
-    /// let large_id = PacketId::new(0x80); // 128, which is > 127
-    /// assert!(large_id.len() > 1);
-    ///
-    /// let small_id = PacketId::new(0x7F); // 127
-    /// assert_eq!(small_id.len(), 1);
-    /// ```
     pub fn len(&self) -> usize {
         self.id_length
     }
@@ -166,24 +224,115 @@ impl Default for PacketId {
 pub enum PacketError {
     #[error("Failed to decode the packet id")]
     IdDecodingError,
+    #[error("Failed to decode the packet length")]
+    LengthDecodingError,
 }
 
-// TODO: continue tests
+// TODO: I wonder if having "invalid" value, like a too short/long Length should propagate an error
+// when creating a Packet.
 
 #[cfg(test)]
 mod tests {
+
     use super::*;
 
     #[test]
-    fn test_packet_creation() {
-        let data = [1, 2, 3, 4, 5, 6, 7, 8, 9, 10];
-        let length = 4;
+    fn test_packet_creation_valid() {
+        // Length = ID + Data = 4
+        // ID = 4
+        // Data = &[1, 2, 3]
+        let init_data = &[4, 4, 1, 2, 3];
 
-        let packet = Packet::new(&data);
+        let packet: Packet = Packet::new(init_data).expect("Failed to create packet");
 
-        let data = [0; 1024];
-        let length = 1024;
+        assert_eq!(packet.get_length(), 4);
+        assert_eq!(packet.len(), init_data.len());
+        assert_eq!(packet.get_id().get_value(), 4);
+        assert_eq!(packet.get_payload(), &[1, 2, 3]);
+        assert_eq!(packet.get_full_packet(), init_data);
+    }
 
-        //assert_eq!(packet.data, data);
+    #[test]
+    fn test_packet_creation_invalid_length_too_short() {
+        // Length = 1
+        // ID = 4
+        // Data = &[1, 2, 3]
+        let init_data = &[1, 4, 1, 2, 3];
+
+        let packet: Packet = Packet::new(init_data).expect("Failed to create packet");
+
+        assert_eq!(packet.get_length(), 1);
+        assert_eq!(packet.len(), init_data.len());
+        assert_eq!(packet.get_id().get_value(), 4);
+        assert_eq!(packet.get_payload(), &[1, 2, 3]);
+        assert_eq!(packet.get_full_packet(), init_data);
+    }
+
+    #[test]
+    fn test_packet_creation_invalid_length_too_long() {
+        // Length = 2048
+        // ID = 4
+        // Data = &[1, 2, 3]
+
+        let mut init_data = varint::write(2048); // Length
+        init_data.push(4); // ID
+        init_data.push(1); // Data
+        init_data.push(2);
+        init_data.push(3);
+
+        let packet: Packet = Packet::new(&init_data).expect("Failed to create packet");
+
+        assert_eq!(packet.get_length(), 2048);
+        assert_eq!(packet.get_id().get_value(), 4);
+        assert_eq!(packet.get_payload(), &[1, 2, 3]);
+
+        assert_eq!(packet.get_full_packet(), init_data);
+        assert_eq!(packet.len(), init_data.len());
+    }
+
+    #[test]
+    fn test_packet_creation_valid_varint_length() {
+        // Length = 256
+        // ID = 4
+        // Data = &[255; u8], 255 because it's + 1 with the ID
+
+        let mut init_data: Vec<u8> = varint::write(256);
+        init_data.push(4);
+        let data: &[u8] = &(1..=255).collect::<Vec<u8>>()[..];
+        init_data.extend(data);
+
+        let packet: Packet = Packet::new(&init_data).expect("Failed to create packet");
+
+        assert_eq!(packet.get_length(), 256);
+        assert_eq!(packet.get_id().get_value(), 4);
+        assert_eq!(packet.get_payload(), data);
+
+        assert_eq!(packet.get_full_packet(), init_data);
+        assert_eq!(packet.len(), init_data.len());
+    }
+
+    #[test]
+    fn test_packet_creation_valid_varint_length_id() {
+        // Length = ID(varint) + Data = ?
+        // ID = 1000
+        // Data = &[1, 2, 3]
+
+        let id = varint::write(1000);
+        let data = &[1, 2, 3];
+        let length = varint::write((id.len() + data.len()) as i32);
+
+        let mut init_data = Vec::new();
+        init_data.extend(length);
+        init_data.extend(&id);
+        init_data.extend(data);
+
+        let packet: Packet = Packet::new(&init_data).expect("Failed to create packet");
+
+        assert_eq!(packet.get_length(), id.len() + data.len());
+        assert_eq!(packet.get_id().get_value(), 1000);
+        assert_eq!(packet.get_payload(), data);
+
+        assert_eq!(packet.get_full_packet(), init_data);
+        assert_eq!(packet.len(), init_data.len());
     }
 }

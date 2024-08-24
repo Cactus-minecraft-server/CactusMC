@@ -1,21 +1,17 @@
 //! This module manages the TCP server and how/where the packets are managed/sent.
 
 use crate::config;
-use crate::packet::utils::print;
-use crate::packet::{utils, Packet};
+use crate::packet::{Packet, PacketId};
+use log::{debug, warn};
 use std::net::SocketAddr;
 use tokio::io::{AsyncReadExt, AsyncWriteExt};
 use tokio::net::TcpListener;
 use tokio::net::TcpStream;
 
-// All data sent over the network (except for VarInt and VarLong)
-
-// TODO: Logging.
-
-/// Global buffer/packet size allocation when allocating for a new packet buffer (in bytes).
+/// Global buffer size when allocating a new packet (in bytes).
 const BUFFER_SIZE: usize = 1024;
 
-/// This function listens for every incomming TCP connection/packet.
+/// Listens for every incoming TCP connection.
 #[tokio::main]
 pub async fn listen() -> Result<(), Box<dyn std::error::Error>> {
     let config = config::Settings::new();
@@ -26,46 +22,50 @@ pub async fn listen() -> Result<(), Box<dyn std::error::Error>> {
         let (socket, addr) = listener.accept().await?;
         tokio::spawn(async move {
             if let Err(e) = handle_connection(socket, addr).await {
-                eprintln!("Error handling connection from {}: {}", addr, e);
+                warn!("Error handling connection from {addr}: {e}");
             }
         });
     }
 }
 
+/// State of each connection. (e.g.: handshake, play, ...)
 enum ConnectionState {
     Handshake,
 }
 
+/// Object representing a TCP connection.
 struct Connection {}
 
-/// This function handles each connection.
+/// Handles each connection
 async fn handle_connection(
     mut socket: TcpStream,
     addr: SocketAddr,
 ) -> Result<(), Box<dyn std::error::Error>> {
-    println!("New connection: {}", addr);
+    debug!("New connection: {addr}");
     // TODO: Maybe have a bigger/dynamic buffer?
     let mut buf = [0; BUFFER_SIZE];
 
     loop {
         let n = socket.read(&mut buf).await?;
         if n == 0 {
-            println!("Connection closed: {}", addr);
+            debug!("Connection closed: {addr}");
             return Ok(());
         }
 
-        let response = handle_packet(&buf[..n]).await;
+        let response = handle_packet(&buf[..n]).await?;
         socket.write_all(&response).await?;
     }
 }
 
-/// This function takes the buffer, an array of bytes,
-async fn handle_packet(buffer: &[u8]) -> Vec<u8> {
-    let packet = Packet::new(buffer);
-    print::blue(&format!("NEW PACKET ({}): {}", packet.len(), packet));
+/// Takes a packet buffer and returns a reponse.
+async fn handle_packet(buffer: &[u8]) -> Result<Vec<u8>, Box<dyn std::error::Error>> {
+    print!("\n\n\n"); // So that each logged packet is clearly visible.
 
-    let packet_id = packet.get_id().as_ref().expect("Could not get packet ID!");
-    println!("PACKET ID: {}", packet_id.get_value());
+    let packet = Packet::new(buffer)?;
+    debug!("NEW PACKET ({}): {}", packet.len(), packet);
+
+    let packet_id: PacketId = packet.get_id();
+    debug!("PACKET ID: {}", packet_id.get_value());
 
     // create a response
 
@@ -74,5 +74,5 @@ async fn handle_packet(buffer: &[u8]) -> Vec<u8> {
     response.extend_from_slice(buffer);
 
     print!("\n\n\n");
-    response
+    Ok(response)
 }
