@@ -28,7 +28,7 @@ pub fn create_eula(file_path:&'static str) -> io::Result<()> {
 
 
     let final_input = format!(
-        "#By changing the setting below to TRUE you are indicating your agreement to our EULA (https://account.mojang.com/documents/minecraft_eula).\n#{}\neula=false",
+        "#By changing the setting below to TRUE you are indicating your agreement to our EULA (https://aka.ms/MinecraftEULA).\n#{}\neula=false",
         formatted_time,
 
     );
