@@ -111,3 +111,5 @@ fabric.properties
 .server.properties
 .src/server.properties
 .eula.txt
+eula.txt
+server.properties
