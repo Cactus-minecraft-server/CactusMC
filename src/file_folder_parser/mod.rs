@@ -2,7 +2,7 @@ use std::fs::File;
 use std::io::{self, Write ,BufRead};
 use std::path::Path;
 use colored::Colorize;
-
+mod utils;
 
 pub fn create_server_properties(content:&str,file_path:&'static str,formatted_time:&str) -> io::Result<()> {
     let path = Path::new(file_path);
@@ -12,9 +12,7 @@ pub fn create_server_properties(content:&str,file_path:&'static str,formatted_ti
         content,
     );
     // verify if the file already exist
-    if path.exists() {
-        println!("the file \"{}\" already exists, the program will use this one.",file_path.blue());
-    } else {
+    if utils::check_file(path) == false{
         let mut file = File::create(path)?;
         file.write_all(final_input.as_bytes())?;
         println!("The file \"{}\" has been created.",file_path.blue())
@@ -32,9 +30,7 @@ pub fn create_eula(file_path:&'static str,formatted_time:&str) -> io::Result<()>
     );
 
     let path = Path::new(file_path);
-    if path.exists() {
-        println!("the file {} is already been created",file_path.green());
-    } else {
+    if utils::check_file(path) == false{
         let mut file = File::create(path)?;
         file.write_all(final_input.as_bytes())?;
         println!("Creation of the file {}",file_path.red())
@@ -61,6 +57,3 @@ pub fn check_eula(path: &'static str) -> bool {
 
     false
 }
-
-
-
