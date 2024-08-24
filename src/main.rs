@@ -13,20 +13,26 @@ mod file_folder_parser;
 mod slp;
 use std::process;
 
+use chrono::{DateTime, Local, Utc};
 use colored::Colorize;
 use file_folder_parser::check_eula;
 use log::{error, info, warn};
 
 fn main() {
+    //time
+    let now = Utc::now();
+    let local_time: DateTime<Local> = now.with_timezone(&Local); //convert to local machine time
+    let formatted_time = local_time.format("%a %b %d %H:%M:%S %Y").to_string(); //format the time
+
     let welcome = "Hello, world MiFerris";
-    println!("{}",welcome.green());
-    let server_properties_write = file_folder_parser::create_server_properties(consts::file_content::SERVER_PROPERTIES,consts::filepaths::PROPERTIES);
-    let eula_create = file_folder_parser::create_eula(consts::filepaths::EULA);
+    println!("{}",welcome.bold().green());
+    let server_properties_write = file_folder_parser::create_server_properties(consts::file_content::SERVER_PROPERTIES,consts::filepaths::PROPERTIES,&formatted_time);
+    let eula_create = file_folder_parser::create_eula(consts::filepaths::EULA,&formatted_time);
     if check_eula(consts::filepaths::EULA) {
-        let response = "Great, you already agreed to the EULA";
+        let response = "Great, you have already agreed to the EULA";
         println!("{}",response.green().bold());
     }else {
-        let response = "You have to agreed to the eula.txt before start the server";
+        let response = "You have to agreed to the eula.txt before starting the server";
         println!("{}",response.to_uppercase().red().bold());
         process::exit(1)
     }

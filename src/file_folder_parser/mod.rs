@@ -1,30 +1,28 @@
 use std::fs::File;
 use std::io::{self, Write ,BufRead};
 use std::path::Path;
-
-
-use chrono::{DateTime, Local, Utc};
 use colored::Colorize;
 
 
-pub fn create_server_properties(content:&str,file_path:&'static str) -> io::Result<()> {
+pub fn create_server_properties(content:&str,file_path:&'static str,formatted_time:&str) -> io::Result<()> {
     let path = Path::new(file_path);
-
+    let final_input = format!(
+        "#Minecraft server properties\n#{}\n{}",
+        formatted_time,
+        content,
+    );
     // verify if the file already exist
     if path.exists() {
-        println!("the file \"{}\" already exist, the programm will use this one.",file_path.blue());
+        println!("the file \"{}\" already exists, the program will use this one.",file_path.blue());
     } else {
         let mut file = File::create(path)?;
-        file.write_all(content.as_bytes())?;
-        println!("the file \"{}\" have been created.",file_path.blue())
+        file.write_all(final_input.as_bytes())?;
+        println!("The file \"{}\" has been created.",file_path.blue())
     }
     Ok(())
 }//test passed
 
-pub fn create_eula(file_path:&'static str) -> io::Result<()> {
-    let now = Utc::now();
-    let local_time: DateTime<Local> = now.with_timezone(&Local); //convert to local machine time
-    let formatted_time = local_time.format("%a %b %d %H:%M:%S %Y").to_string(); //format the time
+pub fn create_eula(file_path:&'static str,formatted_time:&str) -> io::Result<()> {
 
 
     let final_input = format!(
@@ -35,7 +33,7 @@ pub fn create_eula(file_path:&'static str) -> io::Result<()> {
 
     let path = Path::new(file_path);
     if path.exists() {
-        println!("the file {} is already created",file_path.green());
+        println!("the file {} is already been created",file_path.green());
     } else {
         let mut file = File::create(path)?;
         file.write_all(final_input.as_bytes())?;
@@ -54,7 +52,7 @@ pub fn check_eula(path: &'static str) -> bool {
         for line in reader.lines() {
             if let Ok(line) = line {
                 if line.starts_with("eula=") {
-                    let eula_value = line.split('=').nth(1).unwrap_or("");
+                    let eula_value = line.split('=').nth(1).unwrap_or("").to_lowercase();
                     return eula_value == "true";
                 }
             }
