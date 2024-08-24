@@ -84,7 +84,7 @@ fn init_ctrlc_handler() -> Result<(), Box<dyn std::error::Error>> {
 
 /// Prints the starting greetings
 fn greet() {
-    const GREETINGS: &str = "Hello, world MiFerris!";
+    const GREETINGS: &str = "Hello, world from Copper!";
     info!("{}", GREETINGS.green().bold());
 }
 
