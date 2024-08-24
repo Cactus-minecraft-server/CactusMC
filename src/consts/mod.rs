@@ -9,14 +9,15 @@ pub mod minecraft {
     pub const PROTOCOL_VERSION: usize = 767;
 }
 
-/// Module where we store constant file paths used by the server.
+/// Module used to store file paths relative to the server binary.
 pub mod filepaths {
     /// server.properties file, used to store server settings.
-    pub const PROPERTIES: &'static str = "server.properties"; //let's keep that, if it's not working put a .toml
+    pub const PROPERTIES: &'static str = "server.properties";
     pub const EULA: &'static str = "eula.txt";
 }
-pub mod file_content{
-    pub const SERVER_PROPERTIES:&str = r#"accepts-transfers=false
+
+pub mod file_content {
+    pub const SERVER_PROPERTIES: &str = r#"accepts-transfers=false
 allow-flight=false
 allow-nether=true
 broadcast-console-to-ops=true
@@ -78,9 +79,5 @@ use-native-transport=true
 view-distance=10
 white-list=false"#;
 
-
-
-
-
+    pub const EULA: &str = r"eula=false";
 }
-

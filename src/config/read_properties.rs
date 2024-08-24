@@ -31,7 +31,6 @@ impl Properties {
             .map(String::as_ref)
             .ok_or(PropertyNotFoundError(key))
     }
-
 }
 
 #[derive(Debug)]
@@ -94,6 +93,14 @@ impl fmt::Display for PropertiesParseError {
     }
 }
 
+/// Parses a configuration file and loads the keys, value pairs into a HashMap.
+///
+/// # Arguments
+/// * `reader` - A buffered reader that provides the input data.
+///
+/// # Returns
+///
+/// Returns a Result of `Properties` which itself contains the HashMap.
 pub fn read_properties<R: BufRead>(reader: &mut R) -> Result<Properties, PropertiesParseError> {
     let mut properties = Properties::default();
 
@@ -102,11 +109,11 @@ pub fn read_properties<R: BufRead>(reader: &mut R) -> Result<Properties, Propert
 
         let line = line.map_err(|e| PropertiesParseError::new_io(line_number, e))?;
 
-        let line = line.trim(); //remove the spaces or the tabulation
-        //add this to avoid panic! when i use # ! for comments
+        let line = line.trim(); // Remove the spaces or tabulations
+
+        // This check allows commenting with either "#" or "!".
         if line.is_empty() || line.starts_with("#") || line.starts_with("!") {
             continue;
-
         }
 
         let (field, value) = line
