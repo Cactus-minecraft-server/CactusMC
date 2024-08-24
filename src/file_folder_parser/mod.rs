@@ -1,4 +1,3 @@
-use colored::Colorize;
 use std::fs::File;
 use std::io::{self, BufRead, Write};
 use std::path::Path;
@@ -19,7 +18,7 @@ pub fn create_server_properties(
     if utils::check_file(path) == false {
         let mut file = File::create(path)?;
         file.write_all(final_input.as_bytes())?;
-        println!("The file \"{}\" has been created.", file_path.blue())
+        println!("The file \"{}\" has been created.", file_path);
     }
     Ok(())
 } //test passed
@@ -35,7 +34,7 @@ pub fn create_eula(file_path: &'static str, formatted_time: &str) -> io::Result<
     if utils::check_file(path) == false {
         let mut file = File::create(path)?;
         file.write_all(final_input.as_bytes())?;
-        println!("Creation of the file {}", file_path.red())
+        println!("Creation of the file {}", file_path)
     }
 
     Ok(())

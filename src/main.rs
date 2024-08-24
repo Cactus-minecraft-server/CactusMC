@@ -1,9 +1,5 @@
-//! The entrypoint of the server.
+//! The servers's entrypoint file.
 
-// use std::{path::PathBuf, str::FromStr};
-
-// use consts::filepaths;
-// use std::path::Path;
 mod config;
 mod consts;
 mod file_folder_parser;
@@ -11,25 +7,30 @@ mod logging;
 mod net;
 mod packet;
 mod slp;
-use std::{io, process::exit};
+use std::io;
 
 use chrono::{DateTime, Local, Utc};
 use colored::Colorize;
 use file_folder_parser::check_eula;
-use log::{debug, error, info, warn};
+use log::{error, info, warn};
 
 fn main() {
     info!("[ SERVER STARTING... ]");
 
-    early_init().map_err(|e| {
+    if let Err(e) = early_init() {
         error!("Failed to start the server, error in early initialization: {e}. \nExiting...");
-        exit(-1);
-    });
+        gracefully_exit(-1);
+    }
 
-    init().map_err(|e| {
+    if let Err(e) = init() {
         error!("Failed to start the server, error in initialization: {e}. \nExiting...");
-        exit(-1);
-    });
+        gracefully_exit(-1);
+    }
+
+    if let Err(e) = start() {
+        error!("Failed to start the server: {e}. \nExiting...");
+        gracefully_exit(-1);
+    }
 
     info!("[ SERVER EXITED ]");
 }
@@ -46,15 +47,21 @@ fn early_init() -> Result<(), Box<dyn std::error::Error>> {
     Ok(())
 }
 
+/// Essential server initialization logic.
 fn init() -> Result<(), Box<dyn std::error::Error>> {
     init_ctrlc_handler()?;
 
     greet();
 
-    make_server_properties();
+    make_server_properties()?;
 
     make_eula()?;
 
+    Ok(())
+}
+
+/// Starts up the server.
+fn start() -> Result<(), Box<dyn std::error::Error>> {
     info!("[ SERVER STARTED ]");
 
     net::listen().map_err(|e| {
@@ -69,7 +76,7 @@ fn init() -> Result<(), Box<dyn std::error::Error>> {
 fn init_ctrlc_handler() -> Result<(), Box<dyn std::error::Error>> {
     ctrlc::set_handler(move || {
         info!("Received Ctrl+C, shutting down...");
-        exit(0);
+        gracefully_exit(0);
     })?;
 
     Ok(())
@@ -109,7 +116,7 @@ fn make_eula() -> io::Result<()> {
 
     if !check_eula(consts::filepaths::EULA) {
         error!("Cannot start the server. You have not agreed to the 'eula.txt'.");
-        exit(-1);
+        gracefully_exit(-1);
     }
 
     Ok(())
@@ -120,13 +127,17 @@ fn make_eula() -> io::Result<()> {
 fn test() {
     info!("[ BEGIN test() ]");
 
+    // Do not remove this line, yet.
+    let _ = packet::Packet::new(&[]);
+
     info!("Hello, world from test()!");
 
     info!("[ END test()]");
 }
 
-/// Exits the server with an exit code.
-fn exit(code: i32) -> ! {
+/// Gracefully exits the server with an exit code.
+fn gracefully_exit(code: i32) -> ! {
+    // Well, for now it's not "gracefully" exiting.
     if code == 0 {
         info!("[ SERVER EXITED ]");
     } else {

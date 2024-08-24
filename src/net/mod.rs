@@ -2,20 +2,16 @@
 
 use crate::config;
 use crate::packet::{Packet, PacketId};
-use log::{debug, error, warn};
+use log::{debug, warn};
 use std::net::SocketAddr;
 use tokio::io::{AsyncReadExt, AsyncWriteExt};
 use tokio::net::TcpListener;
 use tokio::net::TcpStream;
 
-// All data sent over the network (except for VarInt and VarLong)
-
-// TODO: Logging.
-
-/// Global buffer/packet size allocation when allocating for a new packet buffer (in bytes).
+/// Global buffer size when allocating a new packet (in bytes).
 const BUFFER_SIZE: usize = 1024;
 
-/// This function listens for every incomming TCP connection/packet.
+/// Listens for every incoming TCP connection.
 #[tokio::main]
 pub async fn listen() -> Result<(), Box<dyn std::error::Error>> {
     let config = config::Settings::new();
@@ -32,13 +28,15 @@ pub async fn listen() -> Result<(), Box<dyn std::error::Error>> {
     }
 }
 
+/// State of each connection. (e.g.: handshake, play, ...)
 enum ConnectionState {
     Handshake,
 }
 
+/// Object representing a TCP connection.
 struct Connection {}
 
-/// This function handles each connection.
+/// Handles each connection
 async fn handle_connection(
     mut socket: TcpStream,
     addr: SocketAddr,
@@ -59,9 +57,9 @@ async fn handle_connection(
     }
 }
 
-/// This function takes the buffer, an array of bytes,
+/// Takes a packet buffer and returns a reponse.
 async fn handle_packet(buffer: &[u8]) -> Result<Vec<u8>, Box<dyn std::error::Error>> {
-    print!("\n\n\n"); // Give some separation
+    print!("\n\n\n"); // So that each logged packet is clearly visible.
 
     let packet = Packet::new(buffer)?;
     debug!("NEW PACKET ({}): {}", packet.len(), packet);

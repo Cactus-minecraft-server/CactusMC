@@ -1,6 +1,5 @@
 use env_logger::Builder;
 use log::LevelFilter;
-use std::io::Write;
 
 /// Initializes the logging for the whole application
 pub fn init(log_level: LevelFilter) {
@@ -18,6 +17,8 @@ pub fn init(log_level: LevelFilter) {
     //        record.args()
     //    )
     //});
+
+    // And add use::io::Write; for the above code.
 
     builder.filter_level(log_level);
 
