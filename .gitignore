@@ -109,7 +109,7 @@ fabric.properties
 
 .idea/
 .server.properties
-.src/server.properties
+src/server.properties
 .eula.txt
 eula.txt
 server.properties

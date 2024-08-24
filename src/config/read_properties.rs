@@ -1,6 +1,6 @@
 use std::collections::HashMap;
 use std::error::Error;
-use std::io::{BufRead, Write};
+use std::io::BufRead;
 use std::{fmt, io};
 
 #[derive(Debug)]
@@ -32,44 +32,6 @@ impl Properties {
             .ok_or(PropertyNotFoundError(key))
     }
 
-    /// Sets a value for a property key.
-    pub fn set_property(&mut self, key: String, value: String) -> Option<String> {
-        self.0.insert(key, value)
-    }
-
-    pub fn write_without_spaces<W: Write>(&self, writer: &mut W) -> Result<(), io::Error> {
-        for (key, value) in &self.0 {
-            writeln!(writer, "{}={}", key, value)?;
-        }
-
-        Ok(())
-    }
-
-    pub fn write_with_spaces<W: Write>(&self, writer: &mut W) -> Result<(), io::Error> {
-        for (key, value) in &self.0 {
-            writeln!(writer, "{} = {}", key, value)?;
-        }
-
-        Ok(())
-    }
-
-    pub fn write_aligned<W: Write>(&self, writer: &mut W) -> Result<(), io::Error> {
-        let max_length = self.0.keys().map(|k| k.len()).max().unwrap_or_default();
-
-        for (key, value) in &self.0 {
-            let padded_key = {
-                let pad = " ".repeat(max_length.saturating_sub(key.len()));
-                let mut padded = String::with_capacity(max_length);
-                padded += key;
-                padded += &pad;
-                padded
-            };
-
-            writeln!(writer, "{} = {}", padded_key, value)?;
-        }
-
-        Ok(())
-    }
 }
 
 #[derive(Debug)]
