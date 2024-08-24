@@ -11,7 +11,10 @@ mod net;
 mod packet;
 mod file_folder_parser;
 mod slp;
+use std::process;
+
 use colored::Colorize;
+use file_folder_parser::check_eula;
 use log::{error, info, warn};
 
 fn main() {
@@ -19,6 +22,14 @@ fn main() {
     println!("{}",welcome.green());
     let server_properties_write = file_folder_parser::create_server_properties(consts::file_content::SERVER_PROPERTIES,consts::filepaths::PROPERTIES);
     let eula_create = file_folder_parser::create_eula(consts::file_content::EULA, consts::filepaths::EULA);
+    if check_eula(consts::filepaths::EULA) {
+        let response = "Great, you already agreed to the EULA";
+        println!("{}",response.green().bold());
+    }else {
+        let response = "You have to agreed to the eula.txt before start the server";
+        println!("{}",response.to_uppercase().red().bold());
+        process::exit(1)
+    }
     // A testing function, only in debug mode
     #[cfg(debug_assertions)]
     test();

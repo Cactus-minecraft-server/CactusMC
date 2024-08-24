@@ -1,10 +1,8 @@
 use std::fs::File;
-use std::io::{self, Write};
+use std::io::{self, Write ,BufRead};
 use std::path::Path;
 
 use colored::Colorize;
-
-use crate::config;
 
 
 pub fn create_server_properties(content:&str,file_path:&'static str) -> io::Result<()> {
@@ -23,20 +21,35 @@ pub fn create_server_properties(content:&str,file_path:&'static str) -> io::Resu
 
 pub fn create_eula(content:&str,file_path:&'static str) -> io::Result<()> {
     let path = Path::new(file_path);
-    if path.exists() && check_eula(file_path) == true {
-        println!("You already agreed too {}",file_path.green());
+    if path.exists() {
+        println!("the file {} is already created",file_path.green());
     } else {
         let mut file = File::create(path)?;
         file.write_all(content.as_bytes())?;
-        println!("You have to agree to {} before run the server",file_path.red())
+        println!("Creation of the file {}",file_path.red())
     }
+
     Ok(())
 }
-pub fn check_eula(file_path:&'static str) ->bool{
-    let path = Path::new(file_path);
-    let eula_result = config::read(path).expect("error reading eula_file");
-    let agree = eula_result.get_property("eula").unwrap().parse::<bool>().unwrap();
-    agree
 
 
+pub fn check_eula(path: &'static str) -> bool {
+    println!("Reading the file {}…",path);
+    if let Ok(file) = File::open(Path::new(path)) {
+        let reader = io::BufReader::new(file);
+
+        for line in reader.lines() {
+            if let Ok(line) = line {
+                if line.starts_with("eula=") {
+                    let eula_value = line.split('=').nth(1).unwrap_or("");
+                    return eula_value == "true";
+                }
+            }
+        }
+    }
+
+    false
 }
+
+
+
