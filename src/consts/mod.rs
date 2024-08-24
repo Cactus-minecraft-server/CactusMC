@@ -75,8 +75,8 @@ resource-pack-sha1=
 max-world-size=29999984"#;
 
 
-pub const EULA:&str= r#"#By changing the setting below to TRUE you are indicating your agreement to our EULA (https://account.mojang.com/documents/minecraft_eula).
-#Mon Mar 20 21:15:37 PDT 2017
-eula=false"#;
+
+
+
 }
 

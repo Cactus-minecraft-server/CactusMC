@@ -21,7 +21,7 @@ fn main() {
     let welcome = "Hello, world MiFerris";
     println!("{}",welcome.green());
     let server_properties_write = file_folder_parser::create_server_properties(consts::file_content::SERVER_PROPERTIES,consts::filepaths::PROPERTIES);
-    let eula_create = file_folder_parser::create_eula(consts::file_content::EULA, consts::filepaths::EULA);
+    let eula_create = file_folder_parser::create_eula(consts::filepaths::EULA);
     if check_eula(consts::filepaths::EULA) {
         let response = "Great, you already agreed to the EULA";
         println!("{}",response.green().bold());
