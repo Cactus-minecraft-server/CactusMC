@@ -11,7 +11,7 @@ mod logging;
 mod net;
 mod packet;
 mod slp;
-use std::io;
+use std::{io, process::exit};
 
 use chrono::{DateTime, Local, Utc};
 use colored::Colorize;
@@ -19,17 +19,17 @@ use file_folder_parser::check_eula;
 use log::{debug, error, info, warn};
 
 fn main() {
-    // A testing function, only in debug mode
-    #[cfg(debug_assertions)]
-    test();
-    logging::init(log::LevelFilter::Debug);
+    info!("[ SERVER STARTING... ]");
 
-    info!("[ SERVER STARTED ]");
-
-    if let Err(e) = init() {
-        error!("Failed to start the server: {e}. \nExiting...");
+    early_init().map_err(|e| {
+        error!("Failed to start the server, error in early initialization: {e}. \nExiting...");
         exit(-1);
-    }
+    });
+
+    init().map_err(|e| {
+        error!("Failed to start the server, error in initialization: {e}. \nExiting...");
+        exit(-1);
+    });
 
     info!("[ SERVER EXITED ]");
 }
@@ -38,6 +38,10 @@ fn main() {
 fn early_init() -> Result<(), Box<dyn std::error::Error>> {
     // This must executes as early as possible
     logging::init(log::LevelFilter::Debug);
+
+    // A testing function, only in debug mode
+    #[cfg(debug_assertions)]
+    test();
 
     Ok(())
 }
@@ -51,10 +55,7 @@ fn init() -> Result<(), Box<dyn std::error::Error>> {
 
     make_eula()?;
 
-    //let config_file = config::read(Path::new(consts::filepaths::PROPERTIES))
-    //   .expect("Error reading server.properties file");
-
-    // init_slp(config_file) or just instantiate the config file in the init_slp function
+    info!("[ SERVER STARTED ]");
 
     net::listen().map_err(|e| {
         error!("Failed to listen for packets: {e}");
