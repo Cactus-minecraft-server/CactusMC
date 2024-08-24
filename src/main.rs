@@ -11,7 +11,7 @@ mod logging;
 mod net;
 mod packet;
 mod slp;
-use std::{io, process};
+use std::io;
 
 use chrono::{DateTime, Local, Utc};
 use colored::Colorize;
@@ -24,12 +24,6 @@ fn main() {
     test();
     logging::init(log::LevelFilter::Debug);
 
-    ctrlc::set_handler(move || {
-        info!("Received Ctrl+C, shutting down...");
-        exit(0);
-    })
-    .expect("Error setting Ctrl+C handler");
-
     info!("[ SERVER STARTED ]");
 
     if let Err(e) = init() {
@@ -40,8 +34,23 @@ fn main() {
     info!("[ SERVER EXITED ]");
 }
 
+/// Logic that must executes as early as possibe
+fn early_init() -> Result<(), Box<dyn std::error::Error>> {
+    // This must executes as early as possible
+    logging::init(log::LevelFilter::Debug);
+
+    Ok(())
+}
+
 fn init() -> Result<(), Box<dyn std::error::Error>> {
+    init_ctrlc_handler()?;
+
     greet();
+
+    make_server_properties();
+
+    make_eula()?;
+
     //let config_file = config::read(Path::new(consts::filepaths::PROPERTIES))
     //   .expect("Error reading server.properties file");
 
@@ -55,6 +64,16 @@ fn init() -> Result<(), Box<dyn std::error::Error>> {
     Ok(())
 }
 
+/// Sets up a behavior when the user executes CTRL + C.
+fn init_ctrlc_handler() -> Result<(), Box<dyn std::error::Error>> {
+    ctrlc::set_handler(move || {
+        info!("Received Ctrl+C, shutting down...");
+        exit(0);
+    })?;
+
+    Ok(())
+}
+
 /// Prints the starting greetings
 fn greet() {
     const GREETINGS: &str = "Hello, world MiFerris!";
@@ -62,18 +81,20 @@ fn greet() {
 }
 
 /// If 'server.properties' does not exist, creates the file and populate it with defaults.
-fn make_server_properties() {
+fn make_server_properties() -> io::Result<()> {
     // Get time
     let now = Utc::now();
     let local_time: DateTime<Local> = now.with_timezone(&Local); // Convert to local machine time
     let formatted_time = local_time.format("%a %b %d %H:%M:%S %Y").to_string(); // Format the time
 
     // Create the file
-    let server_properties_write = file_folder_parser::create_server_properties(
+    let _ = file_folder_parser::create_server_properties(
         consts::file_content::SERVER_PROPERTIES,
         consts::filepaths::PROPERTIES,
         &formatted_time,
-    );
+    )?;
+
+    Ok(())
 }
 
 /// If 'eula.txt' does not exist, create the file and populate it with defaults.
@@ -83,14 +104,11 @@ fn make_eula() -> io::Result<()> {
     let local_time: DateTime<Local> = now.with_timezone(&Local); // Convert to local machine time
     let formatted_time = local_time.format("%a %b %d %H:%M:%S %Y").to_string(); // Format the time
 
-    let eula_create = file_folder_parser::create_eula(consts::filepaths::EULA, &formatted_time)?;
-    if check_eula(consts::filepaths::EULA) {
-        let response = "Great, you have already agreed to the EULA.".green().bold();
-        debug!("{response}");
-    } else {
-        let response = "Cannot start server. You have not agreed to the 'eula.txt' before starting the server.";
-        println!("{}", response.to_uppercase().red().bold());
-        process::exit(1)
+    let _ = file_folder_parser::create_eula(consts::filepaths::EULA, &formatted_time)?;
+
+    if !check_eula(consts::filepaths::EULA) {
+        error!("Cannot start the server. You have not agreed to the 'eula.txt'.");
+        exit(-1);
     }
 
     Ok(())
