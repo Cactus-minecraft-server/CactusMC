@@ -2,6 +2,7 @@ use std::fs::File;
 use std::io::{self, Write ,BufRead};
 use std::path::Path;
 use colored::Colorize;
+use log::info;
 mod utils;
 
 pub fn create_server_properties(content:&str,file_path:&'static str,formatted_time:&str) -> io::Result<()> {
@@ -15,7 +16,7 @@ pub fn create_server_properties(content:&str,file_path:&'static str,formatted_ti
     if utils::check_file(path) == false{
         let mut file = File::create(path)?;
         file.write_all(final_input.as_bytes())?;
-        println!("The file \"{}\" has been created.",file_path.blue())
+        info!("The file \"{}\" has been created.",file_path.blue())
     }
     Ok(())
 }//test passed
@@ -33,7 +34,7 @@ pub fn create_eula(file_path:&'static str,formatted_time:&str) -> io::Result<()>
     if utils::check_file(path) == false{
         let mut file = File::create(path)?;
         file.write_all(final_input.as_bytes())?;
-        println!("Creation of the file {}",file_path.red())
+        info!("Creation of the file {}",file_path.red())
     }
 
     Ok(())
@@ -41,7 +42,7 @@ pub fn create_eula(file_path:&'static str,formatted_time:&str) -> io::Result<()>
 
 
 pub fn check_eula(path: &'static str) -> bool {
-    println!("Reading the file {}…",path);
+    info!("Reading the file {}…",path);
     if let Ok(file) = File::open(Path::new(path)) {
         let reader = io::BufReader::new(file);
 
