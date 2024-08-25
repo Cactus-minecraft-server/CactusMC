@@ -14,7 +14,8 @@ use colored::Colorize;
 use file_folder_parser::check_eula;
 use log::{error, info, warn};
 
-fn main() {
+#[tokio::main]
+async fn main() {
     info!("[ SERVER STARTING... ]");
 
     if let Err(e) = early_init() {
@@ -27,7 +28,7 @@ fn main() {
         gracefully_exit(-1);
     }
 
-    if let Err(e) = start() {
+    if let Err(e) = start().await {
         error!("Failed to start the server: {e}. \nExiting...");
         gracefully_exit(-1);
     }
@@ -61,10 +62,10 @@ fn init() -> Result<(), Box<dyn std::error::Error>> {
 }
 
 /// Starts up the server.
-fn start() -> Result<(), Box<dyn std::error::Error>> {
+async fn start() -> Result<(), Box<dyn std::error::Error>> {
     info!("[ SERVER STARTED ]");
 
-    net::listen().map_err(|e| {
+    net::listen().await.map_err(|e| {
         error!("Failed to listen for packets: {e}");
         e
     })?;
@@ -116,7 +117,7 @@ fn make_eula() -> io::Result<()> {
 
     if !check_eula(consts::filepaths::EULA) {
         let error_message = "Cannot start the server. You have not agreed to the 'eula.txt'.";
-        error!("{}",error_message.to_uppercase().red().bold());
+        error!("{}", error_message.to_uppercase().red().bold());
         gracefully_exit(-1);
     }
 
