@@ -1,5 +1,6 @@
 //! The servers's entrypoint file.
 
+mod commands;
 mod config;
 mod consts;
 mod file_folder_parser;
@@ -15,7 +16,7 @@ use log::{error, info, warn};
 async fn main() {
     info!("[ SERVER STARTING... ]");
 
-    if let Err(e) = early_init() {
+    if let Err(e) = early_init().await {
         error!("Failed to start the server, error in early initialization: {e}. \nExiting...");
         gracefully_exit(-1);
     }
@@ -34,22 +35,25 @@ async fn main() {
 }
 
 /// Logic that must executes as early as possibe
-fn early_init() -> Result<(), Box<dyn std::error::Error>> {
+async fn early_init() -> Result<(), Box<dyn std::error::Error>> {
     // This must executes as early as possible
     logging::init(log::LevelFilter::Debug);
+
+    // Adds custom behavior to CTRL + C signal
+    init_ctrlc_handler()?;
 
     // A testing function, only in debug mode
     #[cfg(debug_assertions)]
     test();
+
+    // Listens for cli input commands
+    commands::listen_console_commands().await;
 
     Ok(())
 }
 
 /// Essential server initialization logic.
 fn init() -> Result<(), Box<dyn std::error::Error>> {
-    // Adds custom behavior to CTRL + C signal
-    init_ctrlc_handler()?;
-
     // Printing a greeting message
     greet();
 
