@@ -7,11 +7,8 @@ mod logging;
 mod net;
 mod packet;
 mod slp;
-use std::io;
 
-use chrono::{DateTime, Local, Utc};
 use colored::Colorize;
-use file_folder_parser::check_eula;
 use log::{error, info, warn};
 
 #[tokio::main]
@@ -50,13 +47,14 @@ fn early_init() -> Result<(), Box<dyn std::error::Error>> {
 
 /// Essential server initialization logic.
 fn init() -> Result<(), Box<dyn std::error::Error>> {
+    // Adds custom behavior to CTRL + C signal
     init_ctrlc_handler()?;
 
+    // Printing a greeting message
     greet();
 
-    make_server_properties()?;
-
-    make_eula()?;
+    // Makes sure server files are initialized and valid.
+    file_folder_parser::init()?;
 
     Ok(())
 }
@@ -89,41 +87,6 @@ fn greet() {
     info!("{}", GREETINGS.green().bold());
 }
 
-/// If 'server.properties' does not exist, creates the file and populate it with defaults.
-fn make_server_properties() -> io::Result<()> {
-    // Get time
-    let now = Utc::now();
-    let local_time: DateTime<Local> = now.with_timezone(&Local); // Convert to local machine time
-    let formatted_time = local_time.format("%a %b %d %H:%M:%S %Y").to_string(); // Format the time
-
-    // Create the file
-    let _ = file_folder_parser::create_server_properties(
-        consts::file_content::SERVER_PROPERTIES,
-        consts::filepaths::PROPERTIES,
-        &formatted_time,
-    )?;
-
-    Ok(())
-}
-
-/// If 'eula.txt' does not exist, create the file and populate it with defaults.
-fn make_eula() -> io::Result<()> {
-    // Get time
-    let now = Utc::now();
-    let local_time: DateTime<Local> = now.with_timezone(&Local); // Convert to local machine time
-    let formatted_time = local_time.format("%a %b %d %H:%M:%S %Y").to_string(); // Format the time
-
-    let _ = file_folder_parser::create_eula(consts::filepaths::EULA, &formatted_time)?;
-
-    if !check_eula(consts::filepaths::EULA) {
-        let error_message = "Cannot start the server. You have not agreed to the 'eula.txt'.";
-        error!("{}", error_message.to_uppercase().red().bold());
-        gracefully_exit(-1);
-    }
-
-    Ok(())
-}
-
 #[cfg(debug_assertions)]
 /// A test fonction that'll only run in debug-mode. (cargo run) and not (cargo run --release)
 fn test() {
@@ -138,7 +101,7 @@ fn test() {
 }
 
 /// Gracefully exits the server with an exit code.
-fn gracefully_exit(code: i32) -> ! {
+pub fn gracefully_exit(code: i32) -> ! {
     // Well, for now it's not "gracefully" exiting.
     if code == 0 {
         info!("[ SERVER EXITED ]");
