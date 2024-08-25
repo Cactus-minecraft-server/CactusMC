@@ -115,7 +115,8 @@ fn make_eula() -> io::Result<()> {
     let _ = file_folder_parser::create_eula(consts::filepaths::EULA, &formatted_time)?;
 
     if !check_eula(consts::filepaths::EULA) {
-        error!("Cannot start the server. You have not agreed to the 'eula.txt'.");
+        let error_message = "Cannot start the server. You have not agreed to the 'eula.txt'.";
+        error!("{}",error_message.to_uppercase().red().bold());
         gracefully_exit(-1);
     }
 
@@ -141,7 +142,7 @@ fn gracefully_exit(code: i32) -> ! {
     if code == 0 {
         info!("[ SERVER EXITED ]");
     } else {
-        warn!("[ SERVER EXITED WITH ERROR CODE ({code}) ]");
+        //warn!("[ SERVER EXITED WITH ERROR CODE ({code}) ]");
     }
 
     std::process::exit(code);

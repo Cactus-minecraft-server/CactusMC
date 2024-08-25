@@ -5,6 +5,7 @@ use colored::Colorize;
 use log::info;
 mod utils;
 
+
 pub fn create_server_properties(content:&str,file_path:&'static str,formatted_time:&str) -> io::Result<()> {
     let path = Path::new(file_path);
     let final_input = format!(
