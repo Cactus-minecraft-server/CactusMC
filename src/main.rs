@@ -3,19 +3,18 @@
 mod commands;
 mod config;
 mod consts;
-mod file_folder_parser;
+mod fs_manager;
 mod logging;
 mod net;
 mod packet;
 mod slp;
+mod time;
 
-use colored::Colorize;
+use consts::messages;
 use log::{error, info, warn};
 
 #[tokio::main]
 async fn main() {
-    info!("[ SERVER STARTING... ]");
-
     if let Err(e) = early_init().await {
         error!("Failed to start the server, error in early initialization: {e}. \nExiting...");
         gracefully_exit(-1);
@@ -31,13 +30,15 @@ async fn main() {
         gracefully_exit(-1);
     }
 
-    info!("[ SERVER EXITED ]");
+    info!("{}", *messages::SERVER_SHUTDOWN);
 }
 
 /// Logic that must executes as early as possibe
 async fn early_init() -> Result<(), Box<dyn std::error::Error>> {
     // This must executes as early as possible
     logging::init(log::LevelFilter::Debug);
+
+    info!("{}", *messages::SERVER_STARTING);
 
     // Adds custom behavior to CTRL + C signal
     init_ctrlc_handler()?;
@@ -58,14 +59,14 @@ fn init() -> Result<(), Box<dyn std::error::Error>> {
     greet();
 
     // Makes sure server files are initialized and valid.
-    file_folder_parser::init()?;
+    fs_manager::init()?;
 
     Ok(())
 }
 
 /// Starts up the server.
 async fn start() -> Result<(), Box<dyn std::error::Error>> {
-    info!("[ SERVER STARTED ]");
+    info!("{}", *messages::SERVER_STARTED);
 
     net::listen().await.map_err(|e| {
         error!("Failed to listen for packets: {e}");
@@ -87,8 +88,7 @@ fn init_ctrlc_handler() -> Result<(), Box<dyn std::error::Error>> {
 
 /// Prints the starting greetings
 fn greet() {
-    const GREETINGS: &str = "Hello, world from Copper!";
-    info!("{}", GREETINGS.green().bold());
+    info!("{}", *messages::GREET);
 }
 
 #[cfg(debug_assertions)]
@@ -106,12 +106,12 @@ fn test() {
 
 /// Gracefully exits the server with an exit code.
 pub fn gracefully_exit(code: i32) -> ! {
-    // Well, for now it's not "gracefully" exiting.
     if code == 0 {
-        info!("[ SERVER EXITED ]");
+        info!("{}", *messages::SERVER_SHUTDOWN);
     } else {
-        //warn!("[ SERVER EXITED WITH ERROR CODE ({code}) ]");
+        warn!("{}", messages::server_shutdown_code(code));
     }
 
+    // Well, for now it's not "gracefully" exiting.
     std::process::exit(code);
 }

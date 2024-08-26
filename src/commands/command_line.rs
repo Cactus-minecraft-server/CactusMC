@@ -15,5 +15,9 @@ pub async fn handle_input() -> ! {
         }
 
         debug!("you entered: {buffer}");
+        // Debug/test logic down here
+        if buffer.trim().to_lowercase() == "stop" {
+            crate::gracefully_exit(-1000);
+        }
     }
 }

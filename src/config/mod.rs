@@ -9,7 +9,7 @@ use std::net::Ipv4Addr;
 use std::path::Path;
 
 use read_properties::Properties;
-mod read_properties;
+pub mod read_properties;
 //use std::sync::Arc;
 
 /// Function to get a `Properties` object to which the caller can then query keys.
@@ -110,7 +110,8 @@ pub struct Settings {
 fn read(filepath: &Path) -> std::io::Result<Properties> {
     let file = File::open(filepath)?;
     let mut reader = BufReader::new(file);
-    return read_properties::read_properties(&mut reader).map_err(|e| Error::new(ErrorKind::Other, e.to_string()))
+    return read_properties::read_properties(&mut reader)
+        .map_err(|e| Error::new(ErrorKind::Other, e.to_string()));
 }
 
 impl Settings {
