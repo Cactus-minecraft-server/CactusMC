@@ -1,5 +1,7 @@
 # 🎮 Serveur Minecraft en Rust / Minecraft Server in Rust / Minecraft-Serverprojekt in Rust / сервера Minecraft на Rust
 
+The `main` branch should be stable code, and the `dev` is code that is not quite stable.
+
 ## Languages / Langues / Idiomas / Sprachen / Языки
 
 - [English](README.en.md)
