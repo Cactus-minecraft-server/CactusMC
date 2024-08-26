@@ -12,7 +12,6 @@ use tokio::net::TcpStream;
 const BUFFER_SIZE: usize = 1024;
 
 /// Listens for every incoming TCP connection.
-#[tokio::main]
 pub async fn listen() -> Result<(), Box<dyn std::error::Error>> {
     let config = config::Settings::new();
     let server_address = format!("0.0.0.0:{}", config.server_port);

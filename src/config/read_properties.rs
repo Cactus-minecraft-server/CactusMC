@@ -93,14 +93,14 @@ impl fmt::Display for PropertiesParseError {
     }
 }
 
-/// Parses a configuration file and loads the keys, value pairs into a HashMap.
+/// Parses a configuration file
 ///
 /// # Arguments
 /// * `reader` - A buffered reader that provides the input data.
 ///
 /// # Returns
 ///
-/// Returns a Result of `Properties` which itself contains the HashMap.
+/// Returns a Result of `Properties`
 pub fn read_properties<R: BufRead>(reader: &mut R) -> Result<Properties, PropertiesParseError> {
     let mut properties = Properties::default();
 

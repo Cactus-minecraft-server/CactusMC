@@ -1,23 +1,21 @@
 //! The servers's entrypoint file.
 
+mod commands;
 mod config;
 mod consts;
-mod file_folder_parser;
+mod fs_manager;
 mod logging;
 mod net;
 mod packet;
 mod slp;
-use std::io;
+mod time;
 
-use chrono::{DateTime, Local, Utc};
-use colored::Colorize;
-use file_folder_parser::check_eula;
+use consts::messages;
 use log::{error, info, warn};
 
-fn main() {
-    info!("[ SERVER STARTING... ]");
-
-    if let Err(e) = early_init() {
+#[tokio::main]
+async fn main() {
+    if let Err(e) = early_init().await {
         error!("Failed to start the server, error in early initialization: {e}. \nExiting...");
         gracefully_exit(-1);
     }
@@ -27,44 +25,50 @@ fn main() {
         gracefully_exit(-1);
     }
 
-    if let Err(e) = start() {
+    if let Err(e) = start().await {
         error!("Failed to start the server: {e}. \nExiting...");
         gracefully_exit(-1);
     }
 
-    info!("[ SERVER EXITED ]");
+    info!("{}", *messages::SERVER_SHUTDOWN);
 }
 
 /// Logic that must executes as early as possibe
-fn early_init() -> Result<(), Box<dyn std::error::Error>> {
+async fn early_init() -> Result<(), Box<dyn std::error::Error>> {
     // This must executes as early as possible
     logging::init(log::LevelFilter::Debug);
+
+    info!("{}", *messages::SERVER_STARTING);
+
+    // Adds custom behavior to CTRL + C signal
+    init_ctrlc_handler()?;
 
     // A testing function, only in debug mode
     #[cfg(debug_assertions)]
     test();
+
+    // Listens for cli input commands
+    commands::listen_console_commands().await;
 
     Ok(())
 }
 
 /// Essential server initialization logic.
 fn init() -> Result<(), Box<dyn std::error::Error>> {
-    init_ctrlc_handler()?;
-
+    // Printing a greeting message
     greet();
 
-    make_server_properties()?;
-
-    make_eula()?;
+    // Makes sure server files are initialized and valid.
+    fs_manager::init()?;
 
     Ok(())
 }
 
 /// Starts up the server.
-fn start() -> Result<(), Box<dyn std::error::Error>> {
-    info!("[ SERVER STARTED ]");
+async fn start() -> Result<(), Box<dyn std::error::Error>> {
+    info!("{}", *messages::SERVER_STARTED);
 
-    net::listen().map_err(|e| {
+    net::listen().await.map_err(|e| {
         error!("Failed to listen for packets: {e}");
         e
     })?;
@@ -84,42 +88,7 @@ fn init_ctrlc_handler() -> Result<(), Box<dyn std::error::Error>> {
 
 /// Prints the starting greetings
 fn greet() {
-    const GREETINGS: &str = "Hello, world MiFerris!";
-    info!("{}", GREETINGS.green().bold());
-}
-
-/// If 'server.properties' does not exist, creates the file and populate it with defaults.
-fn make_server_properties() -> io::Result<()> {
-    // Get time
-    let now = Utc::now();
-    let local_time: DateTime<Local> = now.with_timezone(&Local); // Convert to local machine time
-    let formatted_time = local_time.format("%a %b %d %H:%M:%S %Y").to_string(); // Format the time
-
-    // Create the file
-    let _ = file_folder_parser::create_server_properties(
-        consts::file_content::SERVER_PROPERTIES,
-        consts::filepaths::PROPERTIES,
-        &formatted_time,
-    )?;
-
-    Ok(())
-}
-
-/// If 'eula.txt' does not exist, create the file and populate it with defaults.
-fn make_eula() -> io::Result<()> {
-    // Get time
-    let now = Utc::now();
-    let local_time: DateTime<Local> = now.with_timezone(&Local); // Convert to local machine time
-    let formatted_time = local_time.format("%a %b %d %H:%M:%S %Y").to_string(); // Format the time
-
-    let _ = file_folder_parser::create_eula(consts::filepaths::EULA, &formatted_time)?;
-
-    if !check_eula(consts::filepaths::EULA) {
-        error!("Cannot start the server. You have not agreed to the 'eula.txt'.");
-        gracefully_exit(-1);
-    }
-
-    Ok(())
+    info!("{}", *messages::GREET);
 }
 
 #[cfg(debug_assertions)]
@@ -136,13 +105,13 @@ fn test() {
 }
 
 /// Gracefully exits the server with an exit code.
-fn gracefully_exit(code: i32) -> ! {
-    // Well, for now it's not "gracefully" exiting.
+pub fn gracefully_exit(code: i32) -> ! {
     if code == 0 {
-        info!("[ SERVER EXITED ]");
+        info!("{}", *messages::SERVER_SHUTDOWN);
     } else {
-        warn!("[ SERVER EXITED WITH ERROR CODE ({code}) ]");
+        warn!("{}", messages::server_shutdown_code(code));
     }
 
+    // Well, for now it's not "gracefully" exiting.
     std::process::exit(code);
 }
