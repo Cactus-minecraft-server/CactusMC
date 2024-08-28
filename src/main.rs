@@ -57,7 +57,8 @@ async fn early_init() -> Result<(), Box<dyn std::error::Error>> {
 
     // Adds custom behavior to CTRL + C signal
     init_ctrlc_handler()?;
-
+    fs_manager::create_dirs();
+    fs_manager::create_other_files();
     // A testing function, only in debug mode
     #[cfg(debug_assertions)]
     test();
@@ -78,6 +79,7 @@ fn init() -> Result<(), Box<dyn std::error::Error>> {
 
     Ok(())
 }
+
 
 /// Starts up the server.
 async fn start() -> Result<(), Box<dyn std::error::Error>> {

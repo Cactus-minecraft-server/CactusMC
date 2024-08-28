@@ -1,4 +1,4 @@
-use std::fs::{self, File};
+use std::fs::{self, create_dir, File};
 use std::io::{self, BufRead};
 use std::path::Path;
 mod utils;
@@ -76,4 +76,33 @@ pub fn clean_file() ->(){
         Ok(_) =>info!("File delete."),
         Err(e) => info!("Error when delete file: {}",e),
     }
+}
+
+pub fn create_other_files() { // @Urpagin i think you'll modify this... DO NOT HESITATE ;)
+    utils::create_file_nn(Path::new(consts::filepaths::BANNED_IP));
+    info!("Created file{}",consts::filepaths::BANNED_IP);
+    utils::create_file_nn(Path::new(consts::filepaths::BANNED_PLAYERS));
+    info!("Created file{}",consts::filepaths::BANNED_PLAYERS);
+    utils::create_file_nn(Path::new(consts::filepaths::OPERATORS));
+    info!("Created file{}",consts::filepaths::OPERATORS);
+    utils::create_file_nn(Path::new(consts::filepaths::SESSION));
+    info!("Created file{}",consts::filepaths::SESSION);
+    utils::create_file_nn(Path::new(consts::filepaths::USERCACHE));
+    info!("Created file{}",consts::filepaths::USERCACHE);
+    utils::create_file_nn(Path::new(consts::filepaths::VERSION));
+    info!("Created file{}",consts::filepaths::VERSION);
+    utils::create_file_nn(Path::new(consts::filepaths::WHITELIST));
+    info!("Created file{}",consts::filepaths::WHITELIST);
+}
+pub fn create_dirs(){
+    utils::create_dir(Path::new(consts::folderpath::LOGS));
+    info!("Created dir{}",consts::folderpath::LOGS);
+    utils::create_dir(Path::new(consts::folderpath::WORLDS_DIRECTORY));
+    info!("Created dir{}",consts::folderpath::WORLDS_DIRECTORY);
+    utils::create_dir(Path::new(consts::folderpath::OVERWORLD));
+    info!("Created dir{}",consts::folderpath::OVERWORLD);
+    utils::create_dir(Path::new(consts::folderpath::THE_END));
+    info!("Created dir{}",consts::folderpath::THE_END);
+    utils::create_dir(Path::new(consts::folderpath::NETHER));
+    info!("Created dir{}",consts::folderpath::NETHER);
 }

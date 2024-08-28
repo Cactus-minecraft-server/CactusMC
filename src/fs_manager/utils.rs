@@ -20,6 +20,19 @@ pub fn create_file(path: &Path, content: &str) -> io::Result<()> {
         Err(e) => Err(e),
     }
 }
+//create_file with no content u can modify this also @Urpagin
+pub fn create_file_nn(path: &Path) -> io::Result<()> {
+    match OpenOptions::new().write(true).create_new(true).open(path) {
+        Ok(mut file) => {
+            Ok(())
+        }
+        Err(e) if e.kind() == io::ErrorKind::AlreadyExists => {
+            println!("File '{}' already exists. Not altering it.", path.to_string_lossy());
+            Ok(())
+        }
+        Err(e) => Err(e),
+    }
+}
 
 /// Creates a file given its path.
 pub fn create_dir(path: &Path) -> io::Result<()> {
