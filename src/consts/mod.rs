@@ -48,14 +48,11 @@ pub mod file_content {
     /// Returns the default content of the 'eula.txt' file.
     pub fn eula() -> String {
         let mut content = String::new();
-        let formatted_time = time::get_formatted_time();
+        let formatted_time: String = format!("# {}",time::get_formatted_time());
 
         content += "# By changing the setting below to 'true' you are indicating your agreement to our EULA (https://aka.ms/MinecraftEULA).\n";
-
         content += &formatted_time;
-
         content += "\neula=false";
-
         content
     }
 
@@ -125,8 +122,8 @@ white-list=false"#;
 
         format!(
             "# Minecraft server properties\n{}\n{}",
-            time::get_formatted_time(),
-            SERVER_PROPERTIES_INNER
+            format!("# {}",time::get_formatted_time()),
+            SERVER_PROPERTIES_INNER,
         )
     }
 }

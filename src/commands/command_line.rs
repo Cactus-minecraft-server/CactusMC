@@ -1,5 +1,8 @@
-use log::debug;
-use tokio::io::{self, AsyncBufReadExt, BufReader};
+use std::{thread, time::Duration};
+
+use colored::Colorize;
+use log::{debug, info, warn};
+use tokio::io::{AsyncBufReadExt, BufReader};
 
 // Asynchronously handles user input. It never returns
 pub async fn handle_input() -> ! {
@@ -15,8 +18,12 @@ pub async fn handle_input() -> ! {
         }
 
         debug!("you entered: {buffer}");
+        let mut content = "";
         // Debug/test logic down here
         if buffer.trim().to_lowercase() == "stop" {
+            content = "Server will stop in few second…";
+            warn!("{}",content.red().bold());
+            thread::sleep(Duration::from_secs(1));
             crate::gracefully_exit(-1000);
         }
     }
