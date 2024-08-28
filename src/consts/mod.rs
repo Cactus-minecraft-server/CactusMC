@@ -6,7 +6,8 @@
 pub mod minecraft {
     pub const VERSION: &'static str = "1.21.1"; //upgrade to 1.21.1 cuz wiki.vg is up to date
     pub const PROTOCOL_VERSION: usize = 767;
-    pub const WORLD_DIRECTORY:&'static str = "world";
+
+
 }
 
 /// Server logging messages.
@@ -41,6 +42,18 @@ pub mod filepaths {
     /// server.properties file, used to store server settings.
     pub const PROPERTIES: &'static str = "server.properties";
     pub const EULA: &'static str = "eula.txt";
+    pub const WORLDS_DIRECTORY:&'static str = "world";
+    pub const THE_END:&'static str = "world/DIM1";
+    pub const NETHER:&'static str = "world/DIM-1";
+    pub const OVERWORLD:&'static str = "world/region";
+    pub const LOGS:&'static str = "logs";
+    pub const OPERATORS:&'static str = "ops.json";
+    pub const WHITELIST:&'static str = "whitelist.json";
+    pub const BANNED_IP:&'static str = "banned-ips.json";
+    pub const BANNED_PLAYERS:&'static str = "banned-players.json";
+    pub const USERCACHE :&'static str = "usercache.json";
+    pub const SESSION:&'static str = "session.lock";
+    pub const VERSION:&'static str = "version.json";
 }
 
 pub mod file_content {
