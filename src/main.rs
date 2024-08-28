@@ -19,9 +19,9 @@ use log::{error, info, warn};
 #[tokio::main]
 async fn main() {
     let arguments: Vec<String> = env::args().collect();
-    if arguments.len() >1{
-        match arguments[1].as_str(){
-            "-clean_file" | "--clean" => {
+    if arguments.len() > 1 {
+        match arguments[1].as_str() {
+            "-remove_files" | "--remove" => {
                 clean_file();
                 gracefully_exit(-1);
             }
@@ -79,7 +79,6 @@ fn init() -> Result<(), Box<dyn std::error::Error>> {
 
     Ok(())
 }
-
 
 /// Starts up the server.
 async fn start() -> Result<(), Box<dyn std::error::Error>> {

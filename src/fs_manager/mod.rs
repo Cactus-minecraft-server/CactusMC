@@ -20,13 +20,13 @@ fn eula() -> io::Result<()> {
     if !path.exists() {
         create_eula()?;
         let content = "Please agree to the 'eula.txt' and start the server again.";
-        warn!("{}",content.bright_red().bold());
+        warn!("{}", content.bright_red().bold());
         gracefully_exit(0);
     } else {
         let is_agreed_eula = check_eula()?;
         if !is_agreed_eula {
             let error_content = "Cannot start the server, please agree to the 'eula.txt'";
-            error!("{}",error_content.bright_red().bold().blink());
+            error!("{}", error_content.bright_red().bold().blink());
             gracefully_exit(-1);
         }
         Ok(())
@@ -65,44 +65,168 @@ fn check_eula() -> io::Result<bool> {
     Ok(false)
 }
 
-pub fn clean_file() ->(){
-    let eula = consts::filepaths::EULA;
-    let server_properties = consts::filepaths::PROPERTIES;
-    match fs::remove_file(eula) {
-        Ok(_) =>info!("File delete."),
-        Err(e) => info!("Error when delete file: {}",e),
+pub fn clean_file() -> () {
+    match fs::remove_file(consts::filepaths::EULA) {
+        Ok(_) => info!("File delete."),
+        Err(e) => info!("Error when delete file: {}", e),
     }
-    match fs::remove_file(server_properties) {
-        Ok(_) =>info!("File delete."),
-        Err(e) => info!("Error when delete file: {}",e),
+    match fs::remove_file(consts::filepaths::PROPERTIES) {
+        Ok(_) => info!("File delete."),
+        Err(e) => info!("Error when delete file: {}", e),
+    }
+    match fs::remove_file(consts::filepaths::BANNED_IP) {
+        Ok(_) => info!("File delete."),
+        Err(e) => info!("Error when delete file: {}", e),
+    }
+    match fs::remove_file(consts::filepaths::BANNED_PLAYERS) {
+        Ok(_) => info!("File delete."),
+        Err(e) => info!("Error when delete file: {}", e),
+    }
+    match fs::remove_file(consts::filepaths::OPERATORS) {
+        Ok(_) => info!("File delete."),
+        Err(e) => info!("Error when delete file: {}", e),
+    }
+    match fs::remove_file(consts::filepaths::SESSION) {
+        Ok(_) => info!("File delete."),
+        Err(e) => info!("Error when delete file: {}", e),
+    }
+    match fs::remove_file(consts::filepaths::USERCACHE) {
+        Ok(_) => info!("File delete."),
+        Err(e) => info!("Error when delete file: {}", e),
+    }
+    match fs::remove_file(consts::filepaths::VERSION) {
+        Ok(_) => info!("File delete."),
+        Err(e) => info!("Error when delete file: {}", e),
+    }
+    match fs::remove_file(consts::filepaths::WHITELIST) {
+        Ok(_) => info!("File delete."),
+        Err(e) => info!("Error when delete file: {}", e),
+    }
+    //clean folder:
+    match fs::remove_dir(consts::folderpath::LOGS) {
+        Ok(_) => info!("File delete."),
+        Err(e) => info!("Error when delete file: {}", e),
+    }
+    match fs::remove_dir(consts::folderpath::NETHER) {
+        Ok(_) => info!("File delete."),
+        Err(e) => info!("Error when delete file: {}", e),
+    }
+    match fs::remove_dir(consts::folderpath::OVERWORLD) {
+        Ok(_) => info!("File delete."),
+        Err(e) => info!("Error when delete file: {}", e),
+    }
+    match fs::remove_dir(consts::folderpath::THE_END) {
+        Ok(_) => info!("File delete."),
+        Err(e) => info!("Error when delete file: {}", e),
+    }
+    match fs::remove_dir(consts::folderpath::WORLDS_DIRECTORY) {
+        Ok(_) => info!("File delete."),
+        Err(e) => info!("Error when delete file: {}", e),
     }
 }
 
-pub fn create_other_files() { // @Urpagin i think you'll modify this... DO NOT HESITATE ;)
-    utils::create_file_nn(Path::new(consts::filepaths::BANNED_IP));
-    info!("Created file{}",consts::filepaths::BANNED_IP);
-    utils::create_file_nn(Path::new(consts::filepaths::BANNED_PLAYERS));
-    info!("Created file{}",consts::filepaths::BANNED_PLAYERS);
-    utils::create_file_nn(Path::new(consts::filepaths::OPERATORS));
-    info!("Created file{}",consts::filepaths::OPERATORS);
-    utils::create_file_nn(Path::new(consts::filepaths::SESSION));
-    info!("Created file{}",consts::filepaths::SESSION);
-    utils::create_file_nn(Path::new(consts::filepaths::USERCACHE));
-    info!("Created file{}",consts::filepaths::USERCACHE);
-    utils::create_file_nn(Path::new(consts::filepaths::VERSION));
-    info!("Created file{}",consts::filepaths::VERSION);
-    utils::create_file_nn(Path::new(consts::filepaths::WHITELIST));
-    info!("Created file{}",consts::filepaths::WHITELIST);
+pub fn create_other_files() {
+    // @Urpagin i think you'll modify this... DO NOT HESITATE ;)
+    match utils::create_file_nn(Path::new(consts::filepaths::BANNED_IP)) {
+        Ok(_) => info!("Created file{}", consts::filepaths::BANNED_IP),
+        Err(e) => info!(
+            "Failed to create the file {} as error:{}",
+            consts::filepaths::BANNED_IP,
+            e
+        ),
+    }
+    match utils::create_file_nn(Path::new(consts::filepaths::BANNED_PLAYERS)) {
+        Ok(_) => info!("Created file{}", consts::filepaths::BANNED_PLAYERS),
+        Err(e) => info!(
+            "Failed to create the file {} as error:{}",
+            consts::filepaths::BANNED_PLAYERS,
+            e
+        ),
+    }
+    match utils::create_file_nn(Path::new(consts::filepaths::OPERATORS)) {
+        Ok(_) => info!("Created file{}", consts::filepaths::OPERATORS),
+        Err(e) => info!(
+            "Failed to create the file {} as error:{}",
+            consts::filepaths::OPERATORS,
+            e
+        ),
+    }
+    match utils::create_file_nn(Path::new(consts::filepaths::SESSION)) {
+        Ok(_) => info!("Created file{}", consts::filepaths::SESSION),
+        Err(e) => info!(
+            "Failed to create the file {} as error:{}",
+            consts::filepaths::SESSION,
+            e
+        ),
+    }
+    match utils::create_file_nn(Path::new(consts::filepaths::USERCACHE)) {
+        Ok(_) => info!("Created file{}", consts::filepaths::USERCACHE),
+        Err(e) => info!(
+            "Failed to create the file {} as error:{}",
+            consts::filepaths::USERCACHE,
+            e
+        ),
+    }
+    match utils::create_file_nn(Path::new(consts::filepaths::VERSION)) {
+        Ok(_) => info!("Created file{}", consts::filepaths::VERSION),
+        Err(e) => info!(
+            "Failed to create the file {} as error:{}",
+            consts::filepaths::VERSION,
+            e
+        ),
+    }
+    match utils::create_file_nn(Path::new(consts::filepaths::WHITELIST)) {
+        Ok(_) => info!("Created file{}", consts::filepaths::WHITELIST),
+        Err(e) => info!(
+            "Failed to create the file {} as error:{}",
+            consts::filepaths::WHITELIST,
+            e
+        ),
+    }
 }
-pub fn create_dirs(){
-    utils::create_dir(Path::new(consts::folderpath::LOGS));
-    info!("Created dir{}",consts::folderpath::LOGS);
-    utils::create_dir(Path::new(consts::folderpath::WORLDS_DIRECTORY));
-    info!("Created dir{}",consts::folderpath::WORLDS_DIRECTORY);
-    utils::create_dir(Path::new(consts::folderpath::OVERWORLD));
-    info!("Created dir{}",consts::folderpath::OVERWORLD);
-    utils::create_dir(Path::new(consts::folderpath::THE_END));
-    info!("Created dir{}",consts::folderpath::THE_END);
-    utils::create_dir(Path::new(consts::folderpath::NETHER));
-    info!("Created dir{}",consts::folderpath::NETHER);
+pub fn create_dirs() {
+    match utils::create_dir(Path::new(consts::folderpath::LOGS)) {
+        Ok(_) => info!("Created dir{}", consts::folderpath::LOGS),
+        Err(e) => info!(
+            "Failed to create dir{} as error: {}",
+            consts::folderpath::LOGS,
+            e
+        ),
+    }
+
+    match utils::create_dir(Path::new(consts::folderpath::WORLDS_DIRECTORY)) {
+        Ok(_) => info!("Created dir{}", consts::folderpath::WORLDS_DIRECTORY),
+        Err(e) => info!(
+            "Failed to create dir{} as error: {}",
+            consts::folderpath::WORLDS_DIRECTORY,
+            e
+        ),
+    }
+
+    match utils::create_dir(Path::new(consts::folderpath::OVERWORLD)) {
+        Ok(_) => info!("Created dir{}", consts::folderpath::OVERWORLD),
+        Err(e) => info!(
+            "Failed to create dir{} as error: {}",
+            consts::folderpath::OVERWORLD,
+            e
+        ),
+    }
+
+    match utils::create_dir(Path::new(consts::folderpath::THE_END)) {
+        Ok(_) => info!("Created dir{}", consts::folderpath::THE_END),
+        Err(e) => info!(
+            "Failed to create dir{} as error: {}",
+            consts::folderpath::THE_END,
+            e
+        ),
+    }
+
+    match utils::create_dir(Path::new(consts::folderpath::NETHER)) {
+        Ok(_) => info!("Created dir{}", consts::folderpath::NETHER),
+        Err(e) => info!(
+            "Failed to create dir{} as error: {}",
+            consts::folderpath::NETHER,
+            e
+        ),
+    }
 }
