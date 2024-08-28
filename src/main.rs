@@ -13,6 +13,7 @@ mod time;
 use std::env::{self};
 
 use consts::messages;
+use fs_manager::clean_file;
 use log::{error, info, warn};
 
 #[tokio::main]
@@ -21,7 +22,8 @@ async fn main() {
     if arguments.len() >1{
         match arguments[1].as_str(){
             "-clean_file" | "--clean" => {
-                todo!()
+                clean_file();
+                gracefully_exit(-1);
             }
             _ => {
                 warn!("Failed to read the arguments...");

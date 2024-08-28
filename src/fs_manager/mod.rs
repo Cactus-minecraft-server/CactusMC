@@ -1,8 +1,8 @@
-use std::fs::File;
+use std::fs::{self, File};
 use std::io::{self, BufRead};
 use std::path::Path;
 mod utils;
-use log::{error, warn};
+use log::{error, info, warn};
 
 use crate::{consts, gracefully_exit};
 
@@ -60,4 +60,17 @@ fn check_eula() -> io::Result<bool> {
     }
 
     Ok(false)
+}
+
+pub fn clean_file() ->(){
+    let eula = consts::filepaths::EULA;
+    let server_properties = consts::filepaths::PROPERTIES;
+    match fs::remove_file(eula) {
+        Ok(_) =>info!("File delete."),
+        Err(e) => info!("Error when delete file: {}",e),
+    }
+    match fs::remove_file(server_properties) {
+        Ok(_) =>info!("File delete."),
+        Err(e) => info!("Error when delete file: {}",e),
+    }
 }
