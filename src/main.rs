@@ -10,11 +10,24 @@ mod packet;
 mod slp;
 mod time;
 
+use std::env::{self};
+
 use consts::messages;
 use log::{error, info, warn};
 
 #[tokio::main]
 async fn main() {
+    let arguments: Vec<String> = env::args().collect();
+    if arguments.len() >1{
+        match arguments[1].as_str(){
+            "-clean_file" | "--clean" => {
+                todo!()
+            }
+            _ => {
+                warn!("Failed to read the arguments...");
+            }
+        }
+    }
     if let Err(e) = early_init().await {
         error!("Failed to start the server, error in early initialization: {e}. \nExiting...");
         gracefully_exit(-1);
