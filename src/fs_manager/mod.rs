@@ -2,6 +2,7 @@ use std::fs::{self, File};
 use std::io::{self, BufRead};
 use std::path::Path;
 mod utils;
+use colored::Colorize;
 use log::{error, info, warn};
 
 use crate::{consts, gracefully_exit};
@@ -18,12 +19,14 @@ fn eula() -> io::Result<()> {
     let path = Path::new(consts::filepaths::EULA);
     if !path.exists() {
         create_eula()?;
-        warn!("Please agree to the 'eula.txt' and start the server again.");
+        let content = "Please agree to the 'eula.txt' and start the server again.";
+        warn!("{}",content.bright_red().bold());
         gracefully_exit(0);
     } else {
         let is_agreed_eula = check_eula()?;
         if !is_agreed_eula {
-            error!("Cannot start the server, please agree to the 'eula.txt'");
+            let error_content = "Cannot start the server, please agree to the 'eula.txt'";
+            error!("{}",error_content.bright_red().bold().blink());
             gracefully_exit(-1);
         }
         Ok(())

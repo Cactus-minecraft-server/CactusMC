@@ -18,10 +18,9 @@ pub async fn handle_input() -> ! {
         }
 
         debug!("you entered: {buffer}");
-        let mut content = "";
         // Debug/test logic down here
         if buffer.trim().to_lowercase() == "stop" {
-            content = "Server will stop in few second…";
+            let content = "Server will stop in few second…";
             warn!("{}",content.red().bold());
             thread::sleep(Duration::from_secs(1));
             crate::gracefully_exit(-1000);
