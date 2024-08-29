@@ -30,6 +30,7 @@ async fn main() {
             }
         }
     }
+
     if let Err(e) = early_init().await {
         error!("Failed to start the server, error in early initialization: {e}. \nExiting...");
         gracefully_exit(-1);

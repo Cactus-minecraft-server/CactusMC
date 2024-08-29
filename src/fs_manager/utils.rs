@@ -1,6 +1,7 @@
 use log::{debug, info};
+use std::fs::metadata;
 use std::{
-    fs::{self, File, OpenOptions},
+    fs::{self, File, Metadata, OpenOptions},
     io::{self, Write},
     path::Path,
 };
@@ -20,16 +21,20 @@ pub fn create_file(path: &Path, content: &str) -> io::Result<()> {
         Err(e) => Err(e),
     }
 }
-//create_file with no content u can modify this also @Urpagin
+///Create_file with no content...
 pub fn create_file_nn(path: &Path) -> io::Result<()> {
-    match OpenOptions::new().write(true).create_new(true).open(path) {
-        Ok(mut file) => {
-            Ok(())
-        }
-        Err(e) if e.kind() == io::ErrorKind::AlreadyExists => {
-            println!("File '{}' already exists. Not altering it.", path.to_string_lossy());
-            Ok(())
-        }
+    // Verify if the file does not already exist.
+    if metadata(path).is_ok() {
+        println!(
+            "File '{}' already exists. Not altering it.",
+            path.to_string_lossy()
+        );
+        return Ok(());
+    }
+
+    // Create the file.
+    match std::fs::File::create(path) {
+        Ok(_) => Ok(()),
         Err(e) => Err(e),
     }
 }
