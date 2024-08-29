@@ -3,6 +3,8 @@ name: Rust
 on:
   push:
     branches: [ "main" ]
+    tags: 
+      - 'v*'  # Déclenche le workflow seulement sur les tags qui commencent par "v"
   pull_request:
     branches: [ "main" ]
 
@@ -16,7 +18,27 @@ jobs:
 
     steps:
     - uses: actions/checkout@v4
-    - name: Build
-      run: cargo build --verbose
-    - name: Run tests
-      run: cargo test --verbose
+
+    - name: Set up Rust
+      uses: actions-rs/toolchain@v1
+      with:
+        toolchain: stable
+        profile: minimal
+        override: true
+
+    - name: Build (Release Mode)
+      run: cargo build --release --verbose
+
+    - name: Run tests (Release Mode)
+      run: cargo test --release --verbose
+
+    - name: Archive build output
+      run: tar -czf my_minecraft_server.tar.gz -C target/release my_minecraft_server
+      # Remplace "my_minecraft_server" par le nom de ton binaire
+
+    - name: Create GitHub Release
+      uses: softprops/action-gh-release@v1
+      with:
+        files: my_minecraft_server.tar.gz
+      env:
+        GITHUB_TOKEN: ${{ secrets.GITHUB_TOKEN }}
