@@ -53,7 +53,7 @@ Your support helps us maintain and improve Copper. You can make a one-time or re
 
 ## Other Ways to Support
 
-- **Star the Repository**: If you like Copper, give it a star on [GitHub](https://github.com/yourrepo).
+- **Star the Repository**: If you like Copper, give it a star on [GitHub](https://github.com/Copper-minecraft-server/Copper).
 - **Spread the Word**: Share Copper with your friends and on social media.
 
 Thank you for your support!
