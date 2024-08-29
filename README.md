@@ -1,33 +1,67 @@
-# 🎮 Serveur Minecraft en Rust / Minecraft Server in Rust / Minecraft-Serverprojekt in Rust / сервера Minecraft на Rust
+# 🎮 Minecraft Server in Rust
 
-The `main` branch should be stable code, and the `dev` is code that is not quite stable.
+## Introduction
 
-## Languages / Langues / Idiomas / Sprachen / Языки
+This project aims to create a Minecraft server using the Rust programming language. The goal is to explore Rust's potential in game server development and demonstrate how to implement a complex game protocol in a performant and secure way. Rust is well-known for its memory safety features without compromising performance, making it an excellent choice for this type of project.
 
-- [English](README.en.md)
-- [Français](README.fr.md)
-- [Español](README.es.md)
-- [Deutsch](README.de.md)
-- [Русский](README.ru.md)
+## Why Rust?
+
+Rust offers several advantages for developing a Minecraft server:
+
+- **Memory Safety**: Rust provides unmatched memory safety through its ownership system, reducing the risks of memory leaks and common bugs like segmentation faults, without the need for a garbage collector.
+- **Performance**: Compiled directly to machine code, Rust rivals C and C++ in terms of performance, while offering greater safety.
+- **Concurrency**: Rust's ownership model and thread management system allow for efficient handling of simultaneous player connections without the risk of race conditions.
+- **Modern Ecosystem**: Rust has a growing ecosystem with tools like Cargo (its package manager and build system) and libraries such as Tokio for asynchronous programming, making development efficient and enjoyable.
+
+## Features
+
+- **TCP Connection Management**: Efficiently handle multiple player connections concurrently.
+- **Minecraft Protocol Implementation**: Full support for the Minecraft network protocol.
+- **World and Player Management**: Dynamic and efficient handling of world data and player states.
+- **Real-time Communication**: Low-latency communication between the server and clients.
+- **Chat and Command System**: Built-in support for chat functionality and server commands.
+- **Data Persistence**: Save player and world data efficiently.
+- **Latency Optimization**: Optimized code paths for minimizing server lag and ensuring smooth gameplay.
+
+## Technologies Used
+
+- **Programming Language:** Rust
+- **Main Libraries:** [Tokio](https://tokio.rs/), [Serde](https://serde.rs/)
+
+## Project Structure
+
+1. **Setting Up the Development Environment**: Instructions on setting up Rust and other dependencies.
+2. **Understanding the Minecraft Protocol**: Details on how the Minecraft network protocol works.
+3. **Server Design**: Architectural decisions and the structure of the server.
+4. **Setting Up the Basic Server**: Initial implementation of the server, setting up connections, etc.
+5. **Implementing the Minecraft Protocol**: Step-by-step implementation of the Minecraft protocol.
+6. **World and Player Management**: Handling game world data and player states.
+7. **Real-time Communication**: Managing efficient real-time data exchange.
+8. **Testing and Debugging**: Strategies for testing the server and debugging common issues.
+9. **Improvements and Additional Features**: Plans for future enhancements and new features.
+10. **Deployment and Maintenance**: Instructions for deploying the server and maintaining it in production.
+
+## Contributing
+
+Contributions are welcome! If you wish to contribute to this project, please follow these steps:
+
+1. Fork the repository.
+2. Create a new branch for your feature (`git checkout -b feature/AmazingFeature`).
+3. Commit your changes (`git commit -m 'Add some AmazingFeature'`).
+4. Push to your branch (`git push origin feature/AmazingFeature`).
+5. Open a Pull Request.
+
+## License
+
+This project is licensed under the Mozilla Public License Version 2.0. See the `LICENSE` file for more details.
+
+## Acknowledgements
+
+- [Rust](https://www.rust-lang.org/)
+- [Tokio](https://tokio.rs/)
+- [Serde](https://serde.rs/)
+- [Minecraft Protocol](https://wiki.vg/Protocol)
 
 ---
 
-Welcome to the Minecraft Server in Rust project. Choose your preferred language from the list above.
-
-**This project is meant to be an insurmountable task that challenges our capacities!**
-
----
-
-Bienvenue dans le projet de serveur Minecraft en Rust. Choisissez votre langue préférée dans la liste ci-dessus.
-
----
-
-Bienvenido al proyecto del servidor de Minecraft en Rust. Elige tu idioma preferido de la lista anterior.
-
----
-
-Willkommen beim Minecraft-Serverprojekt in Rust. Wähle deine bevorzugte Sprache aus der obigen Liste.
-
----
-
-Добро пожаловать в проект сервера Minecraft на Rust. Выберите предпочитаемый язык из списка выше.
+For any questions or comments, feel free to open an issue or contact me directly.
