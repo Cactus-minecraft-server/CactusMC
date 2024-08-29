@@ -47,9 +47,9 @@ If you enjoy Copper and want to support its development, you can contribute in s
 
 ## Financial Donations
 
-Your support helps us maintain and improve Copper. You can make a one-time or recurring donation using the following links:
+Your support helps us maintain and improve Copper. You can make a one-time or recurring donation using the following link:
 
-- **[Buy us a Coffee](https://buymeacoffee.com/minecraft_copper)**
+- not yet
 
 ## Other Ways to Support
 
@@ -71,4 +71,4 @@ Copper is licensed under the Mozilla Public License Version 2.0. See the `LICENS
 
 ---
 
-For any questions or comments, feel free to open an issue or contact me directly.
+For any questions or comments, feel free to open an issue or contact me directly at the email: [minecraft.copper@proton.me](mailto:minecraft.copper@proton.me)
