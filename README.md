@@ -1,8 +1,8 @@
-# 🎮 Minecraft Server in Rust
+# 🎮 Copper: Minecraft Server in Rust
 
 ## Introduction
 
-This project aims to create a Minecraft server using the Rust programming language. The goal is to explore Rust's potential in game server development and demonstrate how to implement a complex game protocol in a performant and secure way. Rust is well-known for its memory safety features without compromising performance, making it an excellent choice for this type of project.
+Copper is a project aimed at creating a Minecraft server using the Rust programming language. The goal is to explore Rust's potential in game server development and demonstrate how to implement a complex game protocol in a performant and secure way. Rust is well-known for its memory safety features without compromising performance, making it an excellent choice for this type of project.
 
 ## Why Rust?
 
@@ -41,19 +41,26 @@ Rust offers several advantages for developing a Minecraft server:
 9. **Improvements and Additional Features**: Plans for future enhancements and new features.
 10. **Deployment and Maintenance**: Instructions for deploying the server and maintaining it in production.
 
-## Contributing
+## Support Copper
 
-Contributions are welcome! If you wish to contribute to this project, please follow these steps:
+If you enjoy Copper and want to support its development, you can contribute in several ways:
 
-1. Fork the repository.
-2. Create a new branch for your feature (`git checkout -b feature/AmazingFeature`).
-3. Commit your changes (`git commit -m 'Add some AmazingFeature'`).
-4. Push to your branch (`git push origin feature/AmazingFeature`).
-5. Open a Pull Request.
+## Financial Donations
+
+Your support helps us maintain and improve Copper. You can make a one-time or recurring donation using the following links:
+
+- **[Buy us a Coffee](https://buymeacoffee.com/minecraft_copper)**
+
+## Other Ways to Support
+
+- **Star the Repository**: If you like Copper, give it a star on [GitHub](https://github.com/yourrepo).
+- **Spread the Word**: Share Copper with your friends and on social media.
+
+Thank you for your support!
 
 ## License
 
-This project is licensed under the Mozilla Public License Version 2.0. See the `LICENSE` file for more details.
+Copper is licensed under the Mozilla Public License Version 2.0. See the `LICENSE` file for more details.
 
 ## Acknowledgements
 
