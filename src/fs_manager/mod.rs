@@ -9,9 +9,9 @@ use crate::{consts, gracefully_exit};
 
 // Initializes the server's required files and directories
 pub fn init() -> std::io::Result<()> {
-    create_server_properties()?;
 
-    eula()
+    eula()?;
+    create_server_properties()
 }
 
 /// Checks if the eula is agreed, if not creates it.

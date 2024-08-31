@@ -51,7 +51,7 @@ pub struct Settings {
     enable_jmx_monitoring: bool,
     rcon_port: u16,
     level_seed: Option<i64>,
-    gamemode: Gamemode,
+    pub gamemode: Gamemode,
     enable_command_block: bool,
     enable_query: bool,
     enforce_secure_profile: bool,
@@ -73,7 +73,7 @@ pub struct Settings {
     initial_disabled_packs: Option<String>,
     broadcast_rcon_to_ops: bool,
     view_distance: u8,
-    server_ip: Option<Ipv4Addr>,
+    pub server_ip: Option<Ipv4Addr>,
     resource_pack_prompt: Option<String>,
     allow_nether: bool,
     pub server_port: u16,
@@ -134,7 +134,7 @@ impl Settings {
                 "" => None,
                 s => Some(s.parse::<i64>().unwrap()),
             },
-            gamemode: match config_file.get_property("gamemode").unwrap() {
+            gamemode: match config_file.get_property("gamemode").unwrap().to_lowercase().as_str() {
                 "creative" => Gamemode::CREATIVE,
                 "survival" => Gamemode::SURVIVAL,
                 "spectator" => Gamemode::SPECTATOR,
