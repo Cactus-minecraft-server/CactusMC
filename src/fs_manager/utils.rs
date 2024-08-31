@@ -1,7 +1,7 @@
 use log::{debug, info};
 use std::fs::metadata;
 use std::{
-    fs::{self, File, Metadata, OpenOptions},
+    fs::{self, File, OpenOptions},
     io::{self, Write},
     path::Path,
 };

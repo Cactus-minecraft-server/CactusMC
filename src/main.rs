@@ -9,8 +9,8 @@ mod net;
 mod packet;
 mod slp;
 mod time;
-
-use std::{env::{self}, net::{IpAddr, Ipv4Addr}};
+mod player;
+use std::env::{self};
 
 use config::Gamemode;
 use consts::messages;
@@ -20,6 +20,7 @@ use log::{error, info, warn};
 #[tokio::main]
 async fn main() {
     let arguments: Vec<String> = env::args().collect();
+
     if arguments.len() > 1 {
         match arguments[1].as_str() {
             "-remove_files" | "--remove" => {

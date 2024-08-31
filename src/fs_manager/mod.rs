@@ -1,9 +1,10 @@
-use std::fs::{self, create_dir, File};
+use std::fs::{self, File, OpenOptions};
 use std::io::{self, BufRead};
 use std::path::Path;
 mod utils;
 use colored::Colorize;
 use log::{error, info, warn};
+
 
 use crate::{consts, gracefully_exit};
 
@@ -216,4 +217,18 @@ pub fn create_dirs() {
             e
         ),
     }
+}
+
+pub fn write_into_json(content: &str,path:&str) -> std::io::Result<()> {
+// Open the file in append mod or create it if the file doesnt exist.
+    let path = Path::new(path);
+    let file = OpenOptions::new()
+        .write(true)
+        .append(true)
+        .create(true)
+        .open(path)?;
+
+    serde_json::to_writer(&file, content)?;
+
+    Ok(())
 }
