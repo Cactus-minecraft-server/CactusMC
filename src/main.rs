@@ -12,6 +12,7 @@ mod time;
 
 use std::env::{self};
 
+use config::Gamemode;
 use consts::messages;
 use fs_manager::clean_file;
 use log::{error, info, warn};
@@ -60,6 +61,14 @@ async fn early_init() -> Result<(), Box<dyn std::error::Error>> {
     init_ctrlc_handler()?;
     fs_manager::create_dirs();
     fs_manager::create_other_files();
+    let gamemode = match Gamemode::SURVIVAL {
+        Gamemode::SURVIVAL => "Survival",
+        Gamemode::ADVENTURE => "Adventure",
+        Gamemode::CREATIVE => "Creative",
+        Gamemode::SPECTATOR => "Spectator",
+
+    };
+    info!("Default game type: {}",gamemode.to_uppercase());
     // A testing function, only in debug mode
     #[cfg(debug_assertions)]
     test();
