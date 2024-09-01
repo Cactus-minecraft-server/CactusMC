@@ -7,14 +7,33 @@ mod fs_manager;
 mod logging;
 mod net;
 mod packet;
+mod player;
 mod slp;
 mod time;
+use std::env::{self};
 
+use config::Gamemode;
 use consts::messages;
+use fs_manager::clean_file;
 use log::{error, info, warn};
 
 #[tokio::main]
 async fn main() {
+    let arguments: Vec<String> = env::args().collect();
+
+    if arguments.len() > 1 {
+        match arguments[1].as_str() {
+            "-remove_files" | "--remove" => {
+                clean_file();
+                info!("All files have been removed.");
+                gracefully_exit(-1);
+            }
+            _ => {
+                warn!("Failed to read the arguments...");
+            }
+        }
+    }
+
     if let Err(e) = early_init().await {
         error!("Failed to start the server, error in early initialization: {e}. \nExiting...");
         gracefully_exit(-1);
@@ -60,12 +79,29 @@ fn init() -> Result<(), Box<dyn std::error::Error>> {
 
     // Makes sure server files are initialized and valid.
     fs_manager::init()?;
+    fs_manager::create_dirs();
+    fs_manager::create_other_files();
+    let gamemode1 = match config::Settings::new().gamemode {
+        Gamemode::SURVIVAL => "Survival",
+        Gamemode::ADVENTURE => "Adventure",
+        Gamemode::CREATIVE => "Creative",
+        Gamemode::SPECTATOR => "Spectator",
+    };
+    info!("Default game type: {}", gamemode1.to_uppercase());
 
     Ok(())
 }
 
 /// Starts up the server.
 async fn start() -> Result<(), Box<dyn std::error::Error>> {
+    info!(
+        "Starting Minecraft server on {}:{}",
+        match config::Settings::new().server_ip {
+            Some(ip) => ip.to_string(),
+            None => "*".to_string(),
+        },
+        config::Settings::new().server_port
+    );
     info!("{}", *messages::SERVER_STARTED);
 
     net::listen().await.map_err(|e| {

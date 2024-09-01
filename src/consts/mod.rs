@@ -14,8 +14,13 @@ pub mod messages {
     use colored::*;
     use once_cell::sync::Lazy;
 
-    pub static SERVER_STARTING: Lazy<String> =
-        Lazy::new(|| "[ SERVER STARTING... ]".bold().to_string());
+    use super::minecraft::VERSION;
+
+    pub static SERVER_STARTING: Lazy<String> = Lazy::new(|| {
+        format!("Starting minecraft server version {}", VERSION)
+            .bold()
+            .to_string()
+    });
 
     pub static SERVER_STARTED: Lazy<String> =
         Lazy::new(|| "[ SERVER STARTED ]".bright_green().bold().to_string());
@@ -28,7 +33,8 @@ pub mod messages {
 
     /// Used when exiting the server with an exit code.
     pub fn server_shutdown_code(code: i32) -> String {
-        return format!("[ SERVER SHUT DOWN WITH CODE: {code}]")
+        return format!("[ server shutdown with code: {code}]")
+            .to_uppercase()
             .bright_red()
             .bold()
             .to_string();
@@ -40,6 +46,19 @@ pub mod filepaths {
     /// server.properties file, used to store server settings.
     pub const PROPERTIES: &'static str = "server.properties";
     pub const EULA: &'static str = "eula.txt";
+    pub const OPERATORS: &'static str = "ops.json";
+    pub const WHITELIST: &'static str = "whitelist.json";
+    pub const BANNED_IP: &'static str = "banned-ips.json";
+    pub const BANNED_PLAYERS: &'static str = "banned-players.json";
+    pub const USERCACHE: &'static str = "usercache.json";
+    pub const SESSION: &'static str = "session.lock";
+}
+pub mod folderpath {
+    pub const WORLDS_DIRECTORY: &'static str = "world/";
+    pub const THE_END: &'static str = "world/DIM1/";
+    pub const NETHER: &'static str = "world/DIM-1/";
+    pub const OVERWORLD: &'static str = "world/region/";
+    pub const LOGS: &'static str = "logs/";
 }
 
 pub mod file_content {
@@ -48,14 +67,10 @@ pub mod file_content {
     /// Returns the default content of the 'eula.txt' file.
     pub fn eula() -> String {
         let mut content = String::new();
-        let formatted_time = time::get_formatted_time();
 
         content += "# By changing the setting below to 'true' you are indicating your agreement to our EULA (https://aka.ms/MinecraftEULA).\n";
-
-        content += &formatted_time;
-
+        content += &format!("# {}", time::get_formatted_time());
         content += "\neula=false";
-
         content
     }
 
@@ -125,8 +140,8 @@ white-list=false"#;
 
         format!(
             "# Minecraft server properties\n{}\n{}",
-            time::get_formatted_time(),
-            SERVER_PROPERTIES_INNER
+            format!("# {}", time::get_formatted_time()),
+            SERVER_PROPERTIES_INNER,
         )
     }
 }
