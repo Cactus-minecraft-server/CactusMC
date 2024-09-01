@@ -7,9 +7,9 @@ mod fs_manager;
 mod logging;
 mod net;
 mod packet;
+mod player;
 mod slp;
 mod time;
-mod player;
 use std::env::{self};
 
 use config::Gamemode;
@@ -62,8 +62,6 @@ async fn early_init() -> Result<(), Box<dyn std::error::Error>> {
     // Adds custom behavior to CTRL + C signal
     init_ctrlc_handler()?;
 
-
-
     // A testing function, only in debug mode
     #[cfg(debug_assertions)]
     test();
@@ -88,31 +86,28 @@ fn init() -> Result<(), Box<dyn std::error::Error>> {
         Gamemode::ADVENTURE => "Adventure",
         Gamemode::CREATIVE => "Creative",
         Gamemode::SPECTATOR => "Spectator",
-
     };
-    info!("Default game type: {}",gamemode1.to_uppercase());
-
+    info!("Default game type: {}", gamemode1.to_uppercase());
 
     Ok(())
 }
 
 /// Starts up the server.
 async fn start() -> Result<(), Box<dyn std::error::Error>> {
-
-    info!("Starting Minecraft server on {}:{}",match config::Settings::new().server_ip {
-        Some(ip) => ip.to_string(),
-        None => "*".to_string(),
-    },
-    config::Settings::new().server_port);
+    info!(
+        "Starting Minecraft server on {}:{}",
+        match config::Settings::new().server_ip {
+            Some(ip) => ip.to_string(),
+            None => "*".to_string(),
+        },
+        config::Settings::new().server_port
+    );
     info!("{}", *messages::SERVER_STARTED);
 
     net::listen().await.map_err(|e| {
         error!("Failed to listen for packets: {e}");
         e
     })?;
-
-
-
 
     Ok(())
 }

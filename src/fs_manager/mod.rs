@@ -1,16 +1,18 @@
 use std::fs::{self, File, OpenOptions};
 use std::io::{self, BufRead};
 use std::path::Path;
+use std::vec;
 mod utils;
+use crate::{consts, gracefully_exit};
 use colored::Colorize;
 use log::{error, info, warn};
-
-
-use crate::{consts, gracefully_exit};
+use serde::{Deserialize, Serialize};
+use serde_json::{json, Value};
+use std::io::Read;
+use std::io::Write;
 
 // Initializes the server's required files and directories
 pub fn init() -> std::io::Result<()> {
-
     eula()?;
     create_server_properties()
 }
@@ -218,17 +220,43 @@ pub fn create_dirs() {
         ),
     }
 }
+#[derive(Serialize, Deserialize)]
+struct Player {
+    uuid: String,
+    name: String,
+    level: u8,
+    bypassesplayerlimit: bool,
+}
 
-pub fn write_into_json(content: &str,path:&str) -> std::io::Result<()> {
-// Open the file in append mod or create it if the file doesnt exist.
-    let path = Path::new(path);
-    let file = OpenOptions::new()
+pub fn write_ops_json(
+    filename: &str,
+    uuid: &str,
+    name: &str,
+    level: u8,
+    bypasses_player_limit: bool,
+) -> std::io::Result<()> {
+    let mut file = OpenOptions::new()
+        .read(true)
         .write(true)
-        .append(true)
         .create(true)
-        .open(path)?;
+        .open(consts::filepaths::OPERATORS)?;
 
-    serde_json::to_writer(&file, content)?;
+    let mut content = String::new();
+    file.read_to_string(&mut content)?;
 
+    let mut json_data: Vec<Value> = if content.trim().is_empty() {
+        vec![]
+    } else {
+        serde_json::from_str(&content)?
+    };
+    let new_object = json!({
+        "name": name,
+        "uuid": uuid,
+        "level": level,
+        "bypassesPlayerLimit": bypasses_player_limit
+    });
+    json_data.push(new_object);
+    file.set_len(0)?;
+    file.write_all(serde_json::to_string_pretty(&json_data)?.as_bytes());
     Ok(())
 }
