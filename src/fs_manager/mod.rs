@@ -68,62 +68,6 @@ fn check_eula() -> io::Result<bool> {
     Ok(false)
 }
 
-pub fn clean_file() -> () {
-    match fs::remove_file(consts::filepaths::EULA) {
-        Ok(_) => info!("File delete."),
-        Err(e) => info!("Error when delete file: {}", e),
-    }
-    match fs::remove_file(consts::filepaths::PROPERTIES) {
-        Ok(_) => info!("File delete."),
-        Err(e) => info!("Error when delete file: {}", e),
-    }
-    match fs::remove_file(consts::filepaths::BANNED_IP) {
-        Ok(_) => info!("File delete."),
-        Err(e) => info!("Error when delete file: {}", e),
-    }
-    match fs::remove_file(consts::filepaths::BANNED_PLAYERS) {
-        Ok(_) => info!("File delete."),
-        Err(e) => info!("Error when delete file: {}", e),
-    }
-    match fs::remove_file(consts::filepaths::OPERATORS) {
-        Ok(_) => info!("File delete."),
-        Err(e) => info!("Error when delete file: {}", e),
-    }
-    match fs::remove_file(consts::filepaths::SESSION) {
-        Ok(_) => info!("File delete."),
-        Err(e) => info!("Error when delete file: {}", e),
-    }
-    match fs::remove_file(consts::filepaths::USERCACHE) {
-        Ok(_) => info!("File delete."),
-        Err(e) => info!("Error when delete file: {}", e),
-    }
-    match fs::remove_file(consts::filepaths::WHITELIST) {
-        Ok(_) => info!("File delete."),
-        Err(e) => info!("Error when delete file: {}", e),
-    }
-    //clean folder:
-    match fs::remove_dir(consts::folderpath::LOGS) {
-        Ok(_) => info!("File delete."),
-        Err(e) => info!("Error when delete file: {}", e),
-    }
-    match fs::remove_dir(consts::folderpath::NETHER) {
-        Ok(_) => info!("File delete."),
-        Err(e) => info!("Error when delete file: {}", e),
-    }
-    match fs::remove_dir(consts::folderpath::OVERWORLD) {
-        Ok(_) => info!("File delete."),
-        Err(e) => info!("Error when delete file: {}", e),
-    }
-    match fs::remove_dir(consts::folderpath::THE_END) {
-        Ok(_) => info!("File delete."),
-        Err(e) => info!("Error when delete file: {}", e),
-    }
-    match fs::remove_dir(consts::folderpath::WORLDS_DIRECTORY) {
-        Ok(_) => info!("File delete."),
-        Err(e) => info!("Error when delete file: {}", e),
-    }
-}
-
 pub fn create_other_files() {
     match utils::create_file_nn(Path::new(consts::filepaths::BANNED_IP)) {
         Ok(_) => info!("Created file {}", consts::filepaths::BANNED_IP),
@@ -259,4 +203,71 @@ pub fn write_ops_json(
     file.set_len(0)?;
     file.write_all(serde_json::to_string_pretty(&json_data)?.as_bytes());
     Ok(())
+}
+
+/// Removes all files related to the server, excluding the server.
+///
+/// I am not sure if this is a good idea, because it takes some time to maintain and is not very
+/// useful.
+pub fn clean_files() -> Result<(), std::io::Error> {
+    // Define a helper function to handle file removals
+    fn remove_file(file_path: &str) -> Result<(), std::io::Error> {
+        match fs::remove_file(file_path) {
+            Ok(_) => {
+                info!("File deleted: {}", file_path);
+                Ok(())
+            }
+            Err(e) => {
+                info!("Error when deleting file {}: {}", file_path, e);
+                Err(e)
+            }
+        }
+    }
+
+    // Define a helper function to handle directory removals
+    fn remove_dir(dir_path: &str) -> Result<(), std::io::Error> {
+        match fs::remove_dir(dir_path) {
+            Ok(_) => {
+                info!("Directory deleted: {}", dir_path);
+                Ok(())
+            }
+            Err(e) => {
+                info!("Error when deleting directory {}: {}", dir_path, e);
+                Err(e)
+            }
+        }
+    }
+
+    // List all files to be deleted
+    let files = [
+        consts::filepaths::EULA,
+        consts::filepaths::PROPERTIES,
+        consts::filepaths::BANNED_IP,
+        consts::filepaths::BANNED_PLAYERS,
+        consts::filepaths::OPERATORS,
+        consts::filepaths::SESSION,
+        consts::filepaths::USERCACHE,
+        consts::filepaths::WHITELIST,
+    ];
+
+    // Delete files using the `remove_file` helper function
+    for file in &files {
+        remove_file(file)?;
+    }
+
+    // List all directories to be deleted
+    let directories = [
+        consts::folderpath::LOGS,
+        consts::folderpath::NETHER,
+        consts::folderpath::OVERWORLD,
+        consts::folderpath::THE_END,
+        consts::folderpath::WORLDS_DIRECTORY,
+    ];
+
+    // Delete directories using the `remove_dir` helper function
+    for dir in &directories {
+        remove_dir(dir)?;
+    }
+
+    gracefully_exit(0);
 }
