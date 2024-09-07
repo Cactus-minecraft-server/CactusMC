@@ -1,5 +1,6 @@
 //! The servers's entrypoint file.
 
+mod args;
 mod commands;
 mod config;
 mod consts;
