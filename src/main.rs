@@ -4,17 +4,19 @@ mod args;
 mod commands;
 mod config;
 mod consts;
+mod file_folder_parser;
 mod fs_manager;
 mod logging;
 mod net;
 mod packet;
-mod player;
+
 mod slp;
+use log::{error, info, warn};
+mod player;
 mod time;
 
 use config::Gamemode;
 use consts::messages;
-use log::{error, info, warn};
 
 #[tokio::main]
 async fn main() {
@@ -52,7 +54,6 @@ async fn early_init() -> Result<(), Box<dyn std::error::Error>> {
 
     // Listens for cli input commands
     commands::listen_console_commands().await;
-
     Ok(())
 }
 

@@ -155,6 +155,6 @@ pub mod ping_slp {
         let version_name = VERSION;
         let version_protocol = PROTOCOL_VERSION;
         // For the players.
-        let player_max = config::Settings::new().max_players();
+        //let player_max = config::Settings::new().max_players();
     }
 }
