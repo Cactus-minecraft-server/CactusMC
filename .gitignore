@@ -133,3 +133,6 @@ eula.txt
 
 # macOS files
 .DS_Store
+
+# Other
+.editorconfig
