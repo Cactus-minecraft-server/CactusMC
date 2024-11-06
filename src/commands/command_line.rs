@@ -7,6 +7,9 @@ use tokio::io::{AsyncBufReadExt, BufReader};
 use crate::{consts, fs_manager, player};
 
 // Asynchronously handles user input. It never returns
+
+// TODO: IMPLEMENT COMMANDS SEPARATELY FROM THIS FUNCTION, otherwise the code will just be as good as a dumpster fire
+// TODO: use the 'Command Pattern' and command handlers
 pub async fn handle_input() -> ! {
     let mut reader = BufReader::new(tokio::io::stdin());
     let mut buffer = String::new();
@@ -48,7 +51,7 @@ pub async fn handle_input() -> ! {
                 ) {
                     Ok(_) => format!("Made {} a server operator.", element),
                     Err(e) => format!(
-                        "Failed to made {} as a server operator, error: {} ",
+                        "Failed to make {} as a server operator, error: {} ",
                         element, e
                     ),
                 };
