@@ -1,3 +1,6 @@
+> [!IMPORTANT]
+> This repository is a **work-in-progress** (non-functional) and an experimental project by beginners. It's under active development—expect changes and incomplete features.
+
 # 🎮 Copper: Minecraft Server in Rust
 
 ## Introduction
