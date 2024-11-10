@@ -268,6 +268,7 @@ pub fn clean_files() -> Result<(), std::io::Error> {
     for dir in &directories {
         remove_dir(dir)?;
     }
-
+    
+    info!("Files cleaned successfully before starting the server.");
     gracefully_exit(0);
 }
