@@ -3,26 +3,22 @@ use clap::Parser;
 use log::error;
 
 #[derive(Parser)]
-#[command(name = "CopperMC")]
+#[command(name = "CactusMC")]
 #[command(about = "This is the about, please change", long_about = None)]
 struct Cli {
-    /// Removes all files related to the server, excluding the server.
+    /// Removes all server-related files except the server executable.
     #[arg(short, long)]
-    remove_files: Option<bool>,
+    remove_files: bool,
 }
 
 /// Retrieves args and initializes the argument parsing logic.
 pub fn init() {
     let args = Cli::parse();
 
-    parse_args(args);
-}
-
-/// Parses args and calls the appropriate functions.
-fn parse_args(args: Cli) {
-    if let Some(_) = args.remove_files {
+    if args.remove_files {
         if let Err(e) = fs_manager::clean_files() {
             error!("Error(s) when cleaning files: {e}");
         }
     }
 }
+
