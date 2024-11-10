@@ -20,12 +20,8 @@ use consts::messages;
 
 #[tokio::main]
 async fn main() {
-    let args: Vec<String> = env::args().collect();
-    if args.contains(&String::from("-r")) || args.contains(&String::from("--remove_files")) {
-        if let Err(e) = fs_manager::clean_files() {
-            error!("Failed to clean files: {e}. \nContinuing with server startup...");
-        }
-    }
+    args::init();
+
     if let Err(e) = early_init().await {
         error!("Failed to start the server, error in early initialization: {e}. \nExiting...");
         gracefully_exit(-1);
