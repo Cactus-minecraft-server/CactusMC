@@ -29,7 +29,7 @@ pub mod messages {
         Lazy::new(|| "[ SERVER SHUT DOWN ]".bright_red().bold().to_string());
 
     pub static GREET: Lazy<String> =
-        Lazy::new(|| "Hello, world from Copper!".green().bold().to_string());
+        Lazy::new(|| "Hello, world from Cactus!".green().bold().to_string());
 
     /// Used when exiting the server with an exit code.
     pub fn server_shutdown_code(code: i32) -> String {
