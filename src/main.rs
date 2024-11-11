@@ -117,10 +117,22 @@ fn greet() {
 #[cfg(debug_assertions)]
 /// A test fonction that'll only run in debug-mode. (cargo run) and not (cargo run --release)
 fn test() {
+    use packet::data_types::string;
+
     info!("[ BEGIN test() ]");
 
     // Do not remove this line, yet.
     let _ = packet::Packet::new(&[]);
+
+    let s = &[6, 72, 69, 76, 76, 79, 33, 0xFF, 0xFF, 0xFF];
+    let string_s = string::read(s);
+    info!("{string_s:#?}");
+
+    let a = &s[..2];
+    info!("{a:#?}");
+
+    let a = &s[2..];
+    info!("{a:#?}");
 
     info!("Hello, world from test()!");
 
