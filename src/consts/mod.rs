@@ -4,7 +4,7 @@
 
 /// Module where we store information relevant to the Minecraft server.
 pub mod minecraft {
-    pub const VERSION: &'static str = "1.21.1"; //upgrade to 1.21.1 cuz wiki.vg is up to date
+    pub const VERSION: &'static str = "1.21.1"; // 1.21.1 as it is the wiki.vg version
     pub const PROTOCOL_VERSION: usize = 767;
 }
 
