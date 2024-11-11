@@ -175,6 +175,8 @@ pub mod string {
         // The maximum number of characters a String can be.
         const MAX_STRING_LEN: usize = 32767 * 3 + 3;
 
+        // TODO: Fix the StringTooLong criteria which is currently invalid.
+
         match varint::read(data) {
             Ok(read) => {
                 let string_bytes_length: usize = read.0 as usize;
