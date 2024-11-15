@@ -1,3 +1,4 @@
+use serde_json::error;
 use thiserror::Error;
 
 /// Implementation of the LEB128 variable-length code compression algorithm.
@@ -34,7 +35,11 @@ pub mod varint {
             }
         }
 
-        Ok((value, length))
+        if length == 0 {
+            Err(CodecError::DecodeVarIntEmpty)
+        } else {
+            Ok((value, length))
+        }
     }
 
     /// This function encodes a i32 to a Vec<u8>.
@@ -99,7 +104,11 @@ pub mod varlong {
             }
         }
 
-        Ok((value, length))
+        if length == 0 {
+            Err(CodecError::DecodeVarLongEmpty)
+        } else {
+            Ok((value, length))
+        }
     }
 
     /// This function encodes a i64 to a Vec<u8>.
@@ -130,18 +139,139 @@ pub mod varlong {
     }
 }
 
-#[derive(Error, Debug)]
+// TODO: Maybe find a better way to do errors than having one error type per data type. This is
+// smelly.
+
+#[derive(Error, Debug, Clone, Copy, PartialEq, Eq)]
 pub enum CodecError {
     #[error("VarInt decoding error: value too long (max 5 bytes)")]
     DecodeVarIntTooLong,
     #[error("VarLong decoding error: value too long (max 10 bytes)")]
     DecodeVarLongTooLong,
+    #[error("VarInt decoding error: no bytes read (min 1 byte)")]
+    DecodeVarIntEmpty,
+    #[error("VarLong decoding error: no bytes read (min 1 byte)")]
+    DecodeVarLongEmpty,
+
+    #[error("String decoding error: invalid VarInt")]
+    DecodeString,
+    #[error("String decoding error: invalid string length or invalid VarInt string byte size")]
+    InvalidStringLength,
+    #[error("String length error: string cannot be blank")]
+    BlankString,
+    #[error("String length error: string is too long")]
+    InvalidEncoding,
+}
+
+/// Implementation of the String(https://wiki.vg/Protocol#Type:String).
+/// It is a UTF-8 string prefixed with its size in bytes as a VarInt.
+///
+/// For instance, with &[6, 72, 69, 76, 76, 79, 33, 0xFF, 0xFF, 0xFF] the function
+/// will return "HELLO!" and 0xFF are just garbage data, since the string is 6 bytes long,
+/// the 0xFF are ignored.
+pub mod string {
+    use core::str;
+
+    use log::info;
+
+    use super::{varint, CodecError};
+
+    // The maximum number of bytes the whole String (including the VarInt) can be.
+    // 32767 is the max number of UTF-16 code units allowed. Multiplying by 3 accounts for
+    // the maximum bytes a single UTF-8 code unit could occupy in UTF-8 encoding.
+    // The +3 accounts for the maximum potential size of the VarInt that prefixes the string length.
+    const MAX_UTF_16_UNITS: usize = 32767;
+    const MAX_DATA_SIZE: usize = MAX_UTF_16_UNITS * 3 + 3;
+
+    /// Tries to read a String **beginning from the first byte of the data**, until either the
+    /// end of the String or error.
+    ///
+    /// If I understood, the VarInt at the beginning of the String is specifying the number of
+    /// bytes the actual UTF-8 string takes in the packet. Then, we have to convert the bytes into
+    /// an UTF-8 string, then convert it to UTF-16 to count the number of code points (also, code
+    /// points above U+FFFF count as 2) to check if the String is following or not the rules.
+    pub fn read(data: &[u8]) -> Result<(String, usize), CodecError> {
+        match varint::read(data) {
+            Ok(read_varint) => {
+                let string_bytes_length: usize = read_varint.0 as usize;
+                let read_bytes: usize = read_varint.1;
+
+                // The position where the last string byte is.
+                // string bytes size + string bytes
+                let last_string_byte: usize = read_bytes + string_bytes_length;
+
+                info!("Data: {data:?}");
+                info!("Number of bytes of the length: {read_bytes}");
+                info!("Number of bytes of the string: {string_bytes_length}");
+
+                // If there are more bytes of string than the length of the data.
+                if last_string_byte > data.len() {
+                    return Err(CodecError::InvalidStringLength);
+                }
+
+                // If VarInt + String is greater than max allowed.
+                if last_string_byte > MAX_DATA_SIZE {
+                    return Err(CodecError::InvalidStringLength);
+                }
+
+                // We omit the first VarInt bytes and stop at the end of the string.
+                let string_data = &data[read_bytes..last_string_byte];
+
+                // Decode UTF-8 to a string
+                let utf8_str: &str =
+                    str::from_utf8(string_data).map_err(|_| CodecError::InvalidEncoding)?;
+
+                // Convert the string to potentially UTF-16 units and count them
+                let utf16_units = utf8_str.encode_utf16().count();
+
+                // Check if the utf16_units exceed the allowed maximum
+                if utf16_units > MAX_UTF_16_UNITS {
+                    return Err(CodecError::InvalidStringLength);
+                }
+
+                Ok((utf8_str.to_string(), last_string_byte))
+            }
+
+            Err(_) => Err(CodecError::DecodeString),
+        }
+
+        //UTF-8 string prefixed with its size in bytes as a VarInt. Maximum length of n characters, which varies by context. The encoding used on the wire is regular UTF-8, not Java's "slight modification". However, the length of the string for purposes of the length limit is its number of UTF-16 code units, that is, scalar values > U+FFFF are counted as two. Up to n × 3 bytes can be used to encode a UTF-8 string comprising n code units when converted to UTF-16, and both of those limits are checked. Maximum n value is 32767. The + 3 is due to the max size of a valid length VarInt.
+    }
+
+    /// Writes a Protocol String from a &str.
+    pub fn write(data: &str) -> Result<Vec<u8>, CodecError> {
+        // Convert the string to potentially UTF-16 units and count them
+        let utf16_units = data.encode_utf16().count();
+
+        // Check if the utf16_units exceed the allowed maximum
+        if utf16_units > MAX_UTF_16_UNITS {
+            return Err(CodecError::InvalidStringLength);
+        }
+
+        // This is the lengh of the input &[str] which is a UTF-8 string.
+        let mut string_length_varint: Vec<u8> = varint::write(data.len() as i32);
+
+        // Pre-allocate exactly the number of bytes to have the VarInt and the String data.
+        let mut result: Vec<u8> = Vec::with_capacity(data.len() + string_length_varint.len());
+
+        // Add VarInt string length.
+        result.append(&mut string_length_varint);
+        // Add UTF-8 string bytes.
+        result.extend_from_slice(data.as_bytes());
+
+        if result.len() > MAX_DATA_SIZE {
+            return Err(CodecError::InvalidStringLength);
+        }
+
+        Ok(result)
+    }
 }
 
 /// Tests mostly written by AI, and not human-checked.
 #[cfg(test)]
 mod tests {
     use super::*;
+    use core::panic;
     use rand::Rng;
     use std::collections::HashMap;
 
@@ -351,5 +481,264 @@ mod tests {
             varlong::read(&too_long),
             Err(CodecError::DecodeVarLongTooLong)
         ));
+    }
+
+    #[test]
+    fn test_string_read_valid_ascii() {
+        let s = "HELLO";
+        let string_bytes = s.as_bytes();
+        let length = string_bytes.len();
+
+        // Encode length as VarInt
+        let mut data = varint::write(length as i32);
+        data.extend_from_slice(string_bytes);
+
+        // Call string::read
+        match string::read(&data) {
+            Ok(result) => assert_eq!(result, s),
+            Err(e) => panic!("Unexpected error: {:?}", e),
+        }
+    }
+
+    #[test]
+    fn test_string_read_valid_utf8() {
+        let s = "こんにちは"; // Japanese for "Hello"
+        let string_bytes = s.as_bytes();
+        let length = string_bytes.len();
+
+        // Encode length as VarInt
+        let mut data = varint::write(length as i32);
+        data.extend_from_slice(string_bytes);
+
+        // Call string::read
+        match string::read(&data) {
+            Ok(result) => assert_eq!(result, s),
+            Err(e) => panic!("Unexpected error: {:?}", e),
+        }
+    }
+
+    #[test]
+    fn test_string_read_blank_string() {
+        let s = "";
+        let string_bytes = s.as_bytes();
+        let length = string_bytes.len(); // Should be 0
+
+        // Encode length as VarInt
+        let mut data = varint::write(length as i32);
+        data.extend_from_slice(string_bytes);
+
+        // Call string::read
+        match string::read(&data) {
+            Ok(val) => assert!(val.is_empty(), "Expected empty string, got {val}"),
+            Err(e) => panic!("Expected Ok(), got {e}"),
+        }
+    }
+
+    #[test]
+    fn test_string_read_too_long_string() {
+        // Assuming the maximum allowed length is 32767 bytes
+        let max_allowed_length = 32767;
+
+        // Create a string longer than the maximum allowed length
+        let s = "A".repeat(max_allowed_length + 1);
+        let string_bytes = s.as_bytes();
+        let length = string_bytes.len();
+
+        // Encode length as VarInt
+        let mut data = varint::write(length as i32);
+        println!("{data:?}");
+        data.extend_from_slice(string_bytes);
+
+        // Call string::read
+        match string::read(&data) {
+            Ok(_) => panic!("Expected StringTooLong error, but got Ok"),
+            Err(e) => assert_eq!(e, CodecError::InvalidStringLength),
+        }
+    }
+
+    #[test]
+    fn test_string_read_invalid_varint() {
+        // Create an invalid VarInt (6 bytes long, exceeding the 5-byte limit)
+        let invalid_varint = vec![0x80, 0x80, 0x80, 0x80, 0x80, 0x01];
+        let string_bytes = b"HELLO";
+
+        let mut data = invalid_varint;
+        data.extend_from_slice(string_bytes);
+
+        // Call string::read
+        match string::read(&data) {
+            Ok(_) => panic!("Expected DecodeString error, but got Ok"),
+            Err(e) => assert_eq!(e, CodecError::DecodeString),
+        }
+    }
+
+    #[test]
+    fn test_string_read_invalid_utf8() {
+        // Valid VarInt for length 3
+        let length = 3;
+        let mut data = varint::write(length as i32);
+
+        // Invalid UTF-8 bytes
+        let invalid_utf8 = vec![0xFF, 0xFF, 0xFF];
+        data.extend_from_slice(&invalid_utf8);
+
+        // Call string::read
+        match string::read(&data) {
+            Ok(_) => panic!("Expected InvalidEncoding error, but got Ok"),
+            Err(e) => assert_eq!(e, CodecError::InvalidEncoding),
+        }
+    }
+
+    #[test]
+    fn test_string_read_incomplete_data() {
+        // Valid VarInt for length 10
+        let length = 10;
+        let mut data = varint::write(length as i32);
+
+        // String data shorter than declared length
+        let string_bytes = b"HELLO"; // Only 5 bytes
+        data.extend_from_slice(string_bytes);
+
+        // Call string::read
+        match string::read(&data) {
+            Ok(_) => panic!("Expected InvalidStringLength error, but got Ok"),
+            Err(e) => assert_eq!(e, CodecError::InvalidStringLength),
+        }
+    }
+
+    #[test]
+    fn test_string_read_no_data() {
+        // Valid VarInt for length 5
+        let length = 5;
+        let data = varint::write(length as i32); // No string data appended
+
+        // Call string::read
+        match string::read(&data) {
+            Ok(_) => panic!("Expected InvalidStringLength error, but got Ok"),
+            Err(e) => assert_eq!(e, CodecError::InvalidStringLength),
+        }
+    }
+
+    #[test]
+    fn test_string_read_empty_data() {
+        let data: Vec<u8> = Vec::new();
+
+        // Call string::read
+        match string::read(&data) {
+            Ok(_) => panic!("Expected DecodeString error, but got Ok"),
+            Err(e) => assert_eq!(e, CodecError::DecodeString),
+        }
+    }
+
+    #[test]
+    fn test_string_read_random_strings() {
+        let mut rng = rand::thread_rng();
+
+        for _ in 0..1000 {
+            // Generate a random length between 1 and 100
+            let length = rng.gen_range(1..=100);
+
+            // Generate a random string of that length
+            let s: String = (0..length)
+                .map(|_| rng.sample(rand::distributions::Alphanumeric) as char)
+                .collect();
+            let string_bytes = s.as_bytes();
+
+            // Encode length as VarInt
+            let mut data = varint::write(string_bytes.len() as i32);
+            data.extend_from_slice(string_bytes);
+
+            // Call string::read
+            match string::read(&data) {
+                Ok(result) => assert_eq!(result, s),
+                Err(e) => panic!("Unexpected error: {:?}", e),
+            }
+        }
+    }
+
+    #[test]
+    fn test_write_valid_string() {
+        let input = "Hello, World!";
+        let expected_varint = varint::write(input.len() as i32);
+        let expected_bytes = [expected_varint.as_slice(), input.as_bytes()].concat();
+
+        let result = string::write(input);
+        assert!(result.is_ok());
+        assert_eq!(result.unwrap(), expected_bytes);
+    }
+
+    #[test]
+    fn test_write_empty_string() {
+        let input = "";
+        let expected_varint = varint::write(input.len() as i32);
+        let expected_bytes = expected_varint;
+
+        let result = string::write(input);
+        assert!(result.is_ok());
+        assert_eq!(result.unwrap(), expected_bytes);
+    }
+
+    #[test]
+    fn test_write_string_exceeding_max_utf16_units() {
+        // Generate a string with a length greater than the maximum UTF-16 units allowed.
+        let input: String = std::iter::repeat('𠀋').take(32768).collect(); // This character (U+0800B) uses 2 UTF-16 units.
+        let result = string::write(&input);
+        assert!(matches!(result, Err(CodecError::InvalidStringLength)));
+    }
+
+    #[test]
+    fn test_write_string_exceeding_max_data_size() {
+        // Generate a string that, when encoded with VarInt, would exceed the max data size.
+        let long_string = "a".repeat(32767 * 3 + 4); // Over the size limit after accounting for VarInt size.
+        let result = string::write(&long_string);
+        assert!(matches!(result, Err(CodecError::InvalidStringLength)));
+    }
+
+    #[test]
+    fn test_write_string_with_special_characters() {
+        let input = "こんにちは、世界! 🌍"; // Includes Unicode characters and an emoji.
+        let expected_varint = varint::write(input.len() as i32);
+        let expected_bytes = [expected_varint.as_slice(), input.as_bytes()].concat();
+
+        let result = string::write(input);
+        assert!(result.is_ok());
+        assert_eq!(result.unwrap(), expected_bytes);
+    }
+
+    #[test]
+    fn test_write_string_near_max_length() {
+        let max_length = 32767; // Maximum number of UTF-16 code units.
+        let input: String = std::iter::repeat('a').take(max_length).collect(); // Each 'a' is one UTF-16 unit.
+        let expected_varint = varint::write(input.len() as i32);
+        let expected_bytes = [expected_varint.as_slice(), input.as_bytes()].concat();
+
+        let result = string::write(&input);
+        assert!(result.is_ok());
+        assert_eq!(result.unwrap(), expected_bytes);
+    }
+
+    #[test]
+    fn test_write_to_read_loop() {
+        let input = "こんにちは、世界! 🌍"; // Includes Unicode characters and an emoji.
+
+        let converted = string::write(input);
+        assert!(converted.is_ok());
+
+        match converted {
+            Ok(bytes) => match string::read(&bytes) {
+                Ok(string) => {
+                    assert!(
+                        input == string,
+                        "input != string: input='{input}' and string='{string}'"
+                    );
+                }
+                Err(e) => {
+                    panic!("Error converting string: {e}");
+                }
+            },
+            Err(e) => {
+                panic!("Error converting string: {e}");
+            }
+        }
     }
 }
