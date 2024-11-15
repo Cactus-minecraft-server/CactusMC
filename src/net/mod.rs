@@ -76,6 +76,8 @@ async fn handle_connection(
         }
 
         let response = handle_packet(&mut state, &buf[..read_bytes]).await?;
+
+        // TODO: Assure that sent packets are big endians (data types).
         socket.write_all(&response).await?;
     }
 }
