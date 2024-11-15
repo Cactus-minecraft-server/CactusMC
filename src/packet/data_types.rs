@@ -142,7 +142,7 @@ pub mod varlong {
 // TODO: Maybe find a better way to do errors than having one error type per data type. This is
 // smelly.
 
-#[derive(Error, Debug)]
+#[derive(Error, Debug, Clone, Copy, PartialEq, Eq)]
 pub enum CodecError {
     #[error("VarInt decoding error: value too long (max 5 bytes)")]
     DecodeVarIntTooLong,
@@ -152,10 +152,7 @@ pub enum CodecError {
     DecodeVarIntEmpty,
     #[error("VarLong decoding error: no bytes read (min 1 byte)")]
     DecodeVarLongEmpty,
-}
 
-#[derive(Error, Debug, Clone, Copy, PartialEq, Eq)]
-pub enum StringError {
     #[error("String decoding error: invalid VarInt")]
     DecodeString,
     #[error("String decoding error: invalid string length or invalid VarInt string byte size")]
@@ -177,7 +174,7 @@ pub mod string {
 
     use log::info;
 
-    use super::{varint, StringError};
+    use super::{varint, CodecError};
 
     // The maximum number of bytes the whole String (including the VarInt) can be.
     // 32767 is the max number of UTF-16 code units allowed. Multiplying by 3 accounts for
@@ -193,7 +190,7 @@ pub mod string {
     /// bytes the actual UTF-8 string takes in the packet. Then, we have to convert the bytes into
     /// an UTF-8 string, then convert it to UTF-16 to count the number of code points (also, code
     /// points above U+FFFF count as 2) to check if the String is following or not the rules.
-    pub fn read(data: &[u8]) -> Result<String, StringError> {
+    pub fn read(data: &[u8]) -> Result<(String, usize), CodecError> {
         match varint::read(data) {
             Ok(read_varint) => {
                 let string_bytes_length: usize = read_varint.0 as usize;
@@ -203,18 +200,18 @@ pub mod string {
                 // string bytes size + string bytes
                 let last_string_byte: usize = read_bytes + string_bytes_length;
 
-                info!("Data: {data:#?}");
+                info!("Data: {data:?}");
                 info!("Number of bytes of the length: {read_bytes}");
                 info!("Number of bytes of the string: {string_bytes_length}");
 
                 // If there are more bytes of string than the length of the data.
                 if last_string_byte > data.len() {
-                    return Err(StringError::InvalidStringLength);
+                    return Err(CodecError::InvalidStringLength);
                 }
 
                 // If VarInt + String is greater than max allowed.
                 if last_string_byte > MAX_DATA_SIZE {
-                    return Err(StringError::InvalidStringLength);
+                    return Err(CodecError::InvalidStringLength);
                 }
 
                 // We omit the first VarInt bytes and stop at the end of the string.
@@ -222,33 +219,33 @@ pub mod string {
 
                 // Decode UTF-8 to a string
                 let utf8_str: &str =
-                    str::from_utf8(string_data).map_err(|_| StringError::InvalidEncoding)?;
+                    str::from_utf8(string_data).map_err(|_| CodecError::InvalidEncoding)?;
 
                 // Convert the string to potentially UTF-16 units and count them
                 let utf16_units = utf8_str.encode_utf16().count();
 
                 // Check if the utf16_units exceed the allowed maximum
                 if utf16_units > MAX_UTF_16_UNITS {
-                    return Err(StringError::InvalidStringLength);
+                    return Err(CodecError::InvalidStringLength);
                 }
 
-                Ok(utf8_str.to_string())
+                Ok((utf8_str.to_string(), last_string_byte))
             }
 
-            Err(_) => Err(StringError::DecodeString),
+            Err(_) => Err(CodecError::DecodeString),
         }
 
         //UTF-8 string prefixed with its size in bytes as a VarInt. Maximum length of n characters, which varies by context. The encoding used on the wire is regular UTF-8, not Java's "slight modification". However, the length of the string for purposes of the length limit is its number of UTF-16 code units, that is, scalar values > U+FFFF are counted as two. Up to n × 3 bytes can be used to encode a UTF-8 string comprising n code units when converted to UTF-16, and both of those limits are checked. Maximum n value is 32767. The + 3 is due to the max size of a valid length VarInt.
     }
 
     /// Writes a Protocol String from a &str.
-    pub fn write(data: &str) -> Result<Vec<u8>, StringError> {
+    pub fn write(data: &str) -> Result<Vec<u8>, CodecError> {
         // Convert the string to potentially UTF-16 units and count them
         let utf16_units = data.encode_utf16().count();
 
         // Check if the utf16_units exceed the allowed maximum
         if utf16_units > MAX_UTF_16_UNITS {
-            return Err(StringError::InvalidStringLength);
+            return Err(CodecError::InvalidStringLength);
         }
 
         // This is the lengh of the input &[str] which is a UTF-8 string.
@@ -263,7 +260,7 @@ pub mod string {
         result.extend_from_slice(data.as_bytes());
 
         if result.len() > MAX_DATA_SIZE {
-            return Err(StringError::InvalidStringLength);
+            return Err(CodecError::InvalidStringLength);
         }
 
         Ok(result)
@@ -555,7 +552,7 @@ mod tests {
         // Call string::read
         match string::read(&data) {
             Ok(_) => panic!("Expected StringTooLong error, but got Ok"),
-            Err(e) => assert_eq!(e, StringError::InvalidStringLength),
+            Err(e) => assert_eq!(e, CodecError::InvalidStringLength),
         }
     }
 
@@ -571,7 +568,7 @@ mod tests {
         // Call string::read
         match string::read(&data) {
             Ok(_) => panic!("Expected DecodeString error, but got Ok"),
-            Err(e) => assert_eq!(e, StringError::DecodeString),
+            Err(e) => assert_eq!(e, CodecError::DecodeString),
         }
     }
 
@@ -588,7 +585,7 @@ mod tests {
         // Call string::read
         match string::read(&data) {
             Ok(_) => panic!("Expected InvalidEncoding error, but got Ok"),
-            Err(e) => assert_eq!(e, StringError::InvalidEncoding),
+            Err(e) => assert_eq!(e, CodecError::InvalidEncoding),
         }
     }
 
@@ -605,7 +602,7 @@ mod tests {
         // Call string::read
         match string::read(&data) {
             Ok(_) => panic!("Expected InvalidStringLength error, but got Ok"),
-            Err(e) => assert_eq!(e, StringError::InvalidStringLength),
+            Err(e) => assert_eq!(e, CodecError::InvalidStringLength),
         }
     }
 
@@ -618,7 +615,7 @@ mod tests {
         // Call string::read
         match string::read(&data) {
             Ok(_) => panic!("Expected InvalidStringLength error, but got Ok"),
-            Err(e) => assert_eq!(e, StringError::InvalidStringLength),
+            Err(e) => assert_eq!(e, CodecError::InvalidStringLength),
         }
     }
 
@@ -629,7 +626,7 @@ mod tests {
         // Call string::read
         match string::read(&data) {
             Ok(_) => panic!("Expected DecodeString error, but got Ok"),
-            Err(e) => assert_eq!(e, StringError::DecodeString),
+            Err(e) => assert_eq!(e, CodecError::DecodeString),
         }
     }
 
@@ -686,7 +683,7 @@ mod tests {
         // Generate a string with a length greater than the maximum UTF-16 units allowed.
         let input: String = std::iter::repeat('𠀋').take(32768).collect(); // This character (U+0800B) uses 2 UTF-16 units.
         let result = string::write(&input);
-        assert!(matches!(result, Err(StringError::InvalidStringLength)));
+        assert!(matches!(result, Err(CodecError::InvalidStringLength)));
     }
 
     #[test]
@@ -694,7 +691,7 @@ mod tests {
         // Generate a string that, when encoded with VarInt, would exceed the max data size.
         let long_string = "a".repeat(32767 * 3 + 4); // Over the size limit after accounting for VarInt size.
         let result = string::write(&long_string);
-        assert!(matches!(result, Err(StringError::InvalidStringLength)));
+        assert!(matches!(result, Err(CodecError::InvalidStringLength)));
     }
 
     #[test]
