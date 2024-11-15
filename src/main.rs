@@ -117,7 +117,7 @@ fn greet() {
 #[cfg(debug_assertions)]
 /// A test fonction that'll only run in debug-mode. (cargo run) and not (cargo run --release)
 fn test() {
-    use packet::data_types::string;
+    use packet::data_types::{string, varint};
 
     info!("[ BEGIN test() ]");
 
@@ -135,6 +135,13 @@ fn test() {
     info!("{a:#?}");
 
     info!("Hello, world from test()!");
+
+    warn!("----------------------------------------------------");
+
+    let empty_vec = Vec::default();
+    info!("empty_vec = {empty_vec:#?}");
+    let read = varint::read(&empty_vec);
+    info!("Read with empty_vec: {read:#?} (val, bytes_read)");
 
     info!("[ END test()]");
 }
