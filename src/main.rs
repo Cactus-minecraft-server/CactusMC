@@ -1,38 +1,26 @@
 //! The servers's entrypoint file.
-
+use std::env;
+mod args;
 mod commands;
 mod config;
 mod consts;
+mod file_folder_parser;
 mod fs_manager;
 mod logging;
 mod net;
 mod packet;
-mod player;
+
 mod slp;
+use log::{error, info, warn};
+mod player;
 mod time;
-use std::env::{self};
 
 use config::Gamemode;
 use consts::messages;
-use fs_manager::clean_file;
-use log::{error, info, warn};
 
 #[tokio::main]
 async fn main() {
-    let arguments: Vec<String> = env::args().collect();
-
-    if arguments.len() > 1 {
-        match arguments[1].as_str() {
-            "-remove_files" | "--remove" => {
-                clean_file();
-                info!("All files have been removed.");
-                gracefully_exit(-1);
-            }
-            _ => {
-                warn!("Failed to read the arguments...");
-            }
-        }
-    }
+    args::init();
 
     if let Err(e) = early_init().await {
         error!("Failed to start the server, error in early initialization: {e}. \nExiting...");
@@ -68,7 +56,6 @@ async fn early_init() -> Result<(), Box<dyn std::error::Error>> {
 
     // Listens for cli input commands
     commands::listen_console_commands().await;
-
     Ok(())
 }
 
@@ -130,12 +117,31 @@ fn greet() {
 #[cfg(debug_assertions)]
 /// A test fonction that'll only run in debug-mode. (cargo run) and not (cargo run --release)
 fn test() {
+    use packet::data_types::{string, varint};
+
     info!("[ BEGIN test() ]");
 
     // Do not remove this line, yet.
     let _ = packet::Packet::new(&[]);
 
+    let s = &[6, 72, 69, 76, 76, 79, 33, 0xFF, 0xFF, 0xFF];
+    let string_s = string::read(s);
+    info!("{string_s:#?}");
+
+    let a = &s[..2];
+    info!("{a:#?}");
+
+    let a = &s[2..];
+    info!("{a:#?}");
+
     info!("Hello, world from test()!");
+
+    warn!("----------------------------------------------------");
+
+    let empty_vec = Vec::default();
+    info!("empty_vec = {empty_vec:#?}");
+    let read = varint::read(&empty_vec);
+    info!("Read with empty_vec: {read:#?} (val, bytes_read)");
 
     info!("[ END test()]");
 }

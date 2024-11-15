@@ -66,7 +66,7 @@ pub struct Settings {
     max_tick_time: i64,
     require_resource_pack: bool,
     use_native_transport: bool,
-    max_players: u32,
+    pub max_players: u32,
     online_mode: bool,
     enable_status: bool,
     allow_flight: bool,
@@ -134,7 +134,12 @@ impl Settings {
                 "" => None,
                 s => Some(s.parse::<i64>().unwrap()),
             },
-            gamemode: match config_file.get_property("gamemode").unwrap().to_lowercase().as_str() {
+            gamemode: match config_file
+                .get_property("gamemode")
+                .unwrap()
+                .to_lowercase()
+                .as_str()
+            {
                 "creative" => Gamemode::CREATIVE,
                 "survival" => Gamemode::SURVIVAL,
                 "spectator" => Gamemode::SPECTATOR,

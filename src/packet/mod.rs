@@ -41,6 +41,8 @@ pub struct Packet<'a> {
 // TODO: Implement `Iterator` trait to iterate over the packet's bytes in order to then implement
 // encoding/decoding functions for VarInts and such.
 
+// TODO: A PACKET BUILDER!!!!!!!!!!!
+
 impl<'a> Packet<'a> {
     /// Initalizes a new `Packet` with an empty `data` buffer.
     pub fn new(data: &'a [u8]) -> Result<Self, PacketError> {
