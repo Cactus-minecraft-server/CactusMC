@@ -1,4 +1,3 @@
-use serde_json::error;
 use thiserror::Error;
 
 /// Implementation of the LEB128 variable-length code compression algorithm.
@@ -495,7 +494,7 @@ mod tests {
 
         // Call string::read
         match string::read(&data) {
-            Ok(result) => assert_eq!(result, s),
+            Ok(result) => assert_eq!(result.0, s),
             Err(e) => panic!("Unexpected error: {:?}", e),
         }
     }
@@ -512,7 +511,7 @@ mod tests {
 
         // Call string::read
         match string::read(&data) {
-            Ok(result) => assert_eq!(result, s),
+            Ok(result) => assert_eq!(result.0, s),
             Err(e) => panic!("Unexpected error: {:?}", e),
         }
     }
@@ -529,7 +528,7 @@ mod tests {
 
         // Call string::read
         match string::read(&data) {
-            Ok(val) => assert!(val.is_empty(), "Expected empty string, got {val}"),
+            Ok(val) => assert!(val.0.is_empty(), "Expected empty string, got {}", val.0),
             Err(e) => panic!("Expected Ok(), got {e}"),
         }
     }
@@ -650,7 +649,7 @@ mod tests {
 
             // Call string::read
             match string::read(&data) {
-                Ok(result) => assert_eq!(result, s),
+                Ok(result) => assert_eq!(result.0, s),
                 Err(e) => panic!("Unexpected error: {:?}", e),
             }
         }
@@ -728,8 +727,9 @@ mod tests {
             Ok(bytes) => match string::read(&bytes) {
                 Ok(string) => {
                     assert!(
-                        input == string,
-                        "input != string: input='{input}' and string='{string}'"
+                        input == string.0,
+                        "input != string: input='{input}' and string='{}'",
+                        string.0
                     );
                 }
                 Err(e) => {

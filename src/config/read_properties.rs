@@ -118,7 +118,7 @@ pub fn read_properties<R: BufRead>(reader: &mut R) -> Result<Properties, Propert
 
         let (field, value) = line
             .split_once('=')
-            .ok_or_else(|| PropertiesParseError::new_invalid_kvp(line_number, &line))?;
+            .ok_or_else(|| PropertiesParseError::new_invalid_kvp(line_number, line))?;
 
         let key = field.trim().to_string();
         let value = value.trim().to_string();

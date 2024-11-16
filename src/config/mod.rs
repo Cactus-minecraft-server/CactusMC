@@ -29,22 +29,22 @@ pub mod read_properties;
 /// ```
 ///
 pub enum Difficulty {
-    EASY,
-    NORMAL,
-    HARD,
+    Easy,
+    Normal,
+    Hard,
 }
 pub enum Gamemode {
-    ADVENTURE,
-    SURVIVAL,
-    CREATIVE,
-    SPECTATOR,
+    Adventure,
+    Survival,
+    Creative,
+    Spectator,
 }
 pub enum WorlPreset {
-    NORMAL,
-    FLAT,
-    LARGEBIOMES,
-    AMPLIFIED,
-    SINGLEBIOMESURFACE,
+    Normal,
+    Flat,
+    LargeBiomes,
+    Amplified,
+    SingleBiomeSurface,
 }
 
 pub struct Settings {
@@ -110,8 +110,8 @@ pub struct Settings {
 fn read(filepath: &Path) -> std::io::Result<Properties> {
     let file = File::open(filepath)?;
     let mut reader = BufReader::new(file);
-    return read_properties::read_properties(&mut reader)
-        .map_err(|e| Error::new(ErrorKind::Other, e.to_string()));
+    read_properties::read_properties(&mut reader)
+        .map_err(|e| Error::new(ErrorKind::Other, e.to_string()))
 }
 
 impl Settings {
@@ -140,11 +140,11 @@ impl Settings {
                 .to_lowercase()
                 .as_str()
             {
-                "creative" => Gamemode::CREATIVE,
-                "survival" => Gamemode::SURVIVAL,
-                "spectator" => Gamemode::SPECTATOR,
-                "adventure" => Gamemode::ADVENTURE,
-                _ => Gamemode::SURVIVAL, // default value
+                "creative" => Gamemode::Creative,
+                "survival" => Gamemode::Survival,
+                "spectator" => Gamemode::Spectator,
+                "adventure" => Gamemode::Adventure,
+                _ => Gamemode::Survival, // default value
             },
             enable_command_block: config_file
                 .get_property("enable-command-block")
@@ -192,10 +192,10 @@ impl Settings {
                 s => Some(s.parse::<i32>().unwrap()),
             },
             difficulty: match config_file.get_property("difficulty").unwrap() {
-                "normal" => Difficulty::NORMAL,
-                "easy" => Difficulty::EASY,
-                "hard" => Difficulty::HARD,
-                _ => Difficulty::EASY, // default value
+                "normal" => Difficulty::Normal,
+                "easy" => Difficulty::Easy,
+                "hard" => Difficulty::Hard,
+                _ => Difficulty::Easy, // default value
             },
             network_compression_threshold: config_file
                 .get_property("network-compression-threshold")
@@ -372,12 +372,12 @@ impl Settings {
                 .unwrap(),
             // level-type and also be "minecraft\:normal"
             level_type: match config_file.get_property("level-type").unwrap() {
-                "normal" => WorlPreset::NORMAL,
-                "flat" => WorlPreset::FLAT,
-                "large_biomes" => WorlPreset::LARGEBIOMES,
-                "amplified" => WorlPreset::SINGLEBIOMESURFACE,
-                "single_biome_surface" => WorlPreset::AMPLIFIED,
-                _ => WorlPreset::NORMAL, // default value
+                "normal" => WorlPreset::Normal,
+                "flat" => WorlPreset::Flat,
+                "large_biomes" => WorlPreset::LargeBiomes,
+                "amplified" => WorlPreset::SingleBiomeSurface,
+                "single_biome_surface" => WorlPreset::Amplified,
+                _ => WorlPreset::Normal, // default value
             },
             spawn_monsters: config_file
                 .get_property("spawn-monsters")

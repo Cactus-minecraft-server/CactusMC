@@ -4,7 +4,7 @@
 
 /// Module where we store information relevant to the Minecraft server.
 pub mod minecraft {
-    pub const VERSION: &'static str = "1.21.1"; // 1.21.1 as it is the wiki.vg version
+    pub const VERSION: &str = "1.21.1"; // 1.21.1 as it is the wiki.vg version
     pub const PROTOCOL_VERSION: usize = 767;
 }
 
@@ -33,32 +33,32 @@ pub mod messages {
 
     /// Used when exiting the server with an exit code.
     pub fn server_shutdown_code(code: i32) -> String {
-        return format!("[ server shutdown with code: {code}]")
+        format!("[ server shutdown with code: {code}]")
             .to_uppercase()
             .bright_red()
             .bold()
-            .to_string();
+            .to_string()
     }
 }
 
 /// Module used to store file paths relative to the server binary.
 pub mod filepaths {
     /// server.properties file, used to store server settings.
-    pub const PROPERTIES: &'static str = "server.properties";
-    pub const EULA: &'static str = "eula.txt";
-    pub const OPERATORS: &'static str = "ops.json";
-    pub const WHITELIST: &'static str = "whitelist.json";
-    pub const BANNED_IP: &'static str = "banned-ips.json";
-    pub const BANNED_PLAYERS: &'static str = "banned-players.json";
-    pub const USERCACHE: &'static str = "usercache.json";
-    pub const SESSION: &'static str = "session.lock";
+    pub const PROPERTIES: &str = "server.properties";
+    pub const EULA: &str = "eula.txt";
+    pub const OPERATORS: &str = "ops.json";
+    pub const WHITELIST: &str = "whitelist.json";
+    pub const BANNED_IP: &str = "banned-ips.json";
+    pub const BANNED_PLAYERS: &str = "banned-players.json";
+    pub const USERCACHE: &str = "usercache.json";
+    pub const SESSION: &str = "session.lock";
 }
 pub mod folderpath {
-    pub const WORLDS_DIRECTORY: &'static str = "world/";
-    pub const THE_END: &'static str = "world/DIM1/";
-    pub const NETHER: &'static str = "world/DIM-1/";
-    pub const OVERWORLD: &'static str = "world/region/";
-    pub const LOGS: &'static str = "logs/";
+    pub const WORLDS_DIRECTORY: &str = "world/";
+    pub const THE_END: &str = "world/DIM1/";
+    pub const NETHER: &str = "world/DIM-1/";
+    pub const OVERWORLD: &str = "world/region/";
+    pub const LOGS: &str = "logs/";
 }
 
 pub mod file_content {
@@ -139,18 +139,17 @@ view-distance=10
 white-list=false"#;
 
         format!(
-            "# Minecraft server properties\n{}\n{}",
-            format!("# {}", time::get_formatted_time()),
-            SERVER_PROPERTIES_INNER,
+            "# Minecraft server properties\n# {}\n{}",
+            time::get_formatted_time(),
+            SERVER_PROPERTIES_INNER
         )
     }
 }
 pub mod ping_slp {
-    use crate::config;
 
     use super::minecraft::{PROTOCOL_VERSION, VERSION};
     ///return the json which will be send as a response of the ping to the CLI.
-    pub fn JSON_response() -> () {
+    pub fn json_response() {
         // For the version like 1.21.1,767.
         let version_name = VERSION;
         let version_protocol = PROTOCOL_VERSION;
