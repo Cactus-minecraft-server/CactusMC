@@ -93,20 +93,25 @@ async fn handle_packet<'a>(
     print!("\n\n\n"); // So that each logged packet is clearly visible.
 
     let packet = Packet::new(buffer)?;
-    debug!("NEW PACKET ({}): {}", packet.len(), packet);
+    let packet_id_value: i32 = packet.get_id().get_value();
+
+    debug!(
+        "NEW PACKET (Bytes: {} / ID: {} / Conn state: {:?}): {}",
+        packet.len(),
+        packet_id_value,
+        conn.state,
+        packet
+    );
 
     // TODO: Implement a fmt::Debug trait for the Packet, such as it prints info like id, ...
     //debug!("PACKET INFO: {packet:?}");
-
-    let packet_id_value: i32 = packet.get_id().get_value();
-    debug!("PACKET ID: {packet_id_value}");
 
     match packet_id_value {
         0x00 => match conn.state {
             ConnectionState::Handshake => {
                 warn!("Handshake packet detected!");
                 let next_state = read_handshake_next_state(&packet).await?;
-                println!("next_state is {:?}", &next_state);
+                debug!("next_state is {next_state:?}");
                 conn.state = next_state;
 
                 // TODO: CLEANUP THIS MESS. Done hastily to check if it would work (it works!!).
