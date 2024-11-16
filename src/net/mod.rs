@@ -2,7 +2,6 @@
 use crate::packet::data_types::{string, varint, CodecError};
 use crate::packet::Packet;
 use crate::{config, gracefully_exit};
-use byteorder::{BigEndian, ReadBytesExt};
 use log::{debug, error, info, warn};
 use std::net::SocketAddr;
 use tokio::io::{AsyncReadExt, AsyncWriteExt};

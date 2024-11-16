@@ -41,7 +41,7 @@ fn create_server_properties() -> io::Result<()> {
     let path = Path::new(consts::filepaths::PROPERTIES);
     let content = consts::file_content::server_properties();
 
-    utils::create_file(&path, &content)
+    utils::create_file(path, &content)
 }
 
 /// Creates the 'eula.txt' file if it does not already exist.
@@ -49,7 +49,7 @@ fn create_eula() -> io::Result<()> {
     let path = Path::new(consts::filepaths::EULA);
     let content = consts::file_content::eula();
 
-    utils::create_file(&path, &content)
+    utils::create_file(path, &content)
 }
 
 /// Check if the 'eula.txt' has been agreed to.
@@ -182,7 +182,7 @@ pub fn write_ops_json(
     let mut file = OpenOptions::new()
         .read(true)
         .write(true)
-        .create(true)
+        .truncate(true)
         .open(consts::filepaths::OPERATORS)?;
 
     let mut content = String::new();
@@ -201,7 +201,9 @@ pub fn write_ops_json(
     });
     json_data.push(new_object);
     file.set_len(0)?;
-    file.write_all(serde_json::to_string_pretty(&json_data)?.as_bytes());
+    if let Err(e) = file.write_all(serde_json::to_string_pretty(&json_data)?.as_bytes()) {
+        warn!("Failed to write to ops: {e}");
+    }
     Ok(())
 }
 
@@ -268,7 +270,7 @@ pub fn clean_files() -> Result<(), std::io::Error> {
     for dir in &directories {
         remove_dir(dir)?;
     }
-    
+
     info!("Files cleaned successfully before starting the server.");
     gracefully_exit(0);
 }

@@ -1,5 +1,4 @@
 //! The servers's entrypoint file.
-use std::env;
 mod args;
 mod commands;
 mod config;
@@ -68,11 +67,13 @@ fn init() -> Result<(), Box<dyn std::error::Error>> {
     fs_manager::init()?;
     fs_manager::create_dirs();
     fs_manager::create_other_files();
+
+    // TODO: Not sure this has to be in main.rs
     let gamemode1 = match config::Settings::new().gamemode {
-        Gamemode::SURVIVAL => "Survival",
-        Gamemode::ADVENTURE => "Adventure",
-        Gamemode::CREATIVE => "Creative",
-        Gamemode::SPECTATOR => "Spectator",
+        Gamemode::Survival => "Survival",
+        Gamemode::Adventure => "Adventure",
+        Gamemode::Creative => "Creative",
+        Gamemode::Spectator => "Spectator",
     };
     info!("Default game type: {}", gamemode1.to_uppercase());
 
