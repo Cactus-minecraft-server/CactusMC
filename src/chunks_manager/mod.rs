@@ -5,7 +5,7 @@ pub fn main() -> () {
 struct ChunkSection {
     blocks: [[[u16; 16]; 16]; 4], // 4 for the 4 layers, 16 for the chunk border, u16 for the blocks positions
 }
-struct chunk {
+pub struct chunk {
     x: i32,
     z: i32,
     sections: Vec(ChunkSection),
