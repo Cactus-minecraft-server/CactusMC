@@ -145,15 +145,3 @@ white-list=false"#;
         )
     }
 }
-pub mod ping_slp {
-
-    use super::minecraft::{PROTOCOL_VERSION, VERSION};
-    ///return the json which will be send as a response of the ping to the CLI.
-    pub fn json_response() {
-        // For the version like 1.21.1,767.
-        let version_name = VERSION;
-        let version_protocol = PROTOCOL_VERSION;
-        // For the players.
-        //let player_max = config::Settings::new().max_players();
-    }
-}
