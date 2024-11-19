@@ -7,10 +7,8 @@ mod file_folder_parser;
 mod fs_manager;
 mod logging;
 mod net;
-mod packet;
-
-mod slp;
 use log::{error, info, warn};
+use net::packet;
 mod player;
 mod time;
 

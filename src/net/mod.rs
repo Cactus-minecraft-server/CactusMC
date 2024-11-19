@@ -1,8 +1,10 @@
 //! This module manages the TCP server and how/where the packets are managed/sent.
-use crate::packet::data_types::{string, varint, CodecError};
-use crate::packet::Packet;
+pub mod packet;
+pub mod slp;
 use crate::{config, gracefully_exit};
 use log::{debug, error, info, warn};
+use packet::data_types::{string, varint, CodecError};
+use packet::Packet;
 use std::net::SocketAddr;
 use tokio::io::{AsyncReadExt, AsyncWriteExt};
 use tokio::net::TcpListener;
@@ -11,10 +13,13 @@ use tokio::net::TcpStream;
 /// Global buffer size when allocating a new packet (in bytes).
 const BUFFER_SIZE: usize = 1024;
 
+/// Listening address
+const ADDRESS: &str = "0.0.0.0";
+
 /// Listens for every incoming TCP connection.
 pub async fn listen() -> Result<(), Box<dyn std::error::Error>> {
     let config = config::Settings::new();
-    let server_address = format!("0.0.0.0:{}", config.server_port);
+    let server_address = format!("{}:{}", ADDRESS, config.server_port);
     let listener = TcpListener::bind(server_address).await?;
 
     loop {
@@ -57,26 +62,31 @@ impl<'a> Connection<'a> {
     }
 }
 
-/// Handles each connection
+/// Handles each connection. Receives every packet.
 async fn handle_connection(
     mut socket: TcpStream,
     addr: SocketAddr,
 ) -> Result<(), Box<dyn std::error::Error>> {
-    debug!("New connection: {addr}");
+    debug!("Handling new connection: {socket:?}");
+
     // TODO: Maybe have a bigger/dynamic buffer?
     let mut buf = [0; BUFFER_SIZE];
-    //let mut state = ConnectionState::default();
-    let mut connection = Connection {
-        state: ConnectionState::default(),
-        socket: &mut socket,
-    };
+    let mut connection = Connection::new(&mut socket);
 
     loop {
-        let read_bytes = connection.socket.read(&mut buf).await?;
+        let read_bytes: usize = connection.socket.read(&mut buf).await?;
+
         if read_bytes == 0 {
-            debug!("Connection closed: {addr}");
-            return Ok(()); // TODO: Why Ok? It's supposed to be an error right?
+            debug!("Connection closed gracefully with {addr} (read 0 bytes)");
+            return Ok(());
         }
+
+        // TODO: Call a sort of function called "dispatch()" that dispatches the received packet to
+        // the appropriate functions.
+        // Then, maybe make sort of a "response_queue" that the dispatch functions would add OR
+        // just use functional programming and get the response of those dispatch functions.
+        // Because, if we use a queue, then how do we set the state of the connection (which is a
+        // state-machine)
 
         let response = handle_packet(&mut connection, &buf[..read_bytes]).await?;
 
