@@ -2,19 +2,32 @@
 pub mod packet;
 pub mod slp;
 use crate::{config, gracefully_exit};
+use bytes::BytesMut;
 use log::{debug, error, info, warn};
 use packet::data_types::{string, varint, CodecError};
-use packet::Packet;
+use packet::{Packet, PacketError};
+use serde_json::error;
 use std::net::SocketAddr;
+use thiserror::Error;
 use tokio::io::{AsyncReadExt, AsyncWriteExt};
 use tokio::net::TcpListener;
 use tokio::net::TcpStream;
 
-/// Global buffer size when allocating a new packet (in bytes).
-const BUFFER_SIZE: usize = 1024;
-
 /// Listening address
+/// TODO: Change this. Use config files.
 const ADDRESS: &str = "0.0.0.0";
+
+#[derive(Error, Debug)]
+pub enum NetError {
+    #[error("Connection closed: {0}")]
+    ConnectionClosed(String),
+
+    #[error("Failed to read from socket: {0}")]
+    Reading(String),
+
+    #[error("Failed to parse packet: {0}")]
+    Parsing(#[from] PacketError),
+}
 
 /// Listens for every incoming TCP connection.
 pub async fn listen() -> Result<(), Box<dyn std::error::Error>> {
@@ -49,7 +62,7 @@ impl Default for ConnectionState {
 
 /// Object representing a TCP connection.
 struct Connection<'a> {
-    state: ConnectionState,
+    pub state: ConnectionState,
     socket: &'a mut TcpStream,
 }
 
@@ -60,21 +73,27 @@ impl<'a> Connection<'a> {
             socket,
         }
     }
+
+    /// Change the state of the current Connection.
+    fn set_state(&mut self, new_state: ConnectionState) {
+        self.state = new_state
+    }
 }
 
 /// Handles each connection. Receives every packet.
-async fn handle_connection(
-    mut socket: TcpStream,
-    addr: SocketAddr,
-) -> Result<(), Box<dyn std::error::Error>> {
+async fn handle_connection(mut socket: TcpStream, addr: SocketAddr) -> Result<(), NetError> {
     debug!("Handling new connection: {socket:?}");
 
-    // TODO: Maybe have a bigger/dynamic buffer?
-    let mut buf = [0; BUFFER_SIZE];
+    // TODO: Maybe find a more efficient packet buffering technique?
+    let mut buffer = BytesMut::with_capacity(1024);
     let mut connection = Connection::new(&mut socket);
 
     loop {
-        let read_bytes: usize = connection.socket.read(&mut buf).await?;
+        let read_bytes: usize = connection
+            .socket
+            .read_buf(&mut buffer)
+            .await
+            .map_err(|err| NetError::Reading(format!("error reading socket: {err}")))?;
 
         if read_bytes == 0 {
             debug!("Connection closed gracefully with {addr} (read 0 bytes)");
@@ -88,10 +107,12 @@ async fn handle_connection(
         // Because, if we use a queue, then how do we set the state of the connection (which is a
         // state-machine)
 
-        let response = handle_packet(&mut connection, &buf[..read_bytes]).await?;
+        let response = handle_packet(&mut connection, &buffer).await?;
 
-        // TODO: Assure that sent packets are big endians (data types).
+        // TODO: Make sure that sent packets are big endians (data types).
         connection.socket.write_all(&response).await?;
+
+        buffer.clear();
     }
 }
 
@@ -99,9 +120,7 @@ async fn handle_connection(
 async fn handle_packet<'a>(
     conn: &'a mut Connection<'_>,
     buffer: &[u8],
-) -> Result<Vec<u8>, Box<dyn std::error::Error>> {
-    print!("\n\n\n"); // So that each logged packet is clearly visible.
-
+) -> Result<Vec<u8>, NetError> {
     let packet = Packet::new(buffer)?;
     let packet_id_value: i32 = packet.get_id().get_value();
 
