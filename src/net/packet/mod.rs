@@ -5,7 +5,9 @@ pub mod data_types;
 pub mod utils;
 
 use core::fmt;
+use std::{fmt::Debug, io::Read};
 
+use bytes::BytesMut;
 use data_types::varint;
 use log::warn;
 use thiserror::Error;
@@ -19,7 +21,7 @@ use thiserror::Error;
 /// Length (VarInt): Length of Packet ID + Data
 /// Packet ID (VarInt): An ID each packet has
 /// Data (Byte Array): Actual data bytes
-pub struct Packet<'a> {
+pub struct Packet {
     /// Length of `id` + `data`
     length: usize,
 
@@ -28,11 +30,11 @@ pub struct Packet<'a> {
 
     /// The raw bytes making the packet. (so it contains ALL of the packet, Length, Packet ID and
     /// the data bytes)
-    data: &'a [u8],
+    data: BytesMut,
 
     /// The raw bytes making the PAYLOAD of the packet. (so this slice does not contain the length
     /// and acket ID)
-    payload: &'a [u8],
+    payload: BytesMut,
 }
 
 // TODO: Implement printing functions to see the bytes in hexadecimal in order and in the reverse
@@ -43,26 +45,26 @@ pub struct Packet<'a> {
 
 // TODO: A PACKET BUILDER!!!!!!!!!!!
 
-impl<'a> Packet<'a> {
-    /// Initalizes a new `Packet` with an empty `data` buffer.
-    pub fn new(data: &'a [u8]) -> Result<Self, PacketError> {
-        let parsed = Self::parse_packet(data)?;
+impl Packet {
+    /// Initalizes a new `Packet` by parsing the `data` buffer.
+    pub fn new(data: &[u8]) -> Result<Self, PacketError> {
+        let parsed = Self::parse_packet(&data)?;
         Ok(Self {
             length: parsed.0,
             id: parsed.1,
-            data,
-            payload: parsed.2,
+            data: data.into(),
+            payload: parsed.2.into(),
         })
     }
 
     /// This is the WHOLE packet.
     pub fn get_full_packet(&self) -> &[u8] {
-        self.data
+        &self.data
     }
 
     /// This is the PAYLOAD. So the the bytes except the Packet Length and the Packet ID.
     pub fn get_payload(&self) -> &[u8] {
-        self.payload
+        &self.payload
     }
 
     /// Copies/Clone (I don't quite know) PacketId from the Packet.
@@ -120,22 +122,39 @@ impl<'a> Packet<'a> {
 /// ```rust
 /// let packet = Packet::default();
 /// ```
-impl<'a> Default for Packet<'a> {
+impl Default for Packet {
     fn default() -> Self {
         Self {
             length: usize::default(),
             id: PacketId::default(),
-            payload: &[],
-            data: &[],
+            payload: BytesMut::new(),
+            data: BytesMut::new(),
         }
     }
 }
 
 /// When printing a `Packet`, the hexadecimal representation will be shown.
-impl<'a> fmt::Display for Packet<'a> {
+impl fmt::Display for Packet {
     fn fmt(&self, f: &mut std::fmt::Formatter<'_>) -> std::fmt::Result {
-        let hex = utils::get_hex_repr(self.data);
+        let hex = utils::get_hex_repr(&self.data);
         write!(f, "{hex}")
+    }
+}
+
+impl fmt::Debug for Packet {
+    fn fmt(&self, f: &mut std::fmt::Formatter<'_>) -> std::fmt::Result {
+        write!(
+            f,
+            "PACKET (Length: {} / ID: {})",
+            self.len(),
+            self.id.get_value(),
+        )
+    }
+}
+
+impl AsRef<[u8]> for Packet {
+    fn as_ref(&self) -> &[u8] {
+        &self.data
     }
 }
 
@@ -146,25 +165,39 @@ pub enum PacketType {
 // TODO: Implement std::Display. Print packet type (if found) and value.
 
 /// id_length is the length in bytes of the Packet ID VarInt.
-#[derive(Default, Clone, Copy)]
+#[derive(Default, Clone)]
 pub struct PacketId {
     id: i32,
+    id_varint: Vec<u8>,
     id_length: usize,
 }
 
 impl PacketId {
     // Instantiates a new PacketId with given id and id_length.
     // To be clear, id_length is the length in bytes of the VarInt.
-    pub fn new(id: i32, id_length: usize) -> Self {
-        Self { id, id_length }
+    pub fn new(id: i32) -> Self {
+        let id_varint = data_types::varint::write(id);
+
+        Self {
+            id,
+            id_length: id_varint.len(),
+            id_varint,
+        }
     }
 
+    /// The numerical value of the ID (i32).
     pub fn get_value(&self) -> i32 {
         self.id
     }
 
+    /// The length of the VarInt-encoded ID.
     pub fn len(&self) -> usize {
         self.id_length
+    }
+
+    /// The VarInt-encoded ID.
+    pub fn get_varint(&self) -> Vec<u8> {
+        self.id_varint.clone()
     }
 
     /// Returns the "type" of the packet. An enum representing what the packet is, like connecting
@@ -188,13 +221,13 @@ impl PacketId {
 ///     Err(e) => println!("Error: {}", e),
 /// }
 /// ```
-impl TryFrom<&Packet<'_>> for PacketId {
+impl TryFrom<&Packet> for PacketId {
     type Error = PacketError;
 
     fn try_from(value: &Packet) -> Result<Self, Self::Error> {
         // TODO: Show Result error for debug.
-        if let Ok((id, id_length)) = data_types::varint::read(value.data) {
-            Ok(Self { id, id_length })
+        if let Ok((id, _)) = data_types::varint::read(&value.data) {
+            Ok(Self::new(id))
         } else {
             Err(PacketError::IdDecodingError)
         }
@@ -205,8 +238,8 @@ impl TryFrom<&[u8]> for PacketId {
     type Error = PacketError;
 
     fn try_from(value: &[u8]) -> Result<Self, Self::Error> {
-        if let Ok((id, id_length)) = data_types::varint::read(value) {
-            Ok(Self { id, id_length })
+        if let Ok((id, _)) = data_types::varint::read(value) {
+            Ok(Self::new(id))
         } else {
             Err(PacketError::IdDecodingError)
         }
@@ -219,6 +252,56 @@ pub enum PacketError {
     IdDecodingError,
     #[error("Failed to decode the packet length")]
     LengthDecodingError,
+}
+
+/// A builder to build a packet.
+#[derive(Default)]
+pub struct PacketBuilder {
+    id: i32,
+    data: Vec<u8>,
+}
+
+// TODO: MAKE: add_varint(), add_string(), add_datatype() METHODS FOR EASY BUILDING.
+
+impl PacketBuilder {
+    /// Returns an empty Self, Self::default().
+    pub fn new() -> Self {
+        Self::default()
+    }
+
+    /// Builds a packet
+    pub fn build(&self) -> Packet {
+        let id = PacketId::new(self.id);
+
+        let length = id.len() + self.data.len();
+        let length_varint = data_types::varint::write(length as i32);
+
+        let mut data = BytesMut::with_capacity(length + 10);
+        data.extend(length_varint);
+        data.extend(id.get_varint());
+        data.extend_from_slice(&self.data);
+
+        let payload = BytesMut::from(&self.data[..]);
+
+        Packet {
+            length,
+            id,
+            data,
+            payload,
+        }
+    }
+
+    /// Sets the PacketId
+    pub fn set_id(mut self, id: i32) -> Self {
+        self.id = id;
+        self
+    }
+
+    /// Sets the data for the packet
+    pub fn set_data(mut self, data: &[u8]) -> Self {
+        self.data = data.into();
+        self
+    }
 }
 
 // TODO: I wonder if having "invalid" value, like a too short/long Length should propagate an error

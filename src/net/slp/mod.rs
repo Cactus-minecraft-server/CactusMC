@@ -12,11 +12,9 @@ use log::info;
 
 use crate::packet::Packet;
 
-pub fn init() {}
+use super::packet::PacketBuilder;
 
-fn thread_loop() {}
-
-pub fn slp_callback(connection: i32, packet: &Packet) {
-    info!("In slp_callback()");
-    // I guess this function will use `connection` to respond.
+/// The response for a Status Request packet.
+pub fn status_response() -> Packet {
+    //PacketBuilder::new().set_id(0x01).set_data(data);
 }
