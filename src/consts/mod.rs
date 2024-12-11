@@ -150,7 +150,6 @@ white-list=false"#;
 
 /// Strings for packets
 pub mod protocol {
-    use std::{fs::File, io::BufReader};
 
     use base64::{engine::general_purpose, Engine};
     use image::{GenericImageView, ImageFormat};

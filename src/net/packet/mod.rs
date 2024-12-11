@@ -70,7 +70,7 @@ impl Packet {
 
     /// Copies/Clone (I don't quite know) PacketId from the Packet.
     pub fn get_id(&self) -> PacketId {
-        self.id
+        self.id.clone()
     }
 
     /// Returns the `Packet` `length` attribute. From protocol.
@@ -112,7 +112,7 @@ impl Packet {
             PacketError::LengthDecodingError
         })?;
 
-        let id_obj = PacketId::new(packet_id.0, packet_id.1);
+        let id_obj = PacketId::new(packet_id.0);
 
         Ok((length_value, id_obj, payload))
     }
@@ -346,6 +346,45 @@ impl PacketBuilder {
 
 // TODO: I wonder if having "invalid" value, like a too short/long Length should propagate an error
 // when creating a Packet.
+
+/// Represents a reponse to the Minecraft client.
+pub struct Response {
+    /// The packet to respond
+    packet: Option<Packet>,
+    /// Whether the server should close the connection after sending this response.
+    close_after_response: bool,
+}
+
+impl Response {
+    pub fn new(packet: Option<Packet>) -> Self {
+        Self {
+            packet,
+            close_after_response: false,
+        }
+    }
+
+    /// Returns a reference to the packet
+    pub fn get_packet(&self) -> Option<&Packet> {
+        self.packet.as_ref()
+    }
+
+    /// Consumes the Response and returns the packet
+    pub fn take_packet(self) -> Option<Packet> {
+        self.packet
+    }
+
+    /// Sets the `close_after_response` to true, which should make the server close the connection
+    /// with the Minecraft client after sending this response.
+    pub fn close_conn(mut self) -> Self {
+        self.close_after_response = true;
+        self
+    }
+
+    /// Returns whether or not the connection with the Minecraft client should be closed.
+    pub fn does_close_conn(&self) -> bool {
+        self.close_after_response
+    }
+}
 
 #[cfg(test)]
 mod tests {

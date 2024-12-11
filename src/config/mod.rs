@@ -28,81 +28,89 @@ pub mod read_properties;
 /// println!("{max_players}");
 /// ```
 ///
+#[derive(Debug)]
 pub enum Difficulty {
-    EASY,
-    NORMAL,
-    HARD,
-}
-pub enum Gamemode {
-    ADVENTURE,
-    SURVIVAL,
-    CREATIVE,
-    SPECTATOR,
-}
-pub enum WorlPreset {
-    NORMAL,
-    FLAT,
-    LARGEBIOMES,
-    AMPLIFIED,
-    SINGLEBIOMESURFACE,
+    Easy,
+    Normal,
+    Hard,
 }
 
+#[derive(Debug)]
+pub enum Gamemode {
+    Adventure,
+    Survival,
+    Creative,
+    Spectator,
+}
+
+#[derive(Debug)]
+pub enum WorldPreset {
+    Normal,
+    Flat,
+    LargeBiomes,
+    Amplified,
+    SingleBiomeSurface,
+}
+
+// TODO: Maybe make Settings a singleton
+
+#[derive(Debug)]
 pub struct Settings {
-    enable_jmx_monitoring: bool,
-    rcon_port: u16,
-    level_seed: Option<i64>,
+    pub enable_jmx_monitoring: bool,
+    pub rcon_port: u16,
+    pub level_seed: Option<i64>,
     pub gamemode: Gamemode,
-    enable_command_block: bool,
-    enable_query: bool,
+    pub enable_command_block: bool,
+    pub enable_query: bool,
     pub enforce_secure_profile: bool,
-    level_name: Option<String>,
+    pub level_name: Option<String>,
     pub motd: Option<String>,
-    query_port: u16,
-    pvp: bool,
-    generate_structures: bool,
-    max_chained_neighbor_updates: Option<i32>,
-    difficulty: Difficulty,
-    network_compression_threshold: i32,
-    max_tick_time: i64,
-    require_resource_pack: bool,
-    use_native_transport: bool,
+    pub query_port: u16,
+    pub pvp: bool,
+    pub generate_structures: bool,
+    pub max_chained_neighbor_updates: Option<i32>,
+    pub difficulty: Difficulty,
+    pub network_compression_threshold: i32,
+    pub max_tick_time: i64,
+    pub require_resource_pack: bool,
+    pub use_native_transport: bool,
     pub max_players: u32,
-    online_mode: bool,
-    enable_status: bool,
-    allow_flight: bool,
-    initial_disabled_packs: Option<String>,
-    broadcast_rcon_to_ops: bool,
-    view_distance: u8,
+    pub online_mode: bool,
+    pub enable_status: bool,
+    pub allow_flight: bool,
+    pub initial_disabled_packs: Option<String>,
+    pub broadcast_rcon_to_ops: bool,
+    pub view_distance: u8,
     pub server_ip: Option<Ipv4Addr>,
-    resource_pack_prompt: Option<String>,
-    allow_nether: bool,
+    pub resource_pack_prompt: Option<String>,
+    pub allow_nether: bool,
     pub server_port: u16,
-    enable_rcon: bool,
-    sync_chunk_writes: bool,
-    op_permission_level: u8,
-    prevent_proxy_connections: bool,
-    hide_online_players: bool,
-    resource_pack: Option<String>,
-    entity_broadcast_range_percentage: u8,
-    simulation_distance: u8,
-    rcon_password: Option<String>,
-    player_idle_timeout: i32,
-    force_gamemode: bool,
-    rate_limit: u32,
-    hardcore: bool,
-    white_list: bool,
-    broadcast_console_to_ops: bool,
-    spawn_npcs: bool,
-    spawn_animals: bool,
-    log_ips: bool,
-    function_permission_level: u8,
-    initial_enabled_packs: String,
-    level_type: WorlPreset,
-    spawn_monsters: bool,
-    enforce_whitelist: bool,
-    spawn_protection: u16,
-    resource_pack_sha1: Option<String>,
-    max_world_size: u32,
+    pub enable_rcon: bool,
+    pub sync_chunk_writes: bool,
+    pub op_permission_level: u8,
+    pub prevent_proxy_connections: bool,
+    pub hide_online_players: bool,
+    pub resource_pack: Option<String>,
+    pub entity_broadcast_range_percentage: u8,
+    pub simulation_distance: u8,
+    pub rcon_password: Option<String>,
+    pub player_idle_timeout: i32,
+    pub force_gamemode: bool,
+    pub rate_limit: u32,
+    pub hardcore: bool,
+    pub white_list: bool,
+    pub broadcast_console_to_ops: bool,
+    pub spawn_npcs: bool,
+    pub spawn_animals: bool,
+    pub log_ips: bool,
+    pub function_permission_level: u8,
+    pub initial_enabled_packs: String,
+    pub level_type: WorldPreset,
+    pub spawn_monsters: bool,
+    pub enforce_whitelist: bool,
+    pub spawn_protection: u16,
+    pub resource_pack_sha1: Option<String>,
+    pub max_world_size: u32,
     //generator_settings:todo!(),
     //text_filtering_config:todo!(),
 }
@@ -110,8 +118,8 @@ pub struct Settings {
 fn read(filepath: &Path) -> std::io::Result<Properties> {
     let file = File::open(filepath)?;
     let mut reader = BufReader::new(file);
-    return read_properties::read_properties(&mut reader)
-        .map_err(|e| Error::new(ErrorKind::Other, e.to_string()));
+    read_properties::read_properties(&mut reader)
+        .map_err(|e| Error::new(ErrorKind::Other, e.to_string()))
 }
 
 impl Settings {
@@ -140,11 +148,11 @@ impl Settings {
                 .to_lowercase()
                 .as_str()
             {
-                "creative" => Gamemode::CREATIVE,
-                "survival" => Gamemode::SURVIVAL,
-                "spectator" => Gamemode::SPECTATOR,
-                "adventure" => Gamemode::ADVENTURE,
-                _ => Gamemode::SURVIVAL, // default value
+                "creative" => Gamemode::Creative,
+                "survival" => Gamemode::Survival,
+                "spectator" => Gamemode::Spectator,
+                "adventure" => Gamemode::Adventure,
+                _ => Gamemode::Survival, // default value
             },
             enable_command_block: config_file
                 .get_property("enable-command-block")
@@ -192,10 +200,10 @@ impl Settings {
                 s => Some(s.parse::<i32>().unwrap()),
             },
             difficulty: match config_file.get_property("difficulty").unwrap() {
-                "normal" => Difficulty::NORMAL,
-                "easy" => Difficulty::EASY,
-                "hard" => Difficulty::HARD,
-                _ => Difficulty::EASY, // default value
+                "normal" => Difficulty::Normal,
+                "easy" => Difficulty::Easy,
+                "hard" => Difficulty::Hard,
+                _ => Difficulty::Easy, // default value
             },
             network_compression_threshold: config_file
                 .get_property("network-compression-threshold")
@@ -372,12 +380,12 @@ impl Settings {
                 .unwrap(),
             // level-type and also be "minecraft\:normal"
             level_type: match config_file.get_property("level-type").unwrap() {
-                "normal" => WorlPreset::NORMAL,
-                "flat" => WorlPreset::FLAT,
-                "large_biomes" => WorlPreset::LARGEBIOMES,
-                "amplified" => WorlPreset::SINGLEBIOMESURFACE,
-                "single_biome_surface" => WorlPreset::AMPLIFIED,
-                _ => WorlPreset::NORMAL, // default value
+                "normal" => WorldPreset::Normal,
+                "flat" => WorldPreset::Flat,
+                "large_biomes" => WorldPreset::LargeBiomes,
+                "amplified" => WorldPreset::SingleBiomeSurface,
+                "single_biome_surface" => WorldPreset::Amplified,
+                _ => WorldPreset::Normal, // default value
             },
             spawn_monsters: config_file
                 .get_property("spawn-monsters")
@@ -409,3 +417,4 @@ impl Settings {
     }
     //fn gamemode_to_enum(inp)
 }
+
