@@ -8,8 +8,6 @@
 
 // TODO: Add logging.
 
-use byteorder::{BigEndian, ReadBytesExt};
-
 use super::packet::{PacketBuilder, PacketError};
 use crate::consts;
 use crate::packet::Packet;
