@@ -5,11 +5,10 @@ pub mod data_types;
 pub mod utils;
 
 use core::fmt;
-use std::{collections::VecDeque, fmt::Debug, io::Read, vec};
+use std::{collections::VecDeque, fmt::Debug};
 
 use bytes::BytesMut;
 use data_types::varint;
-use image::error;
 use log::warn;
 use thiserror::Error;
 
@@ -48,12 +47,12 @@ pub struct Packet {
 
 impl Packet {
     /// Initalizes a new `Packet` by parsing the `data` buffer.
-    pub fn new(data: &[u8]) -> Result<Self, PacketError> {
-        let parsed = Self::parse_packet(&data)?;
+    pub fn new<T: AsRef<[u8]>>(data: T) -> Result<Self, PacketError> {
+        let parsed = Self::parse_packet(data.as_ref())?;
         Ok(Self {
             length: parsed.0,
             id: parsed.1,
-            data: data.into(),
+            data: data.as_ref().into(),
             payload: parsed.2.into(),
         })
     }

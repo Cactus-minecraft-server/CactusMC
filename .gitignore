@@ -130,6 +130,8 @@ session.lock
 version.json
 eula.txt
 
+src/server.properties
+
 # macOS files
 .DS_Store
 
