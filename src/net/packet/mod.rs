@@ -5,7 +5,7 @@ pub mod data_types;
 pub mod utils;
 
 use core::fmt;
-use std::{fmt::Debug, io::Read};
+use std::{collections::VecDeque, fmt::Debug, io::Read, vec};
 
 use bytes::BytesMut;
 use data_types::varint;
@@ -250,18 +250,32 @@ impl TryFrom<&[u8]> for PacketId {
 pub enum PacketError {
     #[error("Failed to decode the packet id")]
     IdDecodingError,
+
     #[error("Failed to decode the packet length")]
     LengthDecodingError,
+
+    #[error("Failed to build the packet: {0}")]
+    BuildPacket(String),
+}
+
+/// Represents the different actions that the PacketBuilder will do to construct the packet payload.
+pub enum BuildAction {
+    /// Appends raw bytes to the packet payload.
+    AppendBytes(Vec<u8>),
+
+    /// Appends an integer as a VarInt to the packet payload.
+    AppendVarInt(i32),
+
+    /// Appends a UTF-8 string to the packet payload.
+    AppendString(String),
 }
 
 /// A builder to build a packet.
 #[derive(Default)]
 pub struct PacketBuilder {
-    id: i32,
-    data: Vec<u8>,
+    /// Queue of actions to process
+    actions: VecDeque<BuildAction>,
 }
-
-// TODO: MAKE: add_varint(), add_string(), add_datatype() METHODS FOR EASY BUILDING.
 
 impl PacketBuilder {
     /// Returns an empty Self, Self::default().
@@ -270,36 +284,58 @@ impl PacketBuilder {
     }
 
     /// Builds a packet
-    pub fn build(&self) -> Packet {
-        let id = PacketId::new(self.id);
+    pub fn build(&self, packet_id: i32) -> Result<Packet, PacketError> {
+        let id = PacketId::new(packet_id);
 
-        let length = id.len() + self.data.len();
+        let mut payload = BytesMut::with_capacity(64);
+        for action in &self.actions {
+            match action {
+                BuildAction::AppendBytes(bytes) => payload.extend_from_slice(bytes),
+                BuildAction::AppendVarInt(value) => {
+                    let varint = data_types::varint::write(*value);
+                    payload.extend_from_slice(&varint);
+                }
+                BuildAction::AppendString(string) => {
+                    let string_bytes = data_types::string::write(string)
+                        .map_err(|err| PacketError::BuildPacket(err.to_string()))?;
+                    payload.extend_from_slice(&string_bytes);
+                }
+            }
+        }
+
+        let length = id.len() + payload.len();
         let length_varint = data_types::varint::write(length as i32);
 
         let mut data = BytesMut::with_capacity(length + 10);
         data.extend(length_varint);
         data.extend(id.get_varint());
-        data.extend_from_slice(&self.data);
+        data.extend_from_slice(&payload);
 
-        let payload = BytesMut::from(&self.data[..]);
-
-        Packet {
+        Ok(Packet {
             length,
             id,
             data,
             payload,
-        }
+        })
     }
 
-    /// Sets the PacketId
-    pub fn set_id(mut self, id: i32) -> Self {
-        self.id = id;
+    /// Appends bytes to the back of the packet payload.
+    pub fn append_bytes<T: AsRef<[u8]>>(&mut self, data: T) -> &mut Self {
+        self.actions
+            .push_back(BuildAction::AppendBytes(data.as_ref().to_vec()));
         self
     }
 
-    /// Sets the data for the packet
-    pub fn set_data(mut self, data: &[u8]) -> Self {
-        self.data = data.into();
+    /// Appends `value` as a VarInt to the back of the packet payload.
+    pub fn append_varint(&mut self, value: i32) -> &mut Self {
+        self.actions.push_back(BuildAction::AppendVarInt(value));
+        self
+    }
+
+    /// Appends `string` as a String to the back of the packet payload.
+    pub fn append_string<T: AsRef<str>>(&mut self, string: T) -> &mut Self {
+        self.actions
+            .push_back(BuildAction::AppendString(string.as_ref().to_string()));
         self
     }
 }

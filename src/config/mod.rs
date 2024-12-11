@@ -28,92 +28,6 @@ pub mod read_properties;
 /// println!("{max_players}");
 /// ```
 ///
-#[derive(Debug)]
-pub enum Difficulty {
-    Easy,
-    Normal,
-    Hard,
-}
-
-#[derive(Debug)]
-pub enum Gamemode {
-    Adventure,
-    Survival,
-    Creative,
-    Spectator,
-}
-
-#[derive(Debug)]
-pub enum WorldPreset {
-    Normal,
-    Flat,
-    LargeBiomes,
-    Amplified,
-    SingleBiomeSurface,
-}
-
-// TODO: Maybe make Settings a singleton
-
-#[derive(Debug)]
-pub struct Settings {
-    pub enable_jmx_monitoring: bool,
-    pub rcon_port: u16,
-    pub level_seed: Option<i64>,
-    pub gamemode: Gamemode,
-    pub enable_command_block: bool,
-    pub enable_query: bool,
-    pub enforce_secure_profile: bool,
-    pub level_name: Option<String>,
-    pub motd: Option<String>,
-    pub query_port: u16,
-    pub pvp: bool,
-    pub generate_structures: bool,
-    pub max_chained_neighbor_updates: Option<i32>,
-    pub difficulty: Difficulty,
-    pub network_compression_threshold: i32,
-    pub max_tick_time: i64,
-    pub require_resource_pack: bool,
-    pub use_native_transport: bool,
-    pub max_players: u32,
-    pub online_mode: bool,
-    pub enable_status: bool,
-    pub allow_flight: bool,
-    pub initial_disabled_packs: Option<String>,
-    pub broadcast_rcon_to_ops: bool,
-    pub view_distance: u8,
-    pub server_ip: Option<Ipv4Addr>,
-    pub resource_pack_prompt: Option<String>,
-    pub allow_nether: bool,
-    pub server_port: u16,
-    pub enable_rcon: bool,
-    pub sync_chunk_writes: bool,
-    pub op_permission_level: u8,
-    pub prevent_proxy_connections: bool,
-    pub hide_online_players: bool,
-    pub resource_pack: Option<String>,
-    pub entity_broadcast_range_percentage: u8,
-    pub simulation_distance: u8,
-    pub rcon_password: Option<String>,
-    pub player_idle_timeout: i32,
-    pub force_gamemode: bool,
-    pub rate_limit: u32,
-    pub hardcore: bool,
-    pub white_list: bool,
-    pub broadcast_console_to_ops: bool,
-    pub spawn_npcs: bool,
-    pub spawn_animals: bool,
-    pub log_ips: bool,
-    pub function_permission_level: u8,
-    pub initial_enabled_packs: String,
-    pub level_type: WorldPreset,
-    pub spawn_monsters: bool,
-    pub enforce_whitelist: bool,
-    pub spawn_protection: u16,
-    pub resource_pack_sha1: Option<String>,
-    pub max_world_size: u32,
-    //generator_settings:todo!(),
-    //text_filtering_config:todo!(),
-}
 
 fn read(filepath: &Path) -> std::io::Result<Properties> {
     let file = File::open(filepath)?;
@@ -124,7 +38,7 @@ fn read(filepath: &Path) -> std::io::Result<Properties> {
 
 impl Settings {
     pub fn new() -> Self {
-        let config_file = read(Path::new(crate::consts::filepaths::PROPERTIES))
+        let config_file = read(Path::new(crate::consts::file_paths::PROPERTIES))
             .expect("Error reading {server.properties} file");
 
         Self {
@@ -416,4 +330,91 @@ impl Settings {
         }
     }
     //fn gamemode_to_enum(inp)
+}
+
+#[derive(Debug)]
+pub enum Difficulty {
+    Easy,
+    Normal,
+    Hard,
+}
+
+#[derive(Debug)]
+pub enum Gamemode {
+    Adventure,
+    Survival,
+    Creative,
+    Spectator,
+}
+
+#[derive(Debug)]
+pub enum WorldPreset {
+    Normal,
+    Flat,
+    LargeBiomes,
+    Amplified,
+    SingleBiomeSurface,
+}
+
+// TODO: Maybe make Settings a singleton
+
+#[derive(Debug)]
+pub struct Settings {
+    pub enable_jmx_monitoring: bool,
+    pub rcon_port: u16,
+    pub level_seed: Option<i64>,
+    pub gamemode: Gamemode,
+    pub enable_command_block: bool,
+    pub enable_query: bool,
+    pub enforce_secure_profile: bool,
+    pub level_name: Option<String>,
+    pub motd: Option<String>,
+    pub query_port: u16,
+    pub pvp: bool,
+    pub generate_structures: bool,
+    pub max_chained_neighbor_updates: Option<i32>,
+    pub difficulty: Difficulty,
+    pub network_compression_threshold: i32,
+    pub max_tick_time: i64,
+    pub require_resource_pack: bool,
+    pub use_native_transport: bool,
+    pub max_players: u32,
+    pub online_mode: bool,
+    pub enable_status: bool,
+    pub allow_flight: bool,
+    pub initial_disabled_packs: Option<String>,
+    pub broadcast_rcon_to_ops: bool,
+    pub view_distance: u8,
+    pub server_ip: Option<Ipv4Addr>,
+    pub resource_pack_prompt: Option<String>,
+    pub allow_nether: bool,
+    pub server_port: u16,
+    pub enable_rcon: bool,
+    pub sync_chunk_writes: bool,
+    pub op_permission_level: u8,
+    pub prevent_proxy_connections: bool,
+    pub hide_online_players: bool,
+    pub resource_pack: Option<String>,
+    pub entity_broadcast_range_percentage: u8,
+    pub simulation_distance: u8,
+    pub rcon_password: Option<String>,
+    pub player_idle_timeout: i32,
+    pub force_gamemode: bool,
+    pub rate_limit: u32,
+    pub hardcore: bool,
+    pub white_list: bool,
+    pub broadcast_console_to_ops: bool,
+    pub spawn_npcs: bool,
+    pub spawn_animals: bool,
+    pub log_ips: bool,
+    pub function_permission_level: u8,
+    pub initial_enabled_packs: String,
+    pub level_type: WorldPreset,
+    pub spawn_monsters: bool,
+    pub enforce_whitelist: bool,
+    pub spawn_protection: u16,
+    pub resource_pack_sha1: Option<String>,
+    pub max_world_size: u32,
+    //generator_settings:todo!(),
+    //text_filtering_config:todo!(),
 }

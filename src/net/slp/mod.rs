@@ -11,10 +11,13 @@
 use log::info;
 
 use crate::packet::Packet;
-
+use crate::consts;
 use super::packet::PacketBuilder;
 
 /// The response for a Status Request packet.
 pub fn status_response() -> Packet {
-    //PacketBuilder::new().set_id(0x01).set_data(data);
+    let json_response = consts::messages::
+    PacketBuilder::new().ap
+
+    todo!()
 }
