@@ -6,9 +6,7 @@ use bytes::BytesMut;
 use log::{debug, error, info, warn};
 use packet::data_types::{string, varint, CodecError};
 use packet::{Packet, PacketError};
-use serde_json::error;
 use std::io;
-use std::net::SocketAddr;
 use std::sync::Arc;
 use thiserror::Error;
 use tokio::io::{AsyncReadExt, AsyncWriteExt};
@@ -166,8 +164,17 @@ mod dispatch {
 
     pub async fn status(conn: &Connection, packet: Packet) -> Result<Option<Packet>, NetError> {
         match packet.get_id().get_value() {
-            1 => {
+            0x00 => {
                 // Got Status Request
+                let status_resp_packet = slp::status_response()?;
+                Ok(Some(status_resp_packet))
+            }
+            0x01 => {
+                // Got Ping Request (status)
+                let ping_request_packet = slp::ping_response(packet)?;
+                // TODO: WE NEED TO CLOSE THE CONNECTION AFTER SENDING THE PING RESPONSE PACKET.
+                // SOURCE: https://minecraft.wiki/w/Minecraft_Wiki:Projects/wiki.vg_merge/Protocol_FAQ#What_does_the_normal_status_ping_sequence_look_like?
+                Ok(Some(ping_request_packet))
             }
             _ => {
                 warn!("Unknown packet ID, State: Status");

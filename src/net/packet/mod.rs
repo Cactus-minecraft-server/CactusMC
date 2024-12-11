@@ -9,6 +9,7 @@ use std::{collections::VecDeque, fmt::Debug, io::Read, vec};
 
 use bytes::BytesMut;
 use data_types::varint;
+use image::error;
 use log::warn;
 use thiserror::Error;
 
@@ -256,6 +257,9 @@ pub enum PacketError {
 
     #[error("Failed to build the packet: {0}")]
     BuildPacket(String),
+
+    #[error("Failed to decode from the payload: {0}")]
+    PayloadDecodeError(String),
 }
 
 /// Represents the different actions that the PacketBuilder will do to construct the packet payload.

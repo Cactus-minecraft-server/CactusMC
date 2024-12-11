@@ -52,6 +52,7 @@ pub mod file_paths {
     pub const BANNED_PLAYERS: &str = "banned-players.json";
     pub const USERCACHE: &str = "usercache.json";
     pub const SESSION: &str = "session.lock";
+    pub const SERVER_ICON: &str = "server-icon.png";
 }
 
 pub mod directory_paths {
@@ -149,31 +150,59 @@ white-list=false"#;
 
 /// Strings for packets
 pub mod protocol {
+    use std::{fs::File, io::BufReader};
+
+    use base64::{engine::general_purpose, Engine};
+    use image::{GenericImageView, ImageFormat};
     use serde_json::json;
 
-    use crate::config;
+    use crate::config::Settings;
+
+    use super::file_paths::SERVER_ICON;
+
+    /// Returns the Base64-encoded server icon.
+    /// The image must be a 64x64 PNG image as the file server-icon.png
+    fn get_favicon() -> Result<String, Box<dyn std::error::Error>> {
+        let file_data = std::fs::read(SERVER_ICON)?;
+
+        // Guess the image format
+        let format = image::guess_format(&file_data)?;
+        if format != ImageFormat::Png {
+            return Err("The server icon must be in PNG format".into());
+        }
+
+        // Load the image to verify dimensions
+        let img = image::load_from_memory_with_format(&file_data, format)?;
+        if img.dimensions() != (64, 64) {
+            return Err("The server icon must have dimensions of 64x64".into());
+        }
+
+        // Encode to Base64
+        let base64_icon = general_purpose::STANDARD.encode(file_data);
+
+        // Construct the Data URI
+        let favicon = format!("data:image/png;base64,{base64_icon}");
+        Ok(favicon)
+    }
 
     /// Returns the Status Response JSON.
     pub fn status_response_json() -> String {
-        let config = config::reah
-
+        let config = Settings::new();
 
         let version_name = super::minecraft::VERSION;
         let protocol = super::minecraft::PROTOCOL_VERSION;
-        let max_players = 100;
-        let online_players = 5;
-        let sample_name = "thinkofdeath";
-        let sample_id = "4566e69f-c907-48ee-8d71-d7ba5aa00d20";
-        let description_text = "Hello, world!";
-        let favicon = "data:image/png;base64,<data>";
-        let enforces_secure_chat = false;
+        let max_players = config.max_players;
 
-        /// let config_file = config::read(Path::new(consts::filepaths::PROPERTIES))
-        ///     .expect("Error reading server.properties file");
-        ///
-        /// let difficulty = config_file.get_property("difficulty").unwrap();
-        /// let max_players = config_file.get_property("max_players").unwrap();
-        ///
+        // TODO: This does not mirror the server's current state.
+        let online_players = 0;
+
+        let description_text = config.motd;
+
+        // TODO: Implement logic such that, if no icon is provided, not include it in the JSON.
+        let favicon = get_favicon().unwrap();
+
+        let enforces_secure_chat = config.enforce_secure_profile;
+
         let json_data = json!({
             "version": {
                 "name": version_name,
@@ -182,12 +211,6 @@ pub mod protocol {
             "players": {
                 "max": max_players,
                 "online": online_players,
-                "sample": [
-                    {
-                        "name": sample_name,
-                        "id": sample_id
-                    }
-                ]
             },
             "description": {
                 "text": description_text
