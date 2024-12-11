@@ -8,16 +8,32 @@
 
 // TODO: Add logging.
 
-use log::info;
+use byteorder::{BigEndian, ReadBytesExt};
 
-use crate::packet::Packet;
+use super::packet::{PacketBuilder, PacketError};
 use crate::consts;
-use super::packet::PacketBuilder;
+use crate::packet::Packet;
 
 /// The response for a Status Request packet.
-pub fn status_response() -> Packet {
-    let json_response = consts::messages::
-    PacketBuilder::new().ap
+pub fn status_response() -> Result<Packet, PacketError> {
+    let json_response = consts::protocol::status_response_json();
 
-    todo!()
+    PacketBuilder::new()
+        .append_string(json_response)
+        .build(0x00)
+}
+
+/// The response for a Ping Request packet.
+pub fn ping_response(ping_request_packet: Packet) -> Result<Packet, PacketError> {
+    let payload: &[u8] = ping_request_packet.get_payload();
+    if payload.len() != 8 {
+        // Send back the same timestamp as what we received
+        PacketBuilder::new()
+            .append_bytes(&payload[0..8])
+            .build(0x01)
+    } else {
+        Err(PacketError::PayloadDecodeError(
+            "failed to decode timestamp (Long) in the Ping Request packet".to_string(),
+        ))
+    }
 }
