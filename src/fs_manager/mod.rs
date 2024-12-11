@@ -183,7 +183,7 @@ pub fn write_ops_json(
         .read(true)
         .write(true)
         .truncate(true)
-        .open(consts::file_paths::OPERATORS)?;
+        .open(filename)?;
 
     let mut content = String::new();
     file.read_to_string(&mut content)?;
