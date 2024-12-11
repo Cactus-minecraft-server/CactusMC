@@ -4,8 +4,8 @@
 
 /// Module where we store information relevant to the Minecraft server.
 pub mod minecraft {
-    pub const VERSION: &str = "1.21.1"; // 1.21.1 as it is the wiki.vg version
-    pub const PROTOCOL_VERSION: usize = 767;
+    pub const VERSION: &str = "1.21.4";
+    pub const PROTOCOL_VERSION: usize = 769;
 }
 
 /// Server logging messages.
@@ -153,9 +153,10 @@ pub mod protocol {
 
     use base64::{engine::general_purpose, Engine};
     use image::{GenericImageView, ImageFormat};
+    use log::error;
     use serde_json::json;
 
-    use crate::config::Settings;
+    use crate::{config::Settings, gracefully_exit};
 
     use super::file_paths::SERVER_ICON;
 
@@ -198,6 +199,10 @@ pub mod protocol {
         let description_text = config.motd;
 
         // TODO: Implement logic such that, if no icon is provided, not include it in the JSON.
+        if let Err(err) = get_favicon() {
+            error!("Server icon not found: {err}. Shutting down the server...");
+            gracefully_exit(1);
+        }
         let favicon = get_favicon().unwrap();
 
         let enforces_secure_chat = config.enforce_secure_profile;
