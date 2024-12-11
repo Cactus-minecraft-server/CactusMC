@@ -42,7 +42,7 @@ pub mod messages {
 }
 
 /// Module used to store file paths relative to the server binary.
-pub mod filepaths {
+pub mod file_paths {
     /// server.properties file, used to store server settings.
     pub const PROPERTIES: &str = "server.properties";
     pub const EULA: &str = "eula.txt";
@@ -53,7 +53,8 @@ pub mod filepaths {
     pub const USERCACHE: &str = "usercache.json";
     pub const SESSION: &str = "session.lock";
 }
-pub mod folderpath {
+
+pub mod directory_paths {
     pub const WORLDS_DIRECTORY: &str = "world/";
     pub const THE_END: &str = "world/DIM1/";
     pub const NETHER: &str = "world/DIM-1/";
@@ -61,7 +62,7 @@ pub mod folderpath {
     pub const LOGS: &str = "logs/";
 }
 
-pub mod file_content {
+pub mod file_contents {
     use crate::time;
 
     /// Returns the default content of the 'eula.txt' file.
@@ -143,5 +144,58 @@ white-list=false"#;
             time::get_formatted_time(),
             SERVER_PROPERTIES_INNER
         )
+    }
+}
+
+/// Strings for packets
+pub mod protocol {
+    use serde_json::json;
+
+    use crate::config;
+
+    /// Returns the Status Response JSON.
+    pub fn status_response_json() -> String {
+        let config = config::reah
+
+
+        let version_name = super::minecraft::VERSION;
+        let protocol = super::minecraft::PROTOCOL_VERSION;
+        let max_players = 100;
+        let online_players = 5;
+        let sample_name = "thinkofdeath";
+        let sample_id = "4566e69f-c907-48ee-8d71-d7ba5aa00d20";
+        let description_text = "Hello, world!";
+        let favicon = "data:image/png;base64,<data>";
+        let enforces_secure_chat = false;
+
+        /// let config_file = config::read(Path::new(consts::filepaths::PROPERTIES))
+        ///     .expect("Error reading server.properties file");
+        ///
+        /// let difficulty = config_file.get_property("difficulty").unwrap();
+        /// let max_players = config_file.get_property("max_players").unwrap();
+        ///
+        let json_data = json!({
+            "version": {
+                "name": version_name,
+                "protocol": protocol
+            },
+            "players": {
+                "max": max_players,
+                "online": online_players,
+                "sample": [
+                    {
+                        "name": sample_name,
+                        "id": sample_id
+                    }
+                ]
+            },
+            "description": {
+                "text": description_text
+            },
+            "favicon": favicon,
+            "enforcesSecureChat": enforces_secure_chat
+        });
+
+        serde_json::to_string(&json_data).unwrap()
     }
 }

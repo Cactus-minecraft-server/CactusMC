@@ -43,7 +43,7 @@ pub async fn handle_input() -> ! {
                     Err(_) => String::from("not found"),
                 };
                 let content = match fs_manager::write_ops_json(
-                    consts::filepaths::OPERATORS,
+                    consts::file_paths::OPERATORS,
                     uuid.as_str(),
                     element,
                     4,
