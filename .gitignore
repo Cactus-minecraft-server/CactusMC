@@ -128,7 +128,6 @@ banned-players.json
 usercache.json
 session.lock
 version.json
-*.properties
 eula.txt
 
 # macOS files

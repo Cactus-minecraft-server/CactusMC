@@ -8,6 +8,8 @@
 
 // TODO: Add logging.
 
+use log::debug;
+
 use super::packet::{PacketBuilder, PacketError};
 use crate::consts;
 use crate::packet::Packet;
@@ -23,8 +25,13 @@ pub fn status_response() -> Result<Packet, PacketError> {
 
 /// The response for a Ping Request packet.
 pub fn ping_response(ping_request_packet: Packet) -> Result<Packet, PacketError> {
+    debug!("Ping packet is: {ping_request_packet}");
     let payload: &[u8] = ping_request_packet.get_payload();
-    if payload.len() != 8 {
+    debug!(
+        "Ping packet payload is: {payload:?} and len is {}",
+        payload.len()
+    );
+    if payload.len() == 8 {
         // Send back the same timestamp as what we received
         PacketBuilder::new()
             .append_bytes(&payload[0..8])

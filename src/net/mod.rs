@@ -138,6 +138,7 @@ async fn handle_connection(socket: TcpStream) -> Result<(), NetError> {
             connection.write(packet).await?;
 
             if response.does_close_conn() {
+                warn!("Sent a packet that will close the connection");
                 connection.close().await?;
             }
         } else {
