@@ -11,7 +11,6 @@ Copper is a project aimed at creating a Minecraft server using the Rust programm
 ## Technologies Used
 
 - **Programming Language:** Rust
-- **Main Libraries:** [Tokio](https://tokio.rs/), [Serde](https://serde.rs/)
 
 # Todo
 
@@ -25,9 +24,7 @@ Copper is licensed under the Mozilla Public License Version 2.0. See the `LICENS
 ## Acknowledgements
 
 - [Rust](https://www.rust-lang.org/)
-- [Tokio](https://tokio.rs/)
-- [Serde](https://serde.rs/)
-- [Minecraft Protocol](https://wiki.vg/Protocol)
+- [Minecraft Protocol](https://minecraft.wiki/w/Minecraft_Wiki:Projects/wiki.vg_merge/)
 
 ---
 
