@@ -7,24 +7,19 @@ name = "Cactus"
 version = "0.1.0"
 dependencies = [
  "base64",
- "byteorder",
  "bytes",
  "chrono",
  "clap",
  "colored",
  "ctrlc",
- "dot-properties",
  "env_logger",
  "image",
- "integer-encoding",
  "log",
  "once_cell",
- "rand",
  "reqwest",
  "serde",
  "serde_json",
  "sha2",
- "tempfile",
  "thiserror 2.0.3",
  "tokio",
 ]
@@ -491,12 +486,6 @@ dependencies = [
  "quote",
  "syn",
 ]
-
-[[package]]
-name = "dot-properties"
-version = "0.2.0"
-source = "registry+https://github.com/rust-lang/crates.io-index"
-checksum = "4fd5aaad178c3b2d743218175939ac1dd6c5a9e08f9b19523d6e90f29b52897b"
 
 [[package]]
 name = "either"
@@ -1070,12 +1059,6 @@ dependencies = [
  "equivalent",
  "hashbrown",
 ]
-
-[[package]]
-name = "integer-encoding"
-version = "4.0.2"
-source = "registry+https://github.com/rust-lang/crates.io-index"
-checksum = "0d762194228a2f1c11063e46e32e5acb96e66e906382b9eb5441f2e0504bbd5a"
 
 [[package]]
 name = "interpolate_name"
