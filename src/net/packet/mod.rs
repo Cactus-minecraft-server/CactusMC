@@ -2,6 +2,7 @@
 //! standardized way.
 
 pub mod data_types;
+pub mod packet_types;
 pub mod utils;
 
 use core::fmt;

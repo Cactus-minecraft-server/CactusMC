@@ -90,6 +90,11 @@ impl Connection {
 
     /// Change the state of the current Connection.
     async fn set_state(&self, new_state: ConnectionState) {
+        debug!(
+            "Connection state: {:?} -> {:?}",
+            self.get_state().await,
+            new_state
+        );
         *self.state.lock().await = new_state
     }
 
@@ -155,7 +160,7 @@ async fn handle_packet(conn: &Connection, packet: Packet) -> Result<Response, Ne
 
     // Dispatch packet depending on the current State.
     match conn.get_state().await {
-        ConnectionState::Handshake => dispatch::handshake(conn).await,
+        ConnectionState::Handshake => dispatch::handshake(packet, conn).await,
         ConnectionState::Status => dispatch::status(packet).await,
         ConnectionState::Login => dispatch::login(conn, packet).await,
         ConnectionState::Transfer => dispatch::transfer(conn, packet).await,
@@ -166,7 +171,7 @@ mod dispatch {
     use super::*;
     use packet::Response;
 
-    pub async fn handshake(conn: &Connection) -> Result<Response, NetError> {
+    pub async fn handshake(packet: Packet, conn: &Connection) -> Result<Response, NetError> {
         // Set state to Status
         conn.set_state(ConnectionState::Status).await;
 
