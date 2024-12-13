@@ -204,7 +204,19 @@ mod dispatch {
     }
 
     pub async fn login(conn: &Connection, packet: Packet) -> Result<Response, NetError> {
-        todo!()
+        match packet.get_id().get_value() {
+            0x00 => {
+                info!("Got Login Start");
+                Ok(Response::new(None))
+            }
+            _ => {
+                warn!("Unknown packet ID, State: Status");
+                Err(NetError::UnknownPacketId(format!(
+                    "unknown packet ID, State: Status, PacketId: {}",
+                    packet.get_id().get_value()
+                )))
+            }
+        }
     }
 
     pub async fn transfer(conn: &Connection, packet: Packet) -> Result<Response, NetError> {
