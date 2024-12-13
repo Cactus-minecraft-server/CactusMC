@@ -12,9 +12,6 @@ Copper is a project aimed at creating a Minecraft server using the Rust programm
 
 - **Programming Language:** Rust
 
-# Todo
-
-
 
 
 ## License
