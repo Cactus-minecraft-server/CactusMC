@@ -24,10 +24,10 @@ base64 = "0.22.1"
 rand = "0.8.5"
 tempfile = "3.14.0"
 [profile.release]
-opt-level = 3     # optimiosation level 3 is the best
-debug = false
-split-debuginfo = 'unified'
-lto = true
+opt-level = 3
+lto = "fat"
+codegen-units = 1
+embed-bitcode = true
 
-
-
+[build]
+rustflags = ["-C target-cpu=native"]
