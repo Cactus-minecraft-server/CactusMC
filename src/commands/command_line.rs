@@ -26,8 +26,9 @@ pub async fn handle_input() -> ! {
         // Debug/test logic down here
 
         if buffer.trim().to_lowercase() == "stop" {
-            let content = "Server will stop in few seconds…";
+            let content = "Server will stop in few second…";
             warn!("{}", content.red().bold());
+            crate::gracefully_exit(-1000);
         }
         //made a server operator (level 4)
 
