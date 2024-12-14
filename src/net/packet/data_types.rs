@@ -450,7 +450,9 @@ mod tests {
         .collect();
 
         for (expected_value, encoded) in values.iter() {
-            let (decoded_value, decoded_length) = varint::read(encoded).unwrap();
+            let varint = VarInt::from_bytes(encoded).unwrap();
+            let decoded_value = varint.get_value();
+            let decoded_length = varint.get_bytes().len();
             assert_eq!(decoded_value, *expected_value);
             assert_eq!(decoded_length, encoded.len());
         }
@@ -475,37 +477,40 @@ mod tests {
         .collect();
 
         for (value, expected_encoded) in values.iter() {
-            let encoded = varint::write(*value);
+            let varint = VarInt::from_value(*value).unwrap();
+            let encoded = varint.get_bytes();
             assert_eq!(encoded, *expected_encoded);
         }
     }
 
     #[test]
     fn test_varint_roundtrip() {
-        // Test a range of values including edge cases
         let test_values = [
             i32::MIN,
             i32::MIN + 1,
-            -1000000,
+            -1_000_000,
             -1,
             0,
             1,
-            1000000,
+            1_000_000,
             i32::MAX - 1,
             i32::MAX,
         ];
         for &value in &test_values {
-            let encoded = varint::write(value);
-            let (decoded, _) = varint::read(&encoded).unwrap();
+            let varint = VarInt::from_value(value).unwrap();
+            let encoded = varint.get_bytes();
+            let decoded_varint = VarInt::from_bytes(encoded).unwrap();
+            let decoded = decoded_varint.get_value();
             assert_eq!(value, decoded, "Roundtrip failed for value: {}", value);
         }
 
-        // Test a range of random values
         let mut rng = rand::thread_rng();
         for _ in 0..10_000 {
             let value = rng.gen::<i32>();
-            let encoded = varint::write(value);
-            let (decoded, _) = varint::read(&encoded).unwrap();
+            let varint = VarInt::from_value(value).unwrap();
+            let encoded = varint.get_bytes();
+            let decoded_varint = VarInt::from_bytes(encoded).unwrap();
+            let decoded = decoded_varint.get_value();
             assert_eq!(
                 value, decoded,
                 "Roundtrip failed for random value: {}",
@@ -516,11 +521,13 @@ mod tests {
 
     #[test]
     fn test_varint_invalid_input() {
-        // Test for a VarInt that's too long
         let too_long = vec![0x80, 0x80, 0x80, 0x80, 0x80, 0x01];
         assert!(matches!(
-            varint::read(&too_long),
-            Err(CodecError::DecodeVarIntTooLong)
+            VarInt::from_bytes(&too_long),
+            Err(CodecError::Decoding(
+                DataType::VarInt,
+                ErrorReason::ValueTooLarge
+            ))
         ));
     }
 
@@ -552,7 +559,9 @@ mod tests {
         .collect();
 
         for (expected_value, encoded) in values.iter() {
-            let (decoded_value, decoded_length) = varlong::read(encoded).unwrap();
+            let varlong = VarLong::from_bytes(encoded).unwrap();
+            let decoded_value = varlong.get_value();
+            let decoded_length = varlong.get_bytes().len();
             assert_eq!(decoded_value, *expected_value);
             assert_eq!(decoded_length, encoded.len());
         }
@@ -586,39 +595,41 @@ mod tests {
         .collect();
 
         for (value, expected_encoded) in values.iter() {
-            let encoded = varlong::write(*value);
+            let varlong = VarLong::from_value(*value).unwrap();
+            let encoded = varlong.get_bytes();
             assert_eq!(encoded, *expected_encoded);
         }
     }
 
     #[test]
     fn test_varlong_roundtrip() {
-        // Test a range of values including edge cases
         let test_values = [
             i64::MIN,
             i64::MIN + 1,
-            -1000000000000,
+            -1_000_000_000_000,
             -1,
             0,
             1,
-            1000000000000,
+            1_000_000_000_000,
             i64::MAX - 1,
             i64::MAX,
         ];
 
         for &value in &test_values {
-            let encoded = varlong::write(value);
-            let (decoded, _) = varlong::read(&encoded).unwrap();
+            let varlong = VarLong::from_value(value).unwrap();
+            let encoded = varlong.get_bytes();
+            let decoded_varlong = VarLong::from_bytes(encoded).unwrap();
+            let decoded = decoded_varlong.get_value();
             assert_eq!(value, decoded, "Roundtrip failed for value: {}", value);
         }
 
-        // Test a range of random values
-        use rand::Rng;
         let mut rng = rand::thread_rng();
         for _ in 0..10_000 {
             let value = rng.gen::<i64>();
-            let encoded = varlong::write(value);
-            let (decoded, _) = varlong::read(&encoded).unwrap();
+            let varlong = VarLong::from_value(value).unwrap();
+            let encoded = varlong.get_bytes();
+            let decoded_varlong = VarLong::from_bytes(encoded).unwrap();
+            let decoded = decoded_varlong.get_value();
             assert_eq!(
                 value, decoded,
                 "Roundtrip failed for random value: {}",
@@ -629,13 +640,15 @@ mod tests {
 
     #[test]
     fn test_varlong_invalid_input() {
-        // Test for a VarLong that's too long
         let too_long = vec![
             0x80, 0x80, 0x80, 0x80, 0x80, 0x80, 0x80, 0x80, 0x80, 0x80, 0x01,
         ];
         assert!(matches!(
-            varlong::read(&too_long),
-            Err(CodecError::DecodeVarLongTooLong)
+            VarLong::from_bytes(&too_long),
+            Err(CodecError::Decoding(
+                DataType::VarLong,
+                ErrorReason::ValueTooLarge
+            ))
         ));
     }
 
@@ -645,133 +658,157 @@ mod tests {
         let string_bytes = s.as_bytes();
         let length = string_bytes.len();
 
-        // Encode length as VarInt
-        let mut data = varint::write(length as i32);
+        let length_varint = VarInt::from_value(length as i32)
+            .unwrap()
+            .get_bytes()
+            .to_vec();
+        let mut data = length_varint;
         data.extend_from_slice(string_bytes);
 
-        // Call string::read
-        match string::read(&data) {
-            Ok(result) => assert_eq!(result.0, s),
-            Err(e) => panic!("Unexpected error: {:?}", e),
-        }
+        let sp = StringProtocol::from_bytes(&data).unwrap();
+        // Check the decoded string
+        assert_eq!(sp.string, s);
     }
 
     #[test]
     fn test_string_read_valid_utf8() {
-        let s = "こんにちは"; // Japanese for "Hello"
+        let s = "こんにちは";
         let string_bytes = s.as_bytes();
         let length = string_bytes.len();
 
-        // Encode length as VarInt
-        let mut data = varint::write(length as i32);
+        let length_varint = VarInt::from_value(length as i32)
+            .unwrap()
+            .get_bytes()
+            .to_vec();
+        let mut data = length_varint;
         data.extend_from_slice(string_bytes);
 
-        // Call string::read
-        match string::read(&data) {
-            Ok(result) => assert_eq!(result.0, s),
-            Err(e) => panic!("Unexpected error: {:?}", e),
-        }
+        let sp = StringProtocol::from_bytes(&data).unwrap();
+        assert_eq!(sp.string, s);
     }
 
     #[test]
     fn test_string_read_blank_string() {
         let s = "";
         let string_bytes = s.as_bytes();
-        let length = string_bytes.len(); // Should be 0
+        let length = string_bytes.len();
 
-        // Encode length as VarInt
-        let mut data = varint::write(length as i32);
+        let length_varint = VarInt::from_value(length as i32)
+            .unwrap()
+            .get_bytes()
+            .to_vec();
+        let mut data = length_varint;
         data.extend_from_slice(string_bytes);
 
-        // Call string::read
-        match string::read(&data) {
-            Ok(val) => assert!(val.0.is_empty(), "Expected empty string, got {}", val.0),
-            Err(e) => panic!("Expected Ok(), got {e}"),
-        }
+        let sp = StringProtocol::from_bytes(&data).unwrap();
+        assert!(sp.string.is_empty());
     }
 
     #[test]
     fn test_string_read_too_long_string() {
-        // Assuming the maximum allowed length is 32767 bytes
         let max_allowed_length = 32767;
-
-        // Create a string longer than the maximum allowed length
         let s = "A".repeat(max_allowed_length + 1);
         let string_bytes = s.as_bytes();
         let length = string_bytes.len();
 
-        // Encode length as VarInt
-        let mut data = varint::write(length as i32);
-        println!("{data:?}");
+        let length_varint = VarInt::from_value(length as i32)
+            .unwrap()
+            .get_bytes()
+            .to_vec();
+        let mut data = length_varint;
         data.extend_from_slice(string_bytes);
 
-        // Call string::read
-        match string::read(&data) {
-            Ok(_) => panic!("Expected StringTooLong error, but got Ok"),
-            Err(e) => assert_eq!(e, CodecError::InvalidStringLength),
+        match StringProtocol::from_bytes(&data) {
+            Ok(_) => panic!("Expected error, but got Ok"),
+            Err(e) => assert!(matches!(
+                e,
+                CodecError::Decoding(DataType::String, ErrorReason::ValueTooLarge)
+            )),
         }
     }
 
     #[test]
     fn test_string_read_invalid_varint() {
-        // Create an invalid VarInt (6 bytes long, exceeding the 5-byte limit)
         let invalid_varint = vec![0x80, 0x80, 0x80, 0x80, 0x80, 0x01];
         let string_bytes = b"HELLO";
 
         let mut data = invalid_varint;
         data.extend_from_slice(string_bytes);
 
-        // Call string::read
-        match string::read(&data) {
-            Ok(_) => panic!("Expected DecodeString error, but got Ok"),
-            Err(e) => assert_eq!(e, CodecError::DecodeString),
+        match StringProtocol::from_bytes(&data) {
+            Ok(_) => panic!("Expected error, but got Ok"),
+            Err(e) => {
+                // The invalid varint should cause a VarInt decode error
+                assert!(matches!(e, CodecError::Decoding(DataType::VarInt, _)));
+            }
         }
     }
 
     #[test]
     fn test_string_read_invalid_utf8() {
-        // Valid VarInt for length 3
         let length = 3;
-        let mut data = varint::write(length as i32);
-
-        // Invalid UTF-8 bytes
+        let length_varint = VarInt::from_value(length as i32)
+            .unwrap()
+            .get_bytes()
+            .to_vec();
         let invalid_utf8 = vec![0xFF, 0xFF, 0xFF];
+
+        let mut data = length_varint;
         data.extend_from_slice(&invalid_utf8);
 
-        // Call string::read
-        match string::read(&data) {
-            Ok(_) => panic!("Expected InvalidEncoding error, but got Ok"),
-            Err(e) => assert_eq!(e, CodecError::InvalidEncoding),
+        match StringProtocol::from_bytes(&data) {
+            Ok(_) => panic!("Expected error, but got Ok"),
+            Err(e) => {
+                // Invalid UTF-8 should cause a decoding format error
+                assert!(matches!(
+                    e,
+                    CodecError::Decoding(DataType::String, ErrorReason::InvalidFormat(_))
+                ));
+            }
         }
     }
 
     #[test]
     fn test_string_read_incomplete_data() {
-        // Valid VarInt for length 10
         let length = 10;
-        let mut data = varint::write(length as i32);
-
-        // String data shorter than declared length
+        let length_varint = VarInt::from_value(length as i32)
+            .unwrap()
+            .get_bytes()
+            .to_vec();
         let string_bytes = b"HELLO"; // Only 5 bytes
+
+        let mut data = length_varint;
         data.extend_from_slice(string_bytes);
 
-        // Call string::read
-        match string::read(&data) {
-            Ok(_) => panic!("Expected InvalidStringLength error, but got Ok"),
-            Err(e) => assert_eq!(e, CodecError::InvalidStringLength),
+        match StringProtocol::from_bytes(&data) {
+            Ok(_) => panic!("Expected error, but got Ok"),
+            Err(e) => {
+                // Incomplete data should cause invalid format
+                assert!(matches!(
+                    e,
+                    CodecError::Decoding(DataType::String, ErrorReason::InvalidFormat(_))
+                ));
+            }
         }
     }
 
     #[test]
     fn test_string_read_no_data() {
-        // Valid VarInt for length 5
         let length = 5;
-        let data = varint::write(length as i32); // No string data appended
+        let data = VarInt::from_value(length as i32)
+            .unwrap()
+            .get_bytes()
+            .to_vec();
 
-        // Call string::read
-        match string::read(&data) {
-            Ok(_) => panic!("Expected InvalidStringLength error, but got Ok"),
-            Err(e) => assert_eq!(e, CodecError::InvalidStringLength),
+        match StringProtocol::from_bytes(&data) {
+            Ok(_) => panic!("Expected error, but got Ok"),
+            Err(e) => {
+                // No data after length varint should cause invalid format
+                assert!(matches!(
+                    e,
+                    CodecError::Decoding(DataType::String, ErrorReason::InvalidFormat(_))
+                ));
+            }
         }
     }
 
@@ -779,123 +816,122 @@ mod tests {
     fn test_string_read_empty_data() {
         let data: Vec<u8> = Vec::new();
 
-        // Call string::read
-        match string::read(&data) {
-            Ok(_) => panic!("Expected DecodeString error, but got Ok"),
-            Err(e) => assert_eq!(e, CodecError::DecodeString),
+        match StringProtocol::from_bytes(&data) {
+            Ok(_) => panic!("Expected error, but got Ok"),
+            Err(e) => {
+                // Completely empty data should fail decoding VarInt length first
+                assert!(matches!(
+                    e,
+                    CodecError::Decoding(DataType::VarInt, ErrorReason::ValueEmpty)
+                ));
+            }
         }
     }
 
     #[test]
     fn test_string_read_random_strings() {
         let mut rng = rand::thread_rng();
-
         for _ in 0..1000 {
-            // Generate a random length between 1 and 100
             let length = rng.gen_range(1..=100);
-
-            // Generate a random string of that length
             let s: String = (0..length)
                 .map(|_| rng.sample(rand::distributions::Alphanumeric) as char)
                 .collect();
             let string_bytes = s.as_bytes();
 
-            // Encode length as VarInt
-            let mut data = varint::write(string_bytes.len() as i32);
+            let length_varint = VarInt::from_value(string_bytes.len() as i32)
+                .unwrap()
+                .get_bytes()
+                .to_vec();
+            let mut data = length_varint;
             data.extend_from_slice(string_bytes);
 
-            // Call string::read
-            match string::read(&data) {
-                Ok(result) => assert_eq!(result.0, s),
-                Err(e) => panic!("Unexpected error: {:?}", e),
-            }
+            let sp = StringProtocol::from_bytes(&data).unwrap();
+            assert_eq!(sp.string, s);
         }
     }
 
     #[test]
     fn test_write_valid_string() {
         let input = "Hello, World!";
-        let expected_varint = varint::write(input.len() as i32);
-        let expected_bytes = [expected_varint.as_slice(), input.as_bytes()].concat();
+        let varint_bytes = VarInt::from_value(input.len() as i32)
+            .unwrap()
+            .get_bytes()
+            .to_vec();
+        let expected_bytes = [varint_bytes.as_slice(), input.as_bytes()].concat();
 
-        let result = string::write(input);
-        assert!(result.is_ok());
-        assert_eq!(result.unwrap(), expected_bytes);
+        let sp = StringProtocol::from_string(input).unwrap();
+        assert_eq!(sp.bytes, expected_bytes);
     }
 
     #[test]
     fn test_write_empty_string() {
         let input = "";
-        let expected_varint = varint::write(input.len() as i32);
-        let expected_bytes = expected_varint;
+        let varint_bytes = VarInt::from_value(input.len() as i32)
+            .unwrap()
+            .get_bytes()
+            .to_vec();
+        let expected_bytes = varint_bytes;
 
-        let result = string::write(input);
-        assert!(result.is_ok());
-        assert_eq!(result.unwrap(), expected_bytes);
+        let sp = StringProtocol::from_string(input).unwrap();
+        assert_eq!(sp.bytes, expected_bytes);
     }
 
     #[test]
     fn test_write_string_exceeding_max_utf16_units() {
-        // Generate a string with a length greater than the maximum UTF-16 units allowed.
-        let input: String = std::iter::repeat('𠀋').take(32768).collect(); // This character (U+0800B) uses 2 UTF-16 units.
-        let result = string::write(&input);
-        assert!(matches!(result, Err(CodecError::InvalidStringLength)));
+        let input: String = std::iter::repeat('𠀋').take(32768).collect();
+        match StringProtocol::from_string(&input) {
+            Ok(_) => panic!("Expected error, but got Ok"),
+            Err(e) => assert!(matches!(
+                e,
+                CodecError::Encoding(DataType::String, ErrorReason::InvalidFormat(_))
+            )),
+        }
     }
 
     #[test]
     fn test_write_string_exceeding_max_data_size() {
-        // Generate a string that, when encoded with VarInt, would exceed the max data size.
-        let long_string = "a".repeat(32767 * 3 + 4); // Over the size limit after accounting for VarInt size.
-        let result = string::write(&long_string);
-        assert!(matches!(result, Err(CodecError::InvalidStringLength)));
+        let long_string = "a".repeat(32767 * 3 + 4);
+        match StringProtocol::from_string(&long_string) {
+            Ok(_) => panic!("Expected error, but got Ok"),
+            Err(e) => assert!(matches!(
+                e,
+                CodecError::Encoding(DataType::String, ErrorReason::ValueTooLarge)
+            )),
+        }
     }
 
     #[test]
     fn test_write_string_with_special_characters() {
-        let input = "こんにちは、世界! 🌍"; // Includes Unicode characters and an emoji.
-        let expected_varint = varint::write(input.len() as i32);
-        let expected_bytes = [expected_varint.as_slice(), input.as_bytes()].concat();
+        let input = "こんにちは、世界! 🌍";
+        let varint_bytes = VarInt::from_value(input.len() as i32)
+            .unwrap()
+            .get_bytes()
+            .to_vec();
+        let expected_bytes = [varint_bytes.as_slice(), input.as_bytes()].concat();
 
-        let result = string::write(input);
-        assert!(result.is_ok());
-        assert_eq!(result.unwrap(), expected_bytes);
+        let sp = StringProtocol::from_string(input).unwrap();
+        assert_eq!(sp.bytes, expected_bytes);
     }
 
     #[test]
     fn test_write_string_near_max_length() {
-        let max_length = 32767; // Maximum number of UTF-16 code units.
-        let input: String = std::iter::repeat('a').take(max_length).collect(); // Each 'a' is one UTF-16 unit.
-        let expected_varint = varint::write(input.len() as i32);
-        let expected_bytes = [expected_varint.as_slice(), input.as_bytes()].concat();
+        let max_length = 32767;
+        let input: String = std::iter::repeat('a').take(max_length).collect();
+        let varint_bytes = VarInt::from_value(input.len() as i32)
+            .unwrap()
+            .get_bytes()
+            .to_vec();
+        let expected_bytes = [varint_bytes.as_slice(), input.as_bytes()].concat();
 
-        let result = string::write(&input);
-        assert!(result.is_ok());
-        assert_eq!(result.unwrap(), expected_bytes);
+        let sp = StringProtocol::from_string(&input).unwrap();
+        assert_eq!(sp.bytes, expected_bytes);
     }
 
     #[test]
     fn test_write_to_read_loop() {
-        let input = "こんにちは、世界! 🌍"; // Includes Unicode characters and an emoji.
-
-        let converted = string::write(input);
-        assert!(converted.is_ok());
-
-        match converted {
-            Ok(bytes) => match string::read(&bytes) {
-                Ok(string) => {
-                    assert!(
-                        input == string.0,
-                        "input != string: input='{input}' and string='{}'",
-                        string.0
-                    );
-                }
-                Err(e) => {
-                    panic!("Error converting string: {e}");
-                }
-            },
-            Err(e) => {
-                panic!("Error converting string: {e}");
-            }
-        }
+        let input = "こんにちは、世界! 🌍";
+        let sp = StringProtocol::from_string(input).unwrap();
+        let decoded = StringProtocol::from_bytes(&sp.bytes).unwrap();
+        assert_eq!(decoded.string, input);
     }
 }
