@@ -1,5 +1,3 @@
-use std::{thread, time::Duration};
-
 use colored::Colorize;
 use log::{debug, info, warn};
 use tokio::io::{AsyncBufReadExt, BufReader};

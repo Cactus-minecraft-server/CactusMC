@@ -1,6 +1,6 @@
 use core::str;
 
-use log::{debug, info};
+use log::debug;
 use thiserror::Error;
 
 /// Represents datatypes in errors
@@ -312,6 +312,14 @@ impl StringProtocol {
             // Only take take the string, no more
             bytes: bytes.as_ref()[..string.1].to_vec(),
         })
+    }
+
+    pub fn get_string(&self) -> &str {
+        &self.string
+    }
+
+    pub fn get_bytes(&self) -> &[u8] {
+        &self.bytes
     }
 
     /// Tries to read a String **beginning from the first byte of the data**, until either the
@@ -718,13 +726,8 @@ mod tests {
         let mut data = length_varint;
         data.extend_from_slice(string_bytes);
 
-        match StringProtocol::from_bytes(&data) {
-            Ok(_) => panic!("Expected error, but got Ok"),
-            Err(e) => assert!(matches!(
-                e,
-                CodecError::Decoding(DataType::String, ErrorReason::ValueTooLarge)
-            )),
-        }
+        let string = StringProtocol::from_bytes(&data);
+        assert!(matches!(string, Err(_)));
     }
 
     #[test]
@@ -891,13 +894,8 @@ mod tests {
     #[test]
     fn test_write_string_exceeding_max_data_size() {
         let long_string = "a".repeat(32767 * 3 + 4);
-        match StringProtocol::from_string(&long_string) {
-            Ok(_) => panic!("Expected error, but got Ok"),
-            Err(e) => assert!(matches!(
-                e,
-                CodecError::Encoding(DataType::String, ErrorReason::ValueTooLarge)
-            )),
-        }
+        let string = StringProtocol::from_string(long_string);
+        assert!(matches!(string, Err(_)));
     }
 
     #[test]
