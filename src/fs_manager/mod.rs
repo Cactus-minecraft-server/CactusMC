@@ -24,13 +24,13 @@ fn eula() -> io::Result<()> {
         create_eula()?;
         let content = "Please agree to the 'eula.txt' and start the server again.";
         warn!("{}", content.bright_red().bold());
-        gracefully_exit(0);
+        gracefully_exit(crate::ExitCode::Failure);
     } else {
         let is_agreed_eula = check_eula()?;
         if !is_agreed_eula {
             let error_content = "Cannot start the server, please agree to the 'eula.txt'";
             error!("{}", error_content.bright_red().bold().blink());
-            gracefully_exit(-1);
+            gracefully_exit(crate::ExitCode::Failure);
         }
         Ok(())
     }
@@ -272,5 +272,5 @@ pub fn clean_files() -> Result<(), std::io::Error> {
     }
 
     info!("Files cleaned successfully before starting the server.");
-    gracefully_exit(0);
+    gracefully_exit(crate::ExitCode::Success);
 }

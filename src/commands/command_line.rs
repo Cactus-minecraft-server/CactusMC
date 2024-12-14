@@ -4,7 +4,7 @@ use colored::Colorize;
 use log::{debug, info, warn};
 use tokio::io::{AsyncBufReadExt, BufReader};
 
-use crate::{consts, fs_manager, player};
+use crate::{consts, fs_manager, gracefully_exit, player};
 
 // Asynchronously handles user input. It never returns
 
@@ -28,7 +28,7 @@ pub async fn handle_input() -> ! {
         if buffer.trim().to_lowercase() == "stop" {
             let content = "Server will stop in few second…";
             warn!("{}", content.red().bold());
-            crate::gracefully_exit(-1000);
+            gracefully_exit(crate::ExitCode::Failure)
         }
         //made a server operator (level 4)
 

@@ -24,20 +24,20 @@ async fn main() {
 
     if let Err(e) = early_init().await {
         error!("Failed to start the server, error in early initialization: {e}. \nExiting...");
-        gracefully_exit(-1);
+        gracefully_exit(ExitCode::Failure);
     }
 
     if let Err(e) = init() {
         error!("Failed to start the server, error in initialization: {e}. \nExiting...");
-        gracefully_exit(-1);
+        gracefully_exit(ExitCode::Failure);
     }
 
     if let Err(e) = start().await {
         error!("Failed to start the server: {e}. \nExiting...");
-        gracefully_exit(-1);
+        gracefully_exit(ExitCode::Failure);
     }
 
-    info!("{}", *messages::SERVER_SHUTDOWN);
+    info!("{}", *messages::SERVER_SHUTDOWN_SUCCESS);
 }
 
 /// Logic that must executes as early as possibe
@@ -105,7 +105,7 @@ async fn start() -> Result<(), Box<dyn std::error::Error>> {
 fn init_ctrlc_handler() -> Result<(), Box<dyn std::error::Error>> {
     ctrlc::set_handler(move || {
         info!("Received Ctrl+C, shutting down...");
-        gracefully_exit(0);
+        gracefully_exit(ExitCode::CtrlC);
     })?;
 
     Ok(())
@@ -148,14 +148,33 @@ fn test() {
     info!("[ END test()]");
 }
 
+/// Enum representing standardized server exit codes.
+pub enum ExitCode {
+    Success,
+    Failure,
+    CtrlC,
+}
+
 /// Gracefully exits the server with an exit code.
-pub fn gracefully_exit(code: i32) -> ! {
-    if code == 0 {
-        info!("{}", *messages::SERVER_SHUTDOWN);
-    } else {
-        warn!("{}", messages::server_shutdown_code(code));
-    }
+pub fn gracefully_exit(exit_code: ExitCode) -> ! {
+    let numerical_exit_code: i32 = match exit_code {
+        ExitCode::Success => {
+            info!("{}", *messages::SERVER_SHUTDOWN_SUCCESS);
+            // 0 means success
+            0
+        }
+        ExitCode::Failure => {
+            warn!("{}", *messages::SERVER_SHUTDOWN_ERROR);
+            // 1 mean general error
+            1
+        }
+        ExitCode::CtrlC => {
+            info!("{}", *messages::SERVER_SHUTDOWN_CTRL_C);
+            // 130 mean script terminated by Ctrl+C
+            130
+        }
+    };
 
     // Well, for now it's not "gracefully" exiting.
-    std::process::exit(code);
+    std::process::exit(numerical_exit_code);
 }
