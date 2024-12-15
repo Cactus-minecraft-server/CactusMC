@@ -9,6 +9,9 @@ pub enum DataType {
     VarInt,
     VarLong,
     String,
+    NextState,
+    UnsignedShort,
+    Handshake,
     Other(&'static str),
 }
 
@@ -18,6 +21,9 @@ impl std::fmt::Display for DataType {
             DataType::VarInt => write!(f, "VarInt"),
             DataType::VarLong => write!(f, "VarLong"),
             DataType::String => write!(f, "String"),
+            DataType::NextState => write!(f, "NextState"),
+            DataType::UnsignedShort => write!(f, "UnsignedShort"),
+            DataType::Handshake => write!(f, "Handshake"),
             DataType::Other(name) => write!(f, "{}", name),
         }
     }
@@ -29,6 +35,8 @@ pub enum ErrorReason {
     ValueTooSmall,
     ValueEmpty,
     InvalidFormat(String),
+    /// Notably used for NextState decoding.
+    UnknownValue,
 }
 
 impl std::fmt::Display for ErrorReason {
@@ -38,6 +46,7 @@ impl std::fmt::Display for ErrorReason {
             ErrorReason::ValueTooSmall => write!(f, "Value too small"),
             ErrorReason::ValueEmpty => write!(f, "Value empty"),
             ErrorReason::InvalidFormat(reason) => write!(f, "Invalid format: {}", reason),
+            ErrorReason::UnknownValue => write!(f, "Unknown value"),
         }
     }
 }
@@ -54,6 +63,7 @@ pub enum CodecError {
 /// Implementation of the LEB128 variable-length code compression algorithm.
 /// Pseudo-code of this algorithm taken from https://wiki.vg/Protocol#VarInt_and_VarLong
 /// A VarInt may not be longer than 5 bytes.
+#[derive(Debug)]
 pub struct VarInt {
     // We're storing both the value and bytes to avoid redundant conversions.
     value: i32,
@@ -64,7 +74,7 @@ impl VarInt {
     const SEGMENT_BITS: i32 = 0x7F; // 0111 1111
     const CONTINUE_BIT: i32 = 0x80; // 1000 0000
 
-    /// Write a VarInt from an i32 value.
+    /// Writes a VarInt from an i32 value.
     pub fn from_value(value: i32) -> Result<Self, CodecError> {
         Ok(Self {
             value,
@@ -73,12 +83,13 @@ impl VarInt {
     }
 
     /// Reads the first VarInt in a sequence of bytes.
-    pub fn from_bytes<T: AsRef<[u8]>>(data: T) -> Result<Self, CodecError> {
-        let value: (i32, usize) = Self::read(&data)?;
+    pub fn from_bytes<T: AsRef<[u8]>>(bytes: T) -> Result<Self, CodecError> {
+        let data: &[u8] = bytes.as_ref();
+        let value: (i32, usize) = Self::read(data)?;
         Ok(Self {
             value: value.0,
             // Only keep the VarInt length
-            bytes: data.as_ref()[..value.1].to_vec(),
+            bytes: data[..value.1].to_vec(),
         })
     }
 
@@ -87,7 +98,7 @@ impl VarInt {
         self.value
     }
 
-    /// Returns cloned bytes of the VarInt.
+    /// Returns a reference to the VarInt bytes.
     pub fn get_bytes(&self) -> &[u8] {
         &self.bytes
     }
@@ -187,12 +198,13 @@ impl VarLong {
     }
 
     /// Reads the first VarInt in a sequence of bytes.
-    pub fn from_bytes<T: AsRef<[u8]>>(data: T) -> Result<Self, CodecError> {
-        let value: (i64, usize) = Self::read(&data)?;
+    pub fn from_bytes<T: AsRef<[u8]>>(bytes: T) -> Result<Self, CodecError> {
+        let data: &[u8] = bytes.as_ref();
+        let value: (i64, usize) = Self::read(data)?;
         Ok(Self {
             value: value.0,
             // Only keep the VarInt length
-            bytes: data.as_ref()[..value.1].to_vec(),
+            bytes: data[..value.1].to_vec(),
         })
     }
 
@@ -285,6 +297,7 @@ impl VarLong {
 /// For instance, with &[6, 72, 69, 76, 76, 79, 33, 0xFF, 0xFF, 0xFF] the function
 /// will return "HELLO!" and 0xFF are just garbage data, since the string is 6 bytes long,
 /// the 0xFF are ignored.
+#[derive(Debug)]
 pub struct StringProtocol {
     string: String,
     bytes: Vec<u8>,
@@ -306,18 +319,22 @@ impl StringProtocol {
     }
 
     pub fn from_bytes<T: AsRef<[u8]>>(bytes: T) -> Result<Self, CodecError> {
-        let string: (String, usize) = Self::read(&bytes)?;
+        let data: &[u8] = bytes.as_ref();
+        let string: (String, usize) = Self::read(data)?;
         Ok(Self {
             string: string.0,
             // Only take take the string, no more
-            bytes: bytes.as_ref()[..string.1].to_vec(),
+            bytes: data[..string.1].to_vec(),
         })
     }
 
+    /// Get a Rust String out of the StringProtocol.
     pub fn get_string(&self) -> &str {
         &self.string
     }
 
+    /// Returns a reference of the protocol String bytes.
+    /// Which is &[String Length, String UTF-8 Data]
     pub fn get_bytes(&self) -> &[u8] {
         &self.bytes
     }
@@ -428,6 +445,70 @@ impl StringProtocol {
         }
 
         Ok(result)
+    }
+}
+
+/// Implementation of the Big Endian unsigned short as per the Protocol Wiki.
+#[derive(Debug)]
+pub struct UnsignedShort {
+    value: u16,
+    bytes: [u8; 2],
+}
+
+impl UnsignedShort {
+    /// Initializes an `UnsignedShort` object from a u16.
+    pub fn from_value(value: u16) -> Self {
+        Self {
+            value,
+            bytes: Self::write(value),
+        }
+    }
+
+    /// Parses an `UnsignedShort` object from bytes.
+    /// Reads the FIRST unsigned short from the bytes in Big Endian format.
+    pub fn from_bytes<T: AsRef<[u8]>>(bytes: T) -> Result<Self, CodecError> {
+        let data: &[u8] = bytes.as_ref();
+        let value: u16 = Self::read(data)?;
+        Ok(Self {
+            value,
+            bytes: value.to_be_bytes(),
+        })
+    }
+
+    /// Returns the u16 from the current `UnsignedShort` object.
+    pub fn get_value(&self) -> u16 {
+        self.value
+    }
+
+    /// Returns a reference to the `UnsignedShorts` bytes.
+    pub fn get_bytes(&self) -> &[u8] {
+        &self.bytes
+    }
+
+    /// Reads the first two bytes of the provided data in Big Endian format.
+    fn read<T: AsRef<[u8]>>(bytes: T) -> Result<u16, CodecError> {
+        let data: &[u8] = bytes.as_ref();
+        if data.len() < 2 {
+            return Err(CodecError::Decoding(
+                DataType::UnsignedShort,
+                ErrorReason::ValueTooSmall,
+            ));
+        }
+
+        Ok(u16::from_be_bytes([data[0], data[1]]))
+    }
+
+    /// Returns the Big Endian representation of an u16.
+    fn write(value: u16) -> [u8; 2] {
+        value.to_be_bytes()
+    }
+}
+
+impl TryFrom<&[u8]> for UnsignedShort {
+    type Error = CodecError;
+
+    fn try_from(value: &[u8]) -> Result<Self, Self::Error> {
+        Self::from_bytes(value)
     }
 }
 
@@ -931,5 +1012,99 @@ mod tests {
         let sp = StringProtocol::from_string(input).unwrap();
         let decoded = StringProtocol::from_bytes(&sp.bytes).unwrap();
         assert_eq!(decoded.string, input);
+    }
+
+    #[test]
+    fn test_unsigned_short_from_value() {
+        // Test some known values
+        let values = [0x0000, 0x0001, 0x00FF, 0x1234, 0xFFFF];
+
+        for &val in &values {
+            let us = UnsignedShort::from_value(val);
+            assert_eq!(us.get_value(), val, "Value mismatch");
+            assert_eq!(us.get_bytes(), &val.to_be_bytes(), "Bytes mismatch");
+        }
+    }
+
+    #[test]
+    fn test_unsigned_short_from_bytes_exact() {
+        // Test exact byte sequences
+        let test_cases = vec![
+            (vec![0x00, 0x00], 0x0000),
+            (vec![0x00, 0x01], 0x0001),
+            (vec![0xAB, 0xCD], 0xABCD),
+            (vec![0xFF, 0xFF], 0xFFFF),
+        ];
+
+        for (bytes, expected) in test_cases {
+            let us = UnsignedShort::from_bytes(&bytes).unwrap();
+            assert_eq!(
+                us.get_value(),
+                expected,
+                "Value mismatch for bytes: {:?}",
+                bytes
+            );
+            assert_eq!(
+                us.get_bytes(),
+                &expected.to_be_bytes(),
+                "Bytes mismatch for bytes: {:?}",
+                bytes
+            );
+        }
+    }
+
+    #[test]
+    fn test_unsigned_short_from_bytes_with_extra_data() {
+        // The struct should only read the first two bytes and ignore the rest
+        let bytes = vec![0x12, 0x34, 0xAB, 0xCD];
+        let us = UnsignedShort::from_bytes(&bytes).unwrap();
+        assert_eq!(us.get_value(), 0x1234);
+        assert_eq!(us.get_bytes(), &0x1234_u16.to_be_bytes());
+    }
+
+    #[test]
+    fn test_unsigned_short_invalid_input() {
+        // Not enough bytes
+        let bytes = vec![0x12];
+        let err = UnsignedShort::from_bytes(&bytes).unwrap_err();
+        assert!(
+            matches!(
+                err,
+                CodecError::Decoding(DataType::UnsignedShort, ErrorReason::ValueTooSmall)
+            ),
+            "Expected ValueTooSmall error for insufficient bytes"
+        );
+    }
+
+    #[test]
+    fn test_unsigned_short_roundtrip() {
+        // Random roundtrip tests
+        let mut rng = rand::thread_rng();
+        for _ in 0..1000 {
+            let value = rng.gen::<u16>();
+            let us = UnsignedShort::from_value(value);
+            let decoded = UnsignedShort::from_bytes(us.get_bytes()).unwrap();
+            assert_eq!(
+                decoded.get_value(),
+                value,
+                "Roundtrip failed for value {:#X}",
+                value
+            );
+        }
+    }
+
+    #[test]
+    fn test_unsigned_short_try_from() {
+        // Using the TryFrom implementation
+        let bytes = [0xAB, 0xCD];
+        let us = UnsignedShort::try_from(&bytes[..]).unwrap();
+        assert_eq!(us.get_value(), 0xABCD);
+
+        let too_few_bytes = [0xAB];
+        let err = UnsignedShort::try_from(&too_few_bytes[..]).unwrap_err();
+        assert!(matches!(
+            err,
+            CodecError::Decoding(DataType::UnsignedShort, ErrorReason::ValueTooSmall)
+        ));
     }
 }

@@ -157,7 +157,7 @@ pub enum PacketType {
 // TODO: Implement std::Display. Print packet type (if found) and value.
 
 /// id_length is the length in bytes of the Packet ID VarInt.
-#[derive(Default, Clone)]
+#[derive(Debug, Default, Clone)]
 pub struct PacketId {
     id: i32,
     id_varint: Vec<u8>,
@@ -199,6 +199,22 @@ impl PacketId {
     /// Option<T>, so we're not adding a None variant to PacketType.)
     pub fn get_type() -> Option<PacketType> {
         todo!()
+    }
+}
+
+impl TryFrom<i32> for PacketId {
+    type Error = PacketError;
+
+    fn try_from(value: i32) -> Result<Self, Self::Error> {
+        Self::new(value)
+    }
+}
+
+impl TryFrom<VarInt> for PacketId {
+    type Error = PacketError;
+
+    fn try_from(value: VarInt) -> Result<Self, Self::Error> {
+        Self::new(value.get_value())
     }
 }
 

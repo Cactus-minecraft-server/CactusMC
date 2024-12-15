@@ -119,6 +119,8 @@ fn greet() {
 #[cfg(debug_assertions)]
 /// A test fonction that'll only run in debug-mode. (cargo run) and not (cargo run --release)
 fn test() {
+    use net::packet::data_types::VarInt;
+
     info!("[ BEGIN test() ]");
 
     // Do not remove this line, yet.
