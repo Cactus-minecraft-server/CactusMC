@@ -45,7 +45,7 @@ pub async fn handle_input() -> ! {
                             config::Settings::new().op_permission_level,
                             true,
                         ) {
-                            Ok(_) => format!("Made {} a server operator.", player_name),
+                            Ok(_) => "".to_string(),
                             Err(e) => format!(
                                 "Failed to make {} a server operator, error: {}",
                                 player_name, e
