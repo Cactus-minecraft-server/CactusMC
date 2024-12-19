@@ -2,7 +2,7 @@
 
 use super::{
     data_types::{
-        parse_bytes, CodecError, DataType, ErrorReason, StringProtocol, UnsignedShort, VarInt,
+        CodecError, DataType, Encodable, ErrorReason, StringProtocol, UnsignedShort, VarInt,
     },
     Packet, PacketId,
 };

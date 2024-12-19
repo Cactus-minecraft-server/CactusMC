@@ -8,93 +8,36 @@ use super::{
     PacketId,
 };
 
-pub trait ReturnTypes {}
-impl ReturnTypes for VarInt {}
-impl ReturnTypes for VarLong {}
-impl ReturnTypes for StringProtocol {}
-impl ReturnTypes for NextState {}
-impl ReturnTypes for UnsignedShort {}
-impl ReturnTypes for Handshake {}
-impl ReturnTypes for PacketId {}
 
-/// Takes a mutable reference to a buffer of bytes and reads a certain datatype (VarInt, VarLon,
-/// StringProtocol, ...) and also truncates the buffer to account for the length of the read
-/// datatype.
-///
-/// In other words, the function reads a certain datatype from a buffer and consumes the buffer.
-///
-/// Example:
-///
-/// You have a buffer:
-/// let mut buffer = &[1, 2, 3, 4];
-/// you call parse_bytes(&mut buffer, DataTypes::UnsignedShort);
-/// And then buffer becomes [3, 4] because we read an unsigned short (2 bytes) and consumed the
-/// buffer.
-///
-/// TODO: USE TEMPLATES WITH <T: trait>
-///
-///
-/// TODO: Implement for each datatype. As a public method &mut in, ->Self.
-pub fn parse_bytes(
-    bytes: &mut &[u8],
-    data_type: DataType,
-) -> Result<Box<dyn ReturnTypes>, CodecError> {
-    match data_type {
-        // TODO: IMPL .LEN func? for all datatypes
-        DataType::VarInt => {
-            let varint = VarInt::from_bytes(&bytes)?;
-            *bytes = &bytes[varint.len()..];
-            Ok(Box::new(varint))
-        }
-        DataType::VarLong => {
-            let varlong = VarLong::from_bytes(&bytes)?;
-            *bytes = &bytes[varlong.len()..];
-            Ok(Box::new(varlong))
-        }
-        DataType::StringProtocol => {
-            let string_protocol = StringProtocol::from_bytes(&bytes)?;
-            *bytes = &bytes[string_protocol.len()..];
-            Ok(Box::new(string_protocol))
-        }
-        DataType::NextState => {
-            let varint = VarInt::from_bytes(&bytes)?;
-            *bytes = &bytes[varint.len()..];
+// TODO: Add supertrait TryFrom
+pub trait Encodable: Sized {
+    /// Creates an instance from the first data type from a byte slice.
+    /// The input slice remains unmodified.
+    fn from_bytes<T: AsRef<[u8]>>(bytes: T) -> Result<Self, CodecError>;
 
-            let next_state = NextState::new(varint)?;
-            Ok(Box::new(next_state))
-        }
-        DataType::UnsignedShort => {
-            let unsigned_short = UnsignedShort::from_bytes(&bytes)?;
-            *bytes = &bytes[unsigned_short.len()..];
+    /// Creates an instance from the first data type from a byte slice.
+    /// Read bytes are consumed. For instance, if you were to read an UnsignedByte on [1, 5, 4, 8],
+    /// the buffer would then be [4, 8] after the function call.
+    fn consume_from_bytes(bytes: &mut &[u8]) -> Result<Self, CodecError> {
+        let instance = Self::from_bytes(&bytes)?;
+        *bytes = &bytes[instance.len()..];
+        Ok(instance)
+    }
 
-            Ok(Box::new(unsigned_short))
-        }
-        DataType::Handshake => {
-            let handshake = Handshake::new(&bytes)?;
-            *bytes = &bytes[handshake.len()..];
+    type ValueInput;
+    /// Creates an instance from a value.
+    fn from_value(value: Self::ValueInput) -> Result<Self, CodecError>;
 
-            Ok(Box::new(handshake))
-        }
-        DataType::PacketId => {
-            let varint = VarInt::from_bytes(&bytes)?;
-            *bytes = &bytes[varint.len()..];
+    /// Serializes the instance into bytes
+    fn get_bytes(&self) -> &[u8];
 
-            let packet_id = PacketId::new(varint.get_value()).map_err(|err| {
-                CodecError::Decoding(
-                    DataType::PacketId,
-                    ErrorReason::InvalidFormat(err.to_string()),
-                )
-            })?;
+    type ValueOutput;
+    /// Returns the value represented by this instance
+    fn get_value(&self) -> Self::ValueOutput;
 
-            Ok(Box::new(packet_id))
-        }
-        DataType::Other(_) => {
-            // For now let's return an error.
-            Err(CodecError::Decoding(
-                DataType::Other("Tried to parse datatype named 'Other'"),
-                ErrorReason::UnknownValue,
-            ))
-        }
+    // Returns the length of the encoded data in bytes.
+    fn len(&self) -> usize {
+        self.get_bytes().len()
     }
 }
 
@@ -171,47 +114,6 @@ impl VarInt {
     const SEGMENT_BITS: i32 = 0x7F; // 0111 1111
     const CONTINUE_BIT: i32 = 0x80; // 1000 0000
 
-    /// Writes a VarInt from an i32 value.
-    pub fn from_value(value: i32) -> Result<Self, CodecError> {
-        Ok(Self {
-            value,
-            bytes: Self::write(value)?,
-        })
-    }
-
-    /// Reads the first VarInt in a sequence of bytes.
-    pub fn from_bytes<T: AsRef<[u8]>>(bytes: T) -> Result<Self, CodecError> {
-        let data: &[u8] = bytes.as_ref();
-        let value: (i32, usize) = Self::read(data)?;
-        Ok(Self {
-            value: value.0,
-            // Only keep the VarInt length
-            bytes: data[..value.1].to_vec(),
-        })
-    }
-
-    /// Returns the integer value of the VarInt (i32).
-    pub fn get_value(&self) -> i32 {
-        self.value
-    }
-
-    /// Returns a reference to the VarInt bytes.
-    pub fn get_bytes(&self) -> &[u8] {
-        &self.bytes
-    }
-
-    /// Returns the length of the VarInt bytes.
-    pub fn len(&self) -> usize {
-        self.bytes.len()
-    }
-
-    /// Tries to read a VarInt from the first byte of the buffer.
-    pub fn read_from_bytes(&mut bytes: &[u8]) -> Result<Self, CodecError> {
-        let varint = Self::from_bytes(&bytes)?;
-        *bytes = &bytes[varint.len()..];
-        Ok(varint)
-    }
-
     /// Tries to read a VarInt **beginning from the first byte of the data**, until either the
     /// VarInt is read or it exceeds 5 bytes and the function returns Err.
     fn read<T: AsRef<[u8]>>(data: T) -> Result<(i32, usize), CodecError> {
@@ -285,6 +187,41 @@ impl VarInt {
     }
 }
 
+impl Encodable for VarInt {
+    fn from_bytes<T: AsRef<[u8]>>(bytes: T) -> Result<Self, CodecError> {
+        let data: &[u8] = bytes.as_ref();
+        let value: (i32, usize) = Self::read(data)?;
+        Ok(Self {
+            value: value.0,
+            // Only the VarInt is kept. The rest of the buffer is not accounted for.
+            bytes: data[..value.1].to_vec(),
+        })
+    }
+
+    type ValueInput = i32;
+
+    fn from_value(value: Self::ValueInput) -> Result<Self, CodecError> {
+        Ok(Self {
+            value,
+            bytes: Self::write(value)?,
+        })
+    }
+
+    fn get_bytes(&self) -> &[u8] {
+        &self.bytes
+    }
+
+    type ValueOutput = i32;
+
+    fn get_value(&self) -> Self::ValueOutput {
+        self.value
+    }
+
+    fn len(&self) -> usize {
+        self.get_bytes().len()
+    }
+}
+
 /// Implementation of the LEB128 variable-length compression algorithm.
 /// Pseudo-code of this algorithm from https://wiki.vg/Protocol#VarInt_and_VarLong.
 /// A VarLong may not be longer than 10 bytes.
@@ -297,47 +234,6 @@ pub struct VarLong {
 impl VarLong {
     const SEGMENT_BITS: i64 = 0x7F; // 0111 1111
     const CONTINUE_BIT: i64 = 0x80; // 1000 0000
-
-    /// Write a VarInt from an i32 value.
-    pub fn from_value(value: i64) -> Result<Self, CodecError> {
-        Ok(Self {
-            value,
-            bytes: Self::write(value)?,
-        })
-    }
-
-    /// Reads the first VarInt in a sequence of bytes.
-    pub fn from_bytes<T: AsRef<[u8]>>(bytes: T) -> Result<Self, CodecError> {
-        let data: &[u8] = bytes.as_ref();
-        let value: (i64, usize) = Self::read(data)?;
-        Ok(Self {
-            value: value.0,
-            // Only keep the VarInt length
-            bytes: data[..value.1].to_vec(),
-        })
-    }
-
-    /// Returns the integer value of the VarInt (i32).
-    pub fn get_value(&self) -> i64 {
-        self.value
-    }
-
-    /// Returns cloned bytes of the VarInt.
-    pub fn get_bytes(&self) -> &[u8] {
-        &self.bytes
-    }
-
-    /// Returns the length of the encoded bytes.
-    pub fn len(&self) -> usize {
-        self.bytes.len()
-    }
-
-    /// Tries to read a VarLong from the first byte of the buffer.
-    pub fn read_from_bytes(&mut bytes: &[u8]) -> Result<Self, CodecError> {
-        let varlong = Self::from_bytes(&bytes)?;
-        *bytes = &bytes[varlong.len()..];
-        Ok(varlong)
-    }
 
     /// Tries to read a VarLong **beginning from the first byte of the data**, until either the
     /// VarLong is read or it exceeds 10 bytes and the function returns Err.
@@ -412,6 +308,37 @@ impl VarLong {
     }
 }
 
+impl Encodable for VarLong {
+    fn from_bytes<T: AsRef<[u8]>>(bytes: T) -> Result<Self, CodecError> {
+        let data: &[u8] = bytes.as_ref();
+        let value: (i64, usize) = Self::read(data)?;
+        Ok(Self {
+            value: value.0,
+            // Only the VarInt is kept. The rest of the buffer is not accounted for.
+            bytes: data[..value.1].to_vec(),
+        })
+    }
+
+    type ValueInput = i64;
+
+    fn from_value(value: Self::ValueInput) -> Result<Self, CodecError> {
+        Ok(Self {
+            value,
+            bytes: Self::write(value)?,
+        })
+    }
+
+    fn get_bytes(&self) -> &[u8] {
+        &self.bytes
+    }
+
+    type ValueOutput = i64;
+
+    fn get_value(&self) -> Self::ValueOutput {
+        self.value
+    }
+}
+
 /// Implementation of the String(https://wiki.vg/Protocol#Type:String).
 /// It is a UTF-8 string prefixed with its size in bytes as a VarInt.
 ///
@@ -431,46 +358,6 @@ impl StringProtocol {
     // The +3 accounts for the maximum potential size of the VarInt that prefixes the string length.
     const MAX_UTF_16_UNITS: usize = 32767;
     const MAX_DATA_SIZE: usize = Self::MAX_UTF_16_UNITS * 3 + 3;
-
-    pub fn from_string<T: AsRef<str>>(string: T) -> Result<Self, CodecError> {
-        Ok(Self {
-            string: string.as_ref().to_string(),
-            bytes: Self::write(string)?,
-        })
-    }
-
-    pub fn from_bytes<T: AsRef<[u8]>>(bytes: T) -> Result<Self, CodecError> {
-        let data: &[u8] = bytes.as_ref();
-        let string: (String, usize) = Self::read(data)?;
-        Ok(Self {
-            string: string.0,
-            // Only take take the string, no more
-            bytes: data[..string.1].to_vec(),
-        })
-    }
-
-    /// Get a Rust String out of the StringProtocol.
-    pub fn get_string(&self) -> &str {
-        &self.string
-    }
-
-    /// Returns a reference of the protocol String bytes.
-    /// Which is &[String Length, String UTF-8 Data]
-    pub fn get_bytes(&self) -> &[u8] {
-        &self.bytes
-    }
-
-    /// Returns the length of the encoded bytes.
-    pub fn len(&self) -> usize {
-        self.bytes.len()
-    }
-
-    /// Tries to read a String from the first byte of the buffer.
-    pub fn read_from_bytes(&mut bytes: &[u8]) -> Result<Self, CodecError> {
-        let string_protocol = Self::from_bytes(&bytes)?;
-        *bytes = &bytes[string_protocol.len()..];
-        Ok(string_protocol)
-    }
 
     /// Tries to read a String **beginning from the first byte of the data**, until either the
     /// end of the String or error.
@@ -581,6 +468,37 @@ impl StringProtocol {
     }
 }
 
+impl Encodable for StringProtocol {
+    fn from_bytes<T: AsRef<[u8]>>(bytes: T) -> Result<Self, CodecError> {
+        let data: &[u8] = bytes.as_ref();
+        let string: (String, usize) = Self::read(data)?;
+        Ok(Self {
+            string: string.0,
+            // Only take take the string, no more.
+            bytes: data[..string.1].to_vec(),
+        })
+    }
+
+    type ValueInput = String;
+
+    fn from_value(value: Self::ValueInput) -> Result<Self, CodecError> {
+        Ok(Self {
+            string: value.to_string(),
+            bytes: Self::write(value)?,
+        })
+    }
+
+    fn get_bytes(&self) -> &[u8] {
+        &self.bytes
+    }
+
+    type ValueOutput = String;
+
+    fn get_value(&self) -> Self::ValueOutput {
+        self.string.clone()
+    }
+}
+
 /// Implementation of the Big Endian unsigned short as per the Protocol Wiki.
 #[derive(Debug)]
 pub struct UnsignedShort {
@@ -641,6 +559,8 @@ impl UnsignedShort {
         value.to_be_bytes()
     }
 }
+
+impl Encodable for UnsignedShort { todo!!!! }
 
 impl TryFrom<&[u8]> for UnsignedShort {
     type Error = CodecError;
