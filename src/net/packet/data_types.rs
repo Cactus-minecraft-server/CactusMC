@@ -3,15 +3,111 @@ use core::str;
 use log::debug;
 use thiserror::Error;
 
+use super::{
+    packet_types::{Handshake, NextState},
+    PacketId,
+};
+
+pub trait ReturnTypes {}
+impl ReturnTypes for VarInt {}
+impl ReturnTypes for VarLong {}
+impl ReturnTypes for StringProtocol {}
+impl ReturnTypes for NextState {}
+impl ReturnTypes for UnsignedShort {}
+impl ReturnTypes for Handshake {}
+impl ReturnTypes for PacketId {}
+
+/// Takes a mutable reference to a buffer of bytes and reads a certain datatype (VarInt, VarLon,
+/// StringProtocol, ...) and also truncates the buffer to account for the length of the read
+/// datatype.
+///
+/// In other words, the function reads a certain datatype from a buffer and consumes the buffer.
+///
+/// Example:
+///
+/// You have a buffer:
+/// let mut buffer = &[1, 2, 3, 4];
+/// you call parse_bytes(&mut buffer, DataTypes::UnsignedShort);
+/// And then buffer becomes [3, 4] because we read an unsigned short (2 bytes) and consumed the
+/// buffer.
+///
+/// TODO: USE TEMPLATES WITH <T: trait>
+///
+///
+/// TODO: Implement for each datatype. As a public method &mut in, ->Self.
+pub fn parse_bytes(
+    bytes: &mut &[u8],
+    data_type: DataType,
+) -> Result<Box<dyn ReturnTypes>, CodecError> {
+    match data_type {
+        // TODO: IMPL .LEN func? for all datatypes
+        DataType::VarInt => {
+            let varint = VarInt::from_bytes(&bytes)?;
+            *bytes = &bytes[varint.len()..];
+            Ok(Box::new(varint))
+        }
+        DataType::VarLong => {
+            let varlong = VarLong::from_bytes(&bytes)?;
+            *bytes = &bytes[varlong.len()..];
+            Ok(Box::new(varlong))
+        }
+        DataType::StringProtocol => {
+            let string_protocol = StringProtocol::from_bytes(&bytes)?;
+            *bytes = &bytes[string_protocol.len()..];
+            Ok(Box::new(string_protocol))
+        }
+        DataType::NextState => {
+            let varint = VarInt::from_bytes(&bytes)?;
+            *bytes = &bytes[varint.len()..];
+
+            let next_state = NextState::new(varint)?;
+            Ok(Box::new(next_state))
+        }
+        DataType::UnsignedShort => {
+            let unsigned_short = UnsignedShort::from_bytes(&bytes)?;
+            *bytes = &bytes[unsigned_short.len()..];
+
+            Ok(Box::new(unsigned_short))
+        }
+        DataType::Handshake => {
+            let handshake = Handshake::new(&bytes)?;
+            *bytes = &bytes[handshake.len()..];
+
+            Ok(Box::new(handshake))
+        }
+        DataType::PacketId => {
+            let varint = VarInt::from_bytes(&bytes)?;
+            *bytes = &bytes[varint.len()..];
+
+            let packet_id = PacketId::new(varint.get_value()).map_err(|err| {
+                CodecError::Decoding(
+                    DataType::PacketId,
+                    ErrorReason::InvalidFormat(err.to_string()),
+                )
+            })?;
+
+            Ok(Box::new(packet_id))
+        }
+        DataType::Other(_) => {
+            // For now let's return an error.
+            Err(CodecError::Decoding(
+                DataType::Other("Tried to parse datatype named 'Other'"),
+                ErrorReason::UnknownValue,
+            ))
+        }
+    }
+}
+
 /// Represents datatypes in errors
 #[derive(Eq, PartialEq, Clone, Debug)]
 pub enum DataType {
     VarInt,
     VarLong,
-    String,
+    StringProtocol,
     NextState,
     UnsignedShort,
     Handshake,
+    PacketId,
     Other(&'static str),
 }
 
@@ -20,10 +116,11 @@ impl std::fmt::Display for DataType {
         match self {
             DataType::VarInt => write!(f, "VarInt"),
             DataType::VarLong => write!(f, "VarLong"),
-            DataType::String => write!(f, "String"),
+            DataType::StringProtocol => write!(f, "String"),
             DataType::NextState => write!(f, "NextState"),
             DataType::UnsignedShort => write!(f, "UnsignedShort"),
             DataType::Handshake => write!(f, "Handshake"),
+            DataType::PacketId => write!(f, "PacketId"),
             DataType::Other(name) => write!(f, "{}", name),
         }
     }
@@ -101,6 +198,18 @@ impl VarInt {
     /// Returns a reference to the VarInt bytes.
     pub fn get_bytes(&self) -> &[u8] {
         &self.bytes
+    }
+
+    /// Returns the length of the VarInt bytes.
+    pub fn len(&self) -> usize {
+        self.bytes.len()
+    }
+
+    /// Tries to read a VarInt from the first byte of the buffer.
+    pub fn read_from_bytes(&mut bytes: &[u8]) -> Result<Self, CodecError> {
+        let varint = Self::from_bytes(&bytes)?;
+        *bytes = &bytes[varint.len()..];
+        Ok(varint)
     }
 
     /// Tries to read a VarInt **beginning from the first byte of the data**, until either the
@@ -216,6 +325,18 @@ impl VarLong {
     /// Returns cloned bytes of the VarInt.
     pub fn get_bytes(&self) -> &[u8] {
         &self.bytes
+    }
+
+    /// Returns the length of the encoded bytes.
+    pub fn len(&self) -> usize {
+        self.bytes.len()
+    }
+
+    /// Tries to read a VarLong from the first byte of the buffer.
+    pub fn read_from_bytes(&mut bytes: &[u8]) -> Result<Self, CodecError> {
+        let varlong = Self::from_bytes(&bytes)?;
+        *bytes = &bytes[varlong.len()..];
+        Ok(varlong)
     }
 
     /// Tries to read a VarLong **beginning from the first byte of the data**, until either the
@@ -339,6 +460,18 @@ impl StringProtocol {
         &self.bytes
     }
 
+    /// Returns the length of the encoded bytes.
+    pub fn len(&self) -> usize {
+        self.bytes.len()
+    }
+
+    /// Tries to read a String from the first byte of the buffer.
+    pub fn read_from_bytes(&mut bytes: &[u8]) -> Result<Self, CodecError> {
+        let string_protocol = Self::from_bytes(&bytes)?;
+        *bytes = &bytes[string_protocol.len()..];
+        Ok(string_protocol)
+    }
+
     /// Tries to read a String **beginning from the first byte of the data**, until either the
     /// end of the String or error.
     ///
@@ -368,7 +501,7 @@ impl StringProtocol {
         // If there are more bytes of string than the length of the data.
         if last_string_byte > data.as_ref().len() {
             return Err(CodecError::Decoding(
-                DataType::String,
+                DataType::StringProtocol,
                 ErrorReason::InvalidFormat(
                     "String length is greater than provided bytes".to_string(),
                 ),
@@ -378,7 +511,7 @@ impl StringProtocol {
         // If VarInt + String is greater than max allowed.
         if last_string_byte > Self::MAX_DATA_SIZE {
             return Err(CodecError::Decoding(
-                DataType::String,
+                DataType::StringProtocol,
                 ErrorReason::ValueTooLarge,
             ));
         }
@@ -389,7 +522,7 @@ impl StringProtocol {
         // Decode UTF-8 to a string
         let utf8_str: &str = str::from_utf8(string_data).map_err(|err| {
             CodecError::Decoding(
-                DataType::String,
+                DataType::StringProtocol,
                 ErrorReason::InvalidFormat(format!("String UTF-8 decoding error: {err}")),
             )
         })?;
@@ -400,7 +533,7 @@ impl StringProtocol {
         // Check if the utf16_units exceed the allowed maximum
         if utf16_units > Self::MAX_UTF_16_UNITS {
             return Err(CodecError::Decoding(
-                DataType::String,
+                DataType::StringProtocol,
                 ErrorReason::InvalidFormat("Too many UTF-16 code points".to_string()),
             ));
         }
@@ -418,7 +551,7 @@ impl StringProtocol {
         // Check if the utf16_units exceed the allowed maximum
         if utf16_units > Self::MAX_UTF_16_UNITS {
             return Err(CodecError::Encoding(
-                DataType::String,
+                DataType::StringProtocol,
                 ErrorReason::InvalidFormat("Too many UTF-16 code points".to_string()),
             ));
         }
@@ -439,7 +572,7 @@ impl StringProtocol {
 
         if result.len() > Self::MAX_DATA_SIZE {
             return Err(CodecError::Encoding(
-                DataType::String,
+                DataType::StringProtocol,
                 ErrorReason::ValueTooLarge,
             ));
         }
@@ -483,6 +616,11 @@ impl UnsignedShort {
     /// Returns a reference to the `UnsignedShorts` bytes.
     pub fn get_bytes(&self) -> &[u8] {
         &self.bytes
+    }
+
+    /// Returns the number of bytes of the encoded value.
+    pub fn len(&self) -> usize {
+        self.bytes.len()
     }
 
     /// Reads the first two bytes of the provided data in Big Endian format.
@@ -846,7 +984,7 @@ mod tests {
                 // Invalid UTF-8 should cause a decoding format error
                 assert!(matches!(
                     e,
-                    CodecError::Decoding(DataType::String, ErrorReason::InvalidFormat(_))
+                    CodecError::Decoding(DataType::StringProtocol, ErrorReason::InvalidFormat(_))
                 ));
             }
         }
@@ -870,7 +1008,7 @@ mod tests {
                 // Incomplete data should cause invalid format
                 assert!(matches!(
                     e,
-                    CodecError::Decoding(DataType::String, ErrorReason::InvalidFormat(_))
+                    CodecError::Decoding(DataType::StringProtocol, ErrorReason::InvalidFormat(_))
                 ));
             }
         }
@@ -890,7 +1028,7 @@ mod tests {
                 // No data after length varint should cause invalid format
                 assert!(matches!(
                     e,
-                    CodecError::Decoding(DataType::String, ErrorReason::InvalidFormat(_))
+                    CodecError::Decoding(DataType::StringProtocol, ErrorReason::InvalidFormat(_))
                 ));
             }
         }
@@ -967,7 +1105,7 @@ mod tests {
             Ok(_) => panic!("Expected error, but got Ok"),
             Err(e) => assert!(matches!(
                 e,
-                CodecError::Encoding(DataType::String, ErrorReason::InvalidFormat(_))
+                CodecError::Encoding(DataType::StringProtocol, ErrorReason::InvalidFormat(_))
             )),
         }
     }

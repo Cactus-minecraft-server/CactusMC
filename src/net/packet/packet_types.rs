@@ -1,43 +1,9 @@
 //! A module to parse known packets.
 
-// TODO: HELPER FUNCTION TO READ BYTES WITH INCLUDED OFFSET.
-// TODO: HELPER FUNCTION TO READ BYTES WITH INCLUDED OFFSET.
-// TODO: HELPER FUNCTION TO READ BYTES WITH INCLUDED OFFSET.
-// TODO: HELPER FUNCTION TO READ BYTES WITH INCLUDED OFFSET.
-// TODO: HELPER FUNCTION TO READ BYTES WITH INCLUDED OFFSET.
-// TODO: HELPER FUNCTION TO READ BYTES WITH INCLUDED OFFSET.
-// TODO: HELPER FUNCTION TO READ BYTES WITH INCLUDED OFFSET.
-// TODO: HELPER FUNCTION TO READ BYTES WITH INCLUDED OFFSET.
-// TODO: HELPER FUNCTION TO READ BYTES WITH INCLUDED OFFSET.
-// TODO: HELPER FUNCTION TO READ BYTES WITH INCLUDED OFFSET.
-// TODO: HELPER FUNCTION TO READ BYTES WITH INCLUDED OFFSET.
-// TODO: HELPER FUNCTION TO READ BYTES WITH INCLUDED OFFSET.
-// TODO: HELPER FUNCTION TO READ BYTES WITH INCLUDED OFFSET.
-// TODO: HELPER FUNCTION TO READ BYTES WITH INCLUDED OFFSET.
-// TODO: HELPER FUNCTION TO READ BYTES WITH INCLUDED OFFSET.
-// TODO: HELPER FUNCTION TO READ BYTES WITH INCLUDED OFFSET.
-// TODO: HELPER FUNCTION TO READ BYTES WITH INCLUDED OFFSET.
-// TODO: HELPER FUNCTION TO READ BYTES WITH INCLUDED OFFSET.
-// TODO: HELPER FUNCTION TO READ BYTES WITH INCLUDED OFFSET.
-// TODO: HELPER FUNCTION TO READ BYTES WITH INCLUDED OFFSET.
-// TODO: HELPER FUNCTION TO READ BYTES WITH INCLUDED OFFSET.
-// TODO: HELPER FUNCTION TO READ BYTES WITH INCLUDED OFFSET.
-// TODO: HELPER FUNCTION TO READ BYTES WITH INCLUDED OFFSET.
-// TODO: HELPER FUNCTION TO READ BYTES WITH INCLUDED OFFSET.
-// TODO: HELPER FUNCTION TO READ BYTES WITH INCLUDED OFFSET.
-// TODO: HELPER FUNCTION TO READ BYTES WITH INCLUDED OFFSET.
-// TODO: HELPER FUNCTION TO READ BYTES WITH INCLUDED OFFSET.
-// TODO: HELPER FUNCTION TO READ BYTES WITH INCLUDED OFFSET.
-// TODO: HELPER FUNCTION TO READ BYTES WITH INCLUDED OFFSET.
-// TODO: HELPER FUNCTION TO READ BYTES WITH INCLUDED OFFSET.
-// TODO: HELPER FUNCTION TO READ BYTES WITH INCLUDED OFFSET.
-// TODO: HELPER FUNCTION TO READ BYTES WITH INCLUDED OFFSET.
-// TODO: HELPER FUNCTION TO READ BYTES WITH INCLUDED OFFSET.
-// TODO: HELPER FUNCTION TO READ BYTES WITH INCLUDED OFFSET.
-// TODO: HELPER FUNCTION TO READ BYTES WITH INCLUDED OFFSET.
-
 use super::{
-    data_types::{CodecError, DataType, ErrorReason, StringProtocol, UnsignedShort, VarInt},
+    data_types::{
+        parse_bytes, CodecError, DataType, ErrorReason, StringProtocol, UnsignedShort, VarInt,
+    },
     Packet, PacketId,
 };
 
@@ -70,6 +36,15 @@ impl NextState {
             NextState::Transfer => 3,
         }
     }
+
+    /// Returns the length in bytes of the encoded type.
+    ///
+    /// This is not optimized.
+    /// This is terrible code.
+    /// TODO: Optimize/refactor this.
+    pub fn len(&self) -> usize {
+        VarInt::from_value(self.get_value()).unwrap().len()
+    }
 }
 
 #[derive(Debug)]
@@ -79,13 +54,18 @@ pub struct Handshake {
     server_address: StringProtocol,
     server_port: UnsignedShort,
     next_state: NextState,
+    /// Number of bytes of the packet
+    length: usize,
 }
 
 impl Handshake {
     /// Tries to parse a Handshake packet from bytes.
     /// Accepts `Packet`.
     pub fn new<T: AsRef<[u8]>>(bytes: T) -> Result<Self, CodecError> {
-        let data: &[u8] = bytes.as_ref();
+        let mut data: &[u8] = bytes.as_ref();
+
+        let id = parse_bytes(&mut data, DataType::PacketId)?;
+
         let mut offset: usize = 0;
 
         let id = {
@@ -119,7 +99,13 @@ impl Handshake {
             server_address,
             server_port,
             next_state,
+            length: offset,
         })
+    }
+
+    /// Returns the length of the bytes of the Handshake packet.
+    pub fn len(&self) -> usize {
+        self.length
     }
 
     /// Returns a reference to the current `PacketID`.
