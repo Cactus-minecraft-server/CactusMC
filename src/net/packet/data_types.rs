@@ -65,7 +65,7 @@ pub enum ErrorReason {
     ValueEmpty,
     InvalidFormat(String),
     /// Notably used for NextState decoding.
-    UnknownValue,
+    UnknownValue(String),
 }
 
 impl std::fmt::Display for ErrorReason {
@@ -75,7 +75,7 @@ impl std::fmt::Display for ErrorReason {
             ErrorReason::ValueTooSmall => write!(f, "Value too small"),
             ErrorReason::ValueEmpty => write!(f, "Value empty"),
             ErrorReason::InvalidFormat(reason) => write!(f, "Invalid format: {}", reason),
-            ErrorReason::UnknownValue => write!(f, "Unknown value"),
+            ErrorReason::UnknownValue(info) => write!(f, "Unknown value: {}", info),
         }
     }
 }

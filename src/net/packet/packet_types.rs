@@ -1,5 +1,7 @@
 //! A module to parse known packets.
 
+use log::debug;
+
 use crate::player;
 
 use super::{
@@ -26,7 +28,7 @@ impl NextState {
             0x03 => Ok(NextState::Transfer(next_state)),
             _ => Err(CodecError::Decoding(
                 DataType::Other("NextState"),
-                ErrorReason::UnknownValue,
+                ErrorReason::UnknownValue(format!("Got {}.", next_state.get_value())),
             )),
         }
     }
@@ -45,7 +47,7 @@ impl NextState {
 /// server does not need to create from values, only read from bytes.
 ///
 /// A trait that parses a type of packet from bytes.
-trait ParsablePacket: Sized {
+pub trait ParsablePacket: Sized {
     const PACKET_ID: i32;
 
     /// Tries to create the object by parsing bytes;
@@ -66,7 +68,7 @@ trait ParsablePacket: Sized {
 }
 
 /// A trait that allows to encode a type of packet.
-trait EncodablePacket: ParsablePacket {
+pub trait EncodablePacket: ParsablePacket {
     type Fields;
     fn from_values(packet_fields: Self::Fields) -> Result<Self, CodecError>;
 }
@@ -88,10 +90,19 @@ impl ParsablePacket for Handshake {
     fn from_bytes<T: AsRef<[u8]>>(bytes: T) -> Result<Self, CodecError> {
         let mut data: &[u8] = bytes.as_ref();
 
+        debug!("data: {data:?}");
+
         let protocol_version: VarInt = VarInt::consume_from_bytes(&mut data)?;
+        debug!("data: {data:?}");
+
         let server_address: StringProtocol = StringProtocol::consume_from_bytes(&mut data)?;
+        debug!("data: {data:?}");
+
         let server_port: UnsignedShort = UnsignedShort::consume_from_bytes(&mut data)?;
+        debug!("data: {data:?}");
+
         let next_state: NextState = NextState::new(VarInt::consume_from_bytes(&mut data)?)?;
+        debug!("data: {data:?}");
 
         let length: usize = protocol_version.len()
             + server_address.len()
@@ -127,7 +138,7 @@ impl TryFrom<Packet> for Handshake {
     type Error = CodecError;
 
     fn try_from(value: Packet) -> Result<Self, Self::Error> {
-        Self::from_bytes(value)
+        Self::from_bytes(value.get_payload())
     }
 }
 
@@ -183,6 +194,6 @@ impl TryFrom<Packet> for LoginStart {
     type Error = CodecError;
 
     fn try_from(value: Packet) -> Result<Self, Self::Error> {
-        Self::from_bytes(value)
+        Self::from_bytes(value.get_payload())
     }
 }

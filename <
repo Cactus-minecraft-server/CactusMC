@@ -181,11 +181,10 @@ mod dispatch {
 
     pub async fn handshake(packet: Packet, conn: &Connection) -> Result<Response, NetError> {
         // Set state to Status
-        debug!("Hanshake packet: {:?}", packet.get_full_packet());
+        debug!("Hanshake packet: {packet:?}");
         conn.set_state(ConnectionState::Status).await;
 
-        let handshake_packet: Handshake = packet.try_into()?;
-
+        let handshake_packet = Handshake::from_bytes(packet)?;
         match handshake_packet.next_state {
             packet::packet_types::NextState::Status(_) => {
                 conn.set_state(ConnectionState::Status).await
