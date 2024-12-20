@@ -31,4 +31,4 @@ Copper is licensed under the Mozilla Public License Version 2.0. See the `LICENS
 
 ---
 
-For any questions or comments, feel free to open an issue or contact me directly at the email: [minecraft.copper@proton.me](mailto:minecraft.cactus@proton.me)
+For any questions or comments, feel free to open an issue or contact me directly at the email: [minecraft.cactus@proton.me](mailto:minecraft.cactus@proton.me)
