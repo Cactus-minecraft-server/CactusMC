@@ -41,6 +41,7 @@ pub enum DataType {
     VarLong,
     StringProtocol,
     UnsignedShort,
+    Uuid,
     Other(&'static str),
 }
 
@@ -51,6 +52,7 @@ impl std::fmt::Display for DataType {
             DataType::VarLong => write!(f, "VarLong"),
             DataType::StringProtocol => write!(f, "String"),
             DataType::UnsignedShort => write!(f, "UnsignedShort"),
+            DataType::Uuid => write!(f, "UUID"),
             DataType::Other(name) => write!(f, "{}", name),
         }
     }
@@ -538,6 +540,75 @@ impl Encodable for UnsignedShort {
     }
 
     type ValueOutput = u16;
+
+    fn get_value(&self) -> Self::ValueOutput {
+        self.value
+    }
+}
+
+/// Represents a UUID. Encoded as an unsigned 128-bit integer in the protocol:
+/// https://minecraft.wiki/w/Minecraft_Wiki:Projects/wiki.vg_merge/Protocol#Type:UUID
+pub struct Uuid {
+    value: u128,
+    /// There are 16 bytes in a u128.
+    bytes: [u8; 16],
+}
+
+impl Uuid {
+    /// Reads the first 16 bytes of the provided data in Big Endian format.
+    fn read<T: AsRef<[u8]>>(bytes: T) -> Result<u128, CodecError> {
+        let data: &[u8] = bytes.as_ref();
+
+        if data.len() < 16 {
+            return Err(CodecError::Decoding(
+                DataType::Uuid,
+                ErrorReason::ValueTooSmall,
+            ));
+        }
+
+        let uuid_bytes = data[0..16]
+            .try_into()
+            .map_err(|err: std::array::TryFromSliceError| {
+                CodecError::Encoding(DataType::Uuid, ErrorReason::InvalidFormat(err.to_string()))
+            })?;
+
+        Ok(u128::from_be_bytes(uuid_bytes))
+    }
+
+    /// Returns the Big Endian representation of an u16.
+    ///
+    /// There are 16 bytes in a u128.
+    fn write(value: u128) -> [u8; 16] {
+        value.to_be_bytes()
+    }
+}
+
+impl Encodable for Uuid {
+    fn from_bytes<T: AsRef<[u8]>>(bytes: T) -> Result<Self, CodecError> {
+        let data: &[u8] = bytes.as_ref();
+
+        let value: u128 = Self::read(data)?;
+        let bytes_: [u8; 16] = Self::write(value);
+        Ok(Self {
+            value,
+            bytes: bytes_,
+        })
+    }
+
+    type ValueInput = u128;
+
+    fn from_value(value: Self::ValueInput) -> Result<Self, CodecError> {
+        Ok(Self {
+            value,
+            bytes: Self::write(value),
+        })
+    }
+
+    fn get_bytes(&self) -> &[u8] {
+        &self.bytes
+    }
+
+    type ValueOutput = u128;
 
     fn get_value(&self) -> Self::ValueOutput {
         self.value
@@ -1110,5 +1181,165 @@ mod tests {
                 value
             );
         }
+    }
+
+    // A helper function to generate a sample Uuid value and its bytes.
+    fn sample_uuid() -> (u128, [u8; 16]) {
+        let value: u128 = 0x1234567890ABCDEF1234567890ABCDEF;
+        (value, value.to_be_bytes())
+    }
+
+    #[test]
+    fn test_uuid_read_valid() {
+        let (value, bytes) = sample_uuid();
+        let read_result = Uuid::read(&bytes);
+        assert!(read_result.is_ok());
+        assert_eq!(read_result.unwrap(), value);
+    }
+
+    #[test]
+    fn test_uuid_read_invalid_length() {
+        let bytes = [0x12u8; 15]; // Not enough bytes
+        let read_result = Uuid::read(&bytes);
+        assert!(read_result.is_err());
+    }
+
+    #[test]
+    fn test_uuid_write() {
+        let (value, bytes) = sample_uuid();
+        let written = Uuid::write(value);
+        assert_eq!(written, bytes);
+    }
+
+    #[test]
+    fn test_uuid_from_bytes() {
+        let (value, bytes) = sample_uuid();
+        let uuid = Uuid::from_bytes(bytes).unwrap();
+        assert_eq!(uuid.value, value);
+        assert_eq!(uuid.bytes, bytes);
+    }
+
+    #[test]
+    fn test_uuid_from_bytes_invalid_length() {
+        let bytes = [0x34u8; 8]; // Not enough bytes
+        let result = Uuid::from_bytes(bytes);
+        assert!(result.is_err());
+    }
+
+    #[test]
+    fn test_uuid_from_value() {
+        let (value, bytes) = sample_uuid();
+        let uuid = Uuid::from_value(value).unwrap();
+        assert_eq!(uuid.value, value);
+        assert_eq!(uuid.bytes, bytes);
+    }
+
+    #[test]
+    fn test_uuid_get_bytes() {
+        let (value, bytes) = sample_uuid();
+        let uuid = Uuid::from_value(value).unwrap();
+        assert_eq!(uuid.get_bytes(), &bytes);
+    }
+
+    #[test]
+    fn test_uuid_get_value() {
+        let (value, _) = sample_uuid();
+        let uuid = Uuid::from_value(value).unwrap();
+        assert_eq!(uuid.get_value(), value);
+    }
+
+    #[test]
+    fn test_uuid_len() {
+        let (value, _) = sample_uuid();
+        let uuid = Uuid::from_value(value).unwrap();
+        assert_eq!(uuid.len(), 16);
+    }
+
+    #[test]
+    fn test_uuid_consume_from_bytes() {
+        let (value, bytes) = sample_uuid();
+        let mut slice: &[u8] = &bytes;
+        let uuid = Uuid::consume_from_bytes(&mut slice).unwrap();
+        assert_eq!(uuid.value, value);
+        assert_eq!(slice.len(), 0);
+    }
+
+    #[test]
+    fn test_uuid_consume_from_bytes_extra_data() {
+        let (value, bytes) = sample_uuid();
+        let mut input = [0u8; 32];
+        input[..16].copy_from_slice(&bytes);
+        input[16..].copy_from_slice(&bytes);
+        let mut slice: &[u8] = &input;
+        let uuid = Uuid::consume_from_bytes(&mut slice).unwrap();
+        assert_eq!(uuid.value, value);
+        assert_eq!(slice.len(), 16); // 16 bytes consumed
+    }
+
+    #[test]
+    fn test_uuid_consume_from_bytes_invalid() {
+        let bytes = [0x12u8; 15]; // Not enough
+        let mut slice: &[u8] = &bytes;
+        let result = Uuid::consume_from_bytes(&mut slice);
+        assert!(result.is_err());
+    }
+
+    // Additional thorough tests:
+
+    #[test]
+    fn test_uuid_zero_value() {
+        let value: u128 = 0;
+        let uuid = Uuid::from_value(value).unwrap();
+        assert_eq!(uuid.get_value(), 0);
+        assert_eq!(uuid.get_bytes(), &[0u8; 16]);
+    }
+
+    #[test]
+    fn test_uuid_max_value() {
+        let value: u128 = u128::MAX;
+        let uuid = Uuid::from_value(value).unwrap();
+        assert_eq!(uuid.get_value(), u128::MAX);
+        assert_eq!(uuid.get_bytes(), &u128::MAX.to_be_bytes());
+    }
+
+    #[test]
+    fn test_uuid_round_trip() {
+        let (value, _) = sample_uuid();
+        let uuid = Uuid::from_value(value).unwrap();
+        let round_trip = Uuid::from_bytes(uuid.get_bytes()).unwrap();
+        assert_eq!(round_trip.get_value(), value);
+        assert_eq!(round_trip.get_bytes(), uuid.get_bytes());
+    }
+
+    #[test]
+    fn test_uuid_random_values() {
+        let values = [
+            0x00000000000000000000000000000001u128,
+            0xFFFFFFFFFFFFFFFFFFFFFFFFFFFFFFFEu128,
+            0x00112233445566778899AABBCCDDEEFFu128,
+        ];
+
+        for &val in &values {
+            let uuid = Uuid::from_value(val).unwrap();
+            assert_eq!(uuid.get_value(), val);
+            assert_eq!(uuid.get_bytes(), &val.to_be_bytes());
+            let from_bytes = Uuid::from_bytes(uuid.get_bytes()).unwrap();
+            assert_eq!(from_bytes.get_value(), val);
+        }
+    }
+
+    #[test]
+    fn test_uuid_slice_longer_than_16() {
+        let (value, bytes) = sample_uuid();
+        let mut long_slice = Vec::from(bytes);
+        long_slice.extend_from_slice(&[0xFF; 10]); // extra data
+        let uuid = Uuid::from_bytes(&long_slice).unwrap();
+        assert_eq!(uuid.get_value(), value);
+
+        let mut slice_ref: &[u8] = &long_slice;
+        let consumed_uuid = Uuid::consume_from_bytes(&mut slice_ref).unwrap();
+        assert_eq!(consumed_uuid.get_value(), value);
+        // Ensure extra bytes remain unconsumed
+        assert_eq!(slice_ref.len(), 10);
     }
 }

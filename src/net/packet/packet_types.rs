@@ -1,8 +1,10 @@
 //! A module to parse known packets.
 
+use crate::player;
+
 use super::{
     data_types::{
-        CodecError, DataType, Encodable, ErrorReason, StringProtocol, UnsignedShort, VarInt,
+        CodecError, DataType, Encodable, ErrorReason, StringProtocol, UnsignedShort, Uuid, VarInt,
     },
     Packet, PacketBuilder, PacketError,
 };
@@ -122,6 +124,62 @@ impl ParsablePacket for Handshake {
 }
 
 impl TryFrom<Packet> for Handshake {
+    type Error = CodecError;
+
+    fn try_from(value: Packet) -> Result<Self, Self::Error> {
+        Self::from_bytes(value)
+    }
+}
+
+/// Represents the LoginStart packet.
+/// The second packet in the login sequence.
+///
+/// Login sequence: https://minecraft.wiki/w/Minecraft_Wiki:Projects/wiki.vg_merge/Protocol_FAQ#What's_the_normal_login_sequence_for_a_client?
+///
+/// A packet sent by the client to login to the server.
+///
+/// https://minecraft.wiki/w/Minecraft_Wiki:Projects/wiki.vg_merge/Protocol#Login_Start
+struct LoginStart {
+    pub name: StringProtocol,
+    pub player_uuid: Uuid,
+
+    /// The number of bytes of the packet.
+    length: usize,
+}
+
+impl ParsablePacket for LoginStart {
+    const PACKET_ID: i32 = 0x00;
+
+    /// Tries to parse a LoginStart packet from bytes.
+    fn from_bytes<T: AsRef<[u8]>>(bytes: T) -> Result<Self, CodecError> {
+        let mut data: &[u8] = bytes.as_ref();
+
+        let name: StringProtocol = StringProtocol::consume_from_bytes(&mut data)?;
+        let player_uuid: Uuid = Uuid::consume_from_bytes(&mut data)?;
+        let length: usize = name.len() + player_uuid.len();
+
+        Ok(Self {
+            name,
+            player_uuid,
+            length,
+        })
+    }
+
+    type PacketType = Result<Packet, PacketError>;
+
+    fn get_packet(&self) -> Self::PacketType {
+        PacketBuilder::new()
+            .append_bytes(self.name.get_bytes())
+            .append_bytes(self.player_uuid.get_bytes())
+            .build(Self::PACKET_ID)
+    }
+
+    fn len(&self) -> usize {
+        self.length
+    }
+}
+
+impl TryFrom<Packet> for LoginStart {
     type Error = CodecError;
 
     fn try_from(value: Packet) -> Result<Self, Self::Error> {
