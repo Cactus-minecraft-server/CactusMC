@@ -42,6 +42,7 @@ pub enum DataType {
     StringProtocol,
     UnsignedShort,
     Uuid,
+    Array,
     Other(&'static str),
 }
 
@@ -53,6 +54,7 @@ impl std::fmt::Display for DataType {
             DataType::StringProtocol => write!(f, "String"),
             DataType::UnsignedShort => write!(f, "UnsignedShort"),
             DataType::Uuid => write!(f, "UUID"),
+            DataType::Array => write!(f, "Array"),
             DataType::Other(name) => write!(f, "{}", name),
         }
     }
@@ -548,6 +550,7 @@ impl Encodable for UnsignedShort {
 
 /// Represents a UUID. Encoded as an unsigned 128-bit integer in the protocol:
 /// https://minecraft.wiki/w/Minecraft_Wiki:Projects/wiki.vg_merge/Protocol#Type:UUID
+#[derive(Debug)]
 pub struct Uuid {
     value: u128,
     /// There are 16 bytes in a u128.
@@ -613,6 +616,21 @@ impl Encodable for Uuid {
     fn get_value(&self) -> Self::ValueOutput {
         self.value
     }
+}
+
+// TODO: Find a way to implement Array.
+// TODO: It seems we cannot implement the Encodable trait because the from_bytes() function needs
+// more than just bytes to deduce what type of information the function has to parse, that is, if I
+// properly understood how Array works.
+//
+// Here is the example where Array has multiple types of data:
+// https://minecraft.wiki/w/Minecraft_Wiki:Projects/wiki.vg_merge/Protocol#Login_Success
+struct Array {
+    /// The `Array` length is known from context when reading certain packets.
+    /// Can be positive or zero.
+    length: usize,
+    types: Vec<DataType>,
+    bytes: Vec<u8>,
 }
 
 /// Tests mostly written by AI, and not human-checked. 1141

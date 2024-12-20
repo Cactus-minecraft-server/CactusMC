@@ -64,6 +64,7 @@ enum ConnectionState {
     Handshake,
     Status,
     Login,
+    Configuration,
     Transfer,
 }
 
@@ -167,6 +168,7 @@ async fn handle_packet(conn: &Connection, packet: Packet) -> Result<Response, Ne
         ConnectionState::Handshake => dispatch::handshake(packet, conn).await,
         ConnectionState::Status => dispatch::status(packet).await,
         ConnectionState::Login => dispatch::login(conn, packet).await,
+        ConnectionState::Configuration => dispatch::configuration(conn, packet).await,
         ConnectionState::Transfer => dispatch::transfer(conn, packet).await,
     }
 }
@@ -175,7 +177,9 @@ mod dispatch {
     use super::*;
     use packet::{
         data_types::Encodable,
-        packet_types::{Handshake, ParsablePacket},
+        packet_types::{
+            EncodablePacket, Handshake, LoginAcknowledged, LoginStart, LoginSuccess, ParsablePacket,
+        },
         Response,
     };
 
@@ -234,7 +238,23 @@ mod dispatch {
     pub async fn login(conn: &Connection, packet: Packet) -> Result<Response, NetError> {
         match packet.get_id().get_value() {
             0x00 => {
-                info!("Got Login Start");
+                let login_start: LoginStart = packet.try_into()?;
+
+                debug!("Got login Start packet: {login_start:#?}");
+
+                let login_success: LoginSuccess =
+                    LoginSuccess::from_values((login_start.player_uuid, login_start.name))?;
+
+                Ok(Response::new(Some(login_success.get_packet()?)))
+            }
+            0x03 => {
+                // Parse it just to be sure it's the Login Acknowledged packet.
+                let _login_success: LoginAcknowledged = packet.try_into()?;
+
+                // Switch the connection state to Configuration
+                conn.set_state(ConnectionState::Configuration).await;
+
+                // Don't respond anything
                 Ok(Response::new(None))
             }
             _ => {
@@ -249,5 +269,48 @@ mod dispatch {
 
     pub async fn transfer(conn: &Connection, packet: Packet) -> Result<Response, NetError> {
         todo!()
+    }
+
+    pub async fn configuration(conn: &Connection, packet: Packet) -> Result<Response, NetError> {
+        match packet.get_id().get_value() {
+            0x00 => {
+                // TODO: Cookie Request packet
+                Ok(Response::new(None))
+            }
+            0x01 => {
+                // TODO: Clientbound Plugin Message packet
+                Ok(Response::new(None))
+            }
+            0x02 => {
+                // TODO: Disconnect packet
+                Ok(Response::new(None))
+            }
+            0x03 => {
+                // TODO: Finish Configuration packet
+                Ok(Response::new(None))
+            }
+            0x04 => {
+                // TODO: Clientbound Keep Alive packet
+                Ok(Response::new(None))
+            }
+            0x05 => {
+                // TODO: Ping packet
+                Ok(Response::new(None))
+            }
+            // TODO: And a lot, lot more to follow
+
+            // 0x10 = 16. Last and sixteenth Configuration packet.
+            0x10 => {
+                // TODO: Server Links
+                Ok(Response::new(None))
+            }
+            _ => {
+                warn!("Unknown packet ID, State: Configuration");
+                Err(NetError::UnknownPacketId(format!(
+                    "unknown packet ID, State: Configuration, PacketId: {}",
+                    packet.get_id().get_value()
+                )))
+            }
+        }
     }
 }

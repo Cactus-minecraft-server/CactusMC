@@ -1,8 +1,8 @@
 //! A module to parse known packets.
 
-use log::debug;
+use log::{debug, error};
 
-use crate::player;
+use crate::{gracefully_exit, player};
 
 use super::{
     data_types::{
@@ -150,7 +150,8 @@ impl TryFrom<Packet> for Handshake {
 /// A packet sent by the client to login to the server.
 ///
 /// https://minecraft.wiki/w/Minecraft_Wiki:Projects/wiki.vg_merge/Protocol#Login_Start
-struct LoginStart {
+#[derive(Debug)]
+pub struct LoginStart {
     pub name: StringProtocol,
     pub player_uuid: Uuid,
 
@@ -191,6 +192,90 @@ impl ParsablePacket for LoginStart {
 }
 
 impl TryFrom<Packet> for LoginStart {
+    type Error = CodecError;
+
+    fn try_from(value: Packet) -> Result<Self, Self::Error> {
+        Self::from_bytes(value.get_payload())
+    }
+}
+
+#[derive(Debug)]
+pub struct LoginSuccess {
+    uuid: Uuid,
+    username: StringProtocol,
+    number_of_properties: VarInt,
+    // TODO: Implement the 'Property' (Array) field name
+
+    // There also exists the 'Strict Error Handling' (Boolean) field name which only exists for
+    // 1.20.5 to 1.21.1.
+}
+
+impl ParsablePacket for LoginSuccess {
+    const PACKET_ID: i32 = 0x02;
+
+    fn from_bytes<T: AsRef<[u8]>>(bytes: T) -> Result<Self, CodecError> {
+        error!("Tried to parse a server-only packet (Login Success). Closing the server...");
+        gracefully_exit(crate::ExitCode::Failure);
+    }
+
+    type PacketType = Result<Packet, PacketError>;
+
+    fn get_packet(&self) -> Self::PacketType {
+        PacketBuilder::new()
+            .append_bytes(self.uuid.get_bytes())
+            .append_bytes(self.username.get_bytes())
+            .append_bytes(self.number_of_properties.get_bytes())
+            .build(Self::PACKET_ID)
+    }
+
+    fn len(&self) -> usize {
+        self.uuid.len() + self.username.len() + self.number_of_properties.len()
+    }
+}
+
+impl EncodablePacket for LoginSuccess {
+    type Fields = (Uuid, StringProtocol);
+
+    fn from_values(packet_fields: Self::Fields) -> Result<Self, CodecError> {
+        Ok(Self {
+            uuid: packet_fields.0,
+            username: packet_fields.1,
+            number_of_properties: VarInt::from_value(0)?,
+        })
+    }
+}
+
+/// This packet switches the connection state to configuration.
+pub struct LoginAcknowledged {}
+
+impl ParsablePacket for LoginAcknowledged {
+    const PACKET_ID: i32 = 0x03;
+
+    fn from_bytes<T: AsRef<[u8]>>(bytes: T) -> Result<Self, CodecError> {
+        if bytes.as_ref().len() != 0 {
+            Err(CodecError::Decoding(
+                DataType::Other("Login Acknowledged packet"),
+                ErrorReason::InvalidFormat(
+                    "The payload of the LoginAcknowledged packet should be empty.".to_string(),
+                ),
+            ))
+        } else {
+            Ok(Self {})
+        }
+    }
+
+    type PacketType = Packet;
+
+    fn get_packet(&self) -> Self::PacketType {
+        Packet::default()
+    }
+
+    fn len(&self) -> usize {
+        0
+    }
+}
+
+impl TryFrom<Packet> for LoginAcknowledged {
     type Error = CodecError;
 
     fn try_from(value: Packet) -> Result<Self, Self::Error> {
