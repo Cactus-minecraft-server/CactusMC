@@ -9,7 +9,7 @@ mod logging;
 mod net;
 use log::{error, info, warn};
 use net::packet;
-mod chunks_manager;
+mod generate_overworld;
 mod encode_chunk;
 mod player;
 mod seed_hasher;

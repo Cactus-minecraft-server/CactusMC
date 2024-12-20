@@ -7,7 +7,7 @@ pub struct Chunck {
     sections: Vec<ChunkSection>,
 }
 
-fn generate_world(x: i32, z: i32) -> Chunck {
+fn generate_chunk(x: i32, z: i32, radius: u16) -> Chunck {
     let mut blocks = [[[0u16; 16]; 16]; 4];
 
     for y in 0..4 {

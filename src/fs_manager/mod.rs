@@ -1,5 +1,5 @@
 use std::fs::{self, File, OpenOptions};
-use std::io::{self, BufRead};
+use std::io::{self, BufRead, Seek, SeekFrom};
 use std::path::Path;
 use std::vec;
 mod utils;
@@ -7,7 +7,7 @@ use crate::{consts, gracefully_exit};
 use colored::Colorize;
 use log::{error, info, warn};
 use serde::{Deserialize, Serialize};
-use serde_json::{json, Value};
+use serde_json::{json, Map, Value};
 use std::io::Read;
 use std::io::Write;
 
@@ -169,7 +169,7 @@ struct Player {
     uuid: String,
     name: String,
     level: u8,
-    bypassesplayerlimit: bool,
+    bypassesPlayerLimit: bool,
 }
 
 pub fn write_ops_json(
@@ -182,35 +182,45 @@ pub fn write_ops_json(
     let mut file = OpenOptions::new()
         .read(true)
         .write(true)
-        .truncate(true)
+        .create(true)
         .open(filename)?;
 
     let mut content = String::new();
     file.read_to_string(&mut content)?;
 
-    let mut json_data: Vec<Value> = if content.trim().is_empty() {
-        vec![]
-    } else {
-        serde_json::from_str(&content)?
-    };
-    let new_object = json!({
-        "name": name,
-        "uuid": uuid,
-        "level": level,
-        "bypassesPlayerLimit": bypasses_player_limit
-    });
-    json_data.push(new_object);
-    file.set_len(0)?;
-    if let Err(e) = file.write_all(serde_json::to_string_pretty(&json_data)?.as_bytes()) {
-        warn!("Failed to write to ops: {e}");
+    if content.starts_with('\u{feff}') {
+        content = content.trim_start_matches('\u{feff}').to_string();
     }
+
+    let mut players: Vec<Player> = if content.trim().is_empty() {
+        Vec::new()
+    } else {
+        serde_json::from_str(&content).unwrap_or_else(|_| Vec::new())
+    };
+
+    if !players.iter().any(|p| p.uuid == uuid) {
+        players.push(Player {
+            uuid: uuid.to_string(),
+            name: name.to_string(),
+            level,
+            bypassesPlayerLimit: bypasses_player_limit,
+        });
+        info!("Made {} a server operator", name.to_string())
+    } else {
+        warn!("Nothing changed. The player already is an operator")
+    }
+
+    // Réécrire le fichier avec le contenu mis à jour
+    file.set_len(0)?;
+    file.seek(SeekFrom::Start(0))?;
+    file.write_all(serde_json::to_string_pretty(&players)?.as_bytes())?;
+
     Ok(())
 }
-
 /// Removes all files related to the server, excluding the server.
 ///
 /// I am not sure if this is a good idea, because it takes some time to maintain and is not very
-/// useful.
+/// useful but it's mostly for dev purpose.
 pub fn clean_files() -> Result<(), std::io::Error> {
     // Define a helper function to handle file removals
     fn remove_file(file_path: &str) -> Result<(), std::io::Error> {
