@@ -169,7 +169,7 @@ async fn handle_packet(conn: &Connection, packet: Packet) -> Result<Response, Ne
 
 mod dispatch {
     use super::*;
-    use packet::Response;
+    use packet::{data_types::Encodable, Response};
 
     pub async fn handshake(packet: Packet, conn: &Connection) -> Result<Response, NetError> {
         // Set state to Status

@@ -3,13 +3,6 @@ use core::str;
 use log::debug;
 use thiserror::Error;
 
-use super::{
-    packet_types::{Handshake, NextState},
-    PacketId,
-};
-
-
-// TODO: Add supertrait TryFrom
 pub trait Encodable: Sized {
     /// Creates an instance from the first data type from a byte slice.
     /// The input slice remains unmodified.
@@ -47,10 +40,7 @@ pub enum DataType {
     VarInt,
     VarLong,
     StringProtocol,
-    NextState,
     UnsignedShort,
-    Handshake,
-    PacketId,
     Other(&'static str),
 }
 
@@ -60,10 +50,7 @@ impl std::fmt::Display for DataType {
             DataType::VarInt => write!(f, "VarInt"),
             DataType::VarLong => write!(f, "VarLong"),
             DataType::StringProtocol => write!(f, "String"),
-            DataType::NextState => write!(f, "NextState"),
             DataType::UnsignedShort => write!(f, "UnsignedShort"),
-            DataType::Handshake => write!(f, "Handshake"),
-            DataType::PacketId => write!(f, "PacketId"),
             DataType::Other(name) => write!(f, "{}", name),
         }
     }
@@ -103,7 +90,7 @@ pub enum CodecError {
 /// Implementation of the LEB128 variable-length code compression algorithm.
 /// Pseudo-code of this algorithm taken from https://wiki.vg/Protocol#VarInt_and_VarLong
 /// A VarInt may not be longer than 5 bytes.
-#[derive(Debug)]
+#[derive(Debug, Default)]
 pub struct VarInt {
     // We're storing both the value and bytes to avoid redundant conversions.
     value: i32,
@@ -213,6 +200,7 @@ impl Encodable for VarInt {
 
     type ValueOutput = i32;
 
+    /// Returns the value of the VarInt (i32)
     fn get_value(&self) -> Self::ValueOutput {
         self.value
     }
@@ -507,40 +495,6 @@ pub struct UnsignedShort {
 }
 
 impl UnsignedShort {
-    /// Initializes an `UnsignedShort` object from a u16.
-    pub fn from_value(value: u16) -> Self {
-        Self {
-            value,
-            bytes: Self::write(value),
-        }
-    }
-
-    /// Parses an `UnsignedShort` object from bytes.
-    /// Reads the FIRST unsigned short from the bytes in Big Endian format.
-    pub fn from_bytes<T: AsRef<[u8]>>(bytes: T) -> Result<Self, CodecError> {
-        let data: &[u8] = bytes.as_ref();
-        let value: u16 = Self::read(data)?;
-        Ok(Self {
-            value,
-            bytes: value.to_be_bytes(),
-        })
-    }
-
-    /// Returns the u16 from the current `UnsignedShort` object.
-    pub fn get_value(&self) -> u16 {
-        self.value
-    }
-
-    /// Returns a reference to the `UnsignedShorts` bytes.
-    pub fn get_bytes(&self) -> &[u8] {
-        &self.bytes
-    }
-
-    /// Returns the number of bytes of the encoded value.
-    pub fn len(&self) -> usize {
-        self.bytes.len()
-    }
-
     /// Reads the first two bytes of the provided data in Big Endian format.
     fn read<T: AsRef<[u8]>>(bytes: T) -> Result<u16, CodecError> {
         let data: &[u8] = bytes.as_ref();
@@ -560,17 +514,38 @@ impl UnsignedShort {
     }
 }
 
-impl Encodable for UnsignedShort { todo!!!! }
+impl Encodable for UnsignedShort {
+    fn from_bytes<T: AsRef<[u8]>>(bytes: T) -> Result<Self, CodecError> {
+        let data: &[u8] = bytes.as_ref();
+        let value: u16 = Self::read(data)?;
+        Ok(Self {
+            value,
+            bytes: value.to_be_bytes(),
+        })
+    }
 
-impl TryFrom<&[u8]> for UnsignedShort {
-    type Error = CodecError;
+    type ValueInput = u16;
 
-    fn try_from(value: &[u8]) -> Result<Self, Self::Error> {
-        Self::from_bytes(value)
+    fn from_value(value: Self::ValueInput) -> Result<Self, CodecError> {
+        Ok(Self {
+            value,
+            bytes: Self::write(value),
+        })
+    }
+
+    fn get_bytes(&self) -> &[u8] {
+        &self.bytes
+    }
+
+    type ValueOutput = u16;
+
+    fn get_value(&self) -> Self::ValueOutput {
+        self.value
     }
 }
 
-/// Tests mostly written by AI, and not human-checked.
+/// Tests mostly written by AI, and not human-checked. 1141
+
 #[cfg(test)]
 mod tests {
     use super::*;
@@ -813,8 +788,7 @@ mod tests {
         data.extend_from_slice(string_bytes);
 
         let sp = StringProtocol::from_bytes(&data).unwrap();
-        // Check the decoded string
-        assert_eq!(sp.string, s);
+        assert_eq!(sp.get_value(), s);
     }
 
     #[test]
@@ -831,7 +805,7 @@ mod tests {
         data.extend_from_slice(string_bytes);
 
         let sp = StringProtocol::from_bytes(&data).unwrap();
-        assert_eq!(sp.string, s);
+        assert_eq!(sp.get_value(), s);
     }
 
     #[test]
@@ -848,7 +822,7 @@ mod tests {
         data.extend_from_slice(string_bytes);
 
         let sp = StringProtocol::from_bytes(&data).unwrap();
-        assert!(sp.string.is_empty());
+        assert!(sp.get_value().is_empty());
     }
 
     #[test]
@@ -880,7 +854,6 @@ mod tests {
         match StringProtocol::from_bytes(&data) {
             Ok(_) => panic!("Expected error, but got Ok"),
             Err(e) => {
-                // The invalid varint should cause a VarInt decode error
                 assert!(matches!(e, CodecError::Decoding(DataType::VarInt, _)));
             }
         }
@@ -901,7 +874,6 @@ mod tests {
         match StringProtocol::from_bytes(&data) {
             Ok(_) => panic!("Expected error, but got Ok"),
             Err(e) => {
-                // Invalid UTF-8 should cause a decoding format error
                 assert!(matches!(
                     e,
                     CodecError::Decoding(DataType::StringProtocol, ErrorReason::InvalidFormat(_))
@@ -917,7 +889,7 @@ mod tests {
             .unwrap()
             .get_bytes()
             .to_vec();
-        let string_bytes = b"HELLO"; // Only 5 bytes
+        let string_bytes = b"HELLO";
 
         let mut data = length_varint;
         data.extend_from_slice(string_bytes);
@@ -925,7 +897,6 @@ mod tests {
         match StringProtocol::from_bytes(&data) {
             Ok(_) => panic!("Expected error, but got Ok"),
             Err(e) => {
-                // Incomplete data should cause invalid format
                 assert!(matches!(
                     e,
                     CodecError::Decoding(DataType::StringProtocol, ErrorReason::InvalidFormat(_))
@@ -945,7 +916,6 @@ mod tests {
         match StringProtocol::from_bytes(&data) {
             Ok(_) => panic!("Expected error, but got Ok"),
             Err(e) => {
-                // No data after length varint should cause invalid format
                 assert!(matches!(
                     e,
                     CodecError::Decoding(DataType::StringProtocol, ErrorReason::InvalidFormat(_))
@@ -961,7 +931,6 @@ mod tests {
         match StringProtocol::from_bytes(&data) {
             Ok(_) => panic!("Expected error, but got Ok"),
             Err(e) => {
-                // Completely empty data should fail decoding VarInt length first
                 assert!(matches!(
                     e,
                     CodecError::Decoding(DataType::VarInt, ErrorReason::ValueEmpty)
@@ -988,7 +957,7 @@ mod tests {
             data.extend_from_slice(string_bytes);
 
             let sp = StringProtocol::from_bytes(&data).unwrap();
-            assert_eq!(sp.string, s);
+            assert_eq!(sp.get_value(), s);
         }
     }
 
@@ -1001,8 +970,8 @@ mod tests {
             .to_vec();
         let expected_bytes = [varint_bytes.as_slice(), input.as_bytes()].concat();
 
-        let sp = StringProtocol::from_string(input).unwrap();
-        assert_eq!(sp.bytes, expected_bytes);
+        let sp = StringProtocol::from_value(input.to_string()).unwrap();
+        assert_eq!(sp.get_bytes(), expected_bytes);
     }
 
     #[test]
@@ -1014,14 +983,14 @@ mod tests {
             .to_vec();
         let expected_bytes = varint_bytes;
 
-        let sp = StringProtocol::from_string(input).unwrap();
-        assert_eq!(sp.bytes, expected_bytes);
+        let sp = StringProtocol::from_value(input.to_string()).unwrap();
+        assert_eq!(sp.get_bytes(), expected_bytes);
     }
 
     #[test]
     fn test_write_string_exceeding_max_utf16_units() {
         let input: String = std::iter::repeat('𠀋').take(32768).collect();
-        match StringProtocol::from_string(&input) {
+        match StringProtocol::from_value(input) {
             Ok(_) => panic!("Expected error, but got Ok"),
             Err(e) => assert!(matches!(
                 e,
@@ -1033,7 +1002,7 @@ mod tests {
     #[test]
     fn test_write_string_exceeding_max_data_size() {
         let long_string = "a".repeat(32767 * 3 + 4);
-        let string = StringProtocol::from_string(long_string);
+        let string = StringProtocol::from_value(long_string);
         assert!(matches!(string, Err(_)));
     }
 
@@ -1046,8 +1015,8 @@ mod tests {
             .to_vec();
         let expected_bytes = [varint_bytes.as_slice(), input.as_bytes()].concat();
 
-        let sp = StringProtocol::from_string(input).unwrap();
-        assert_eq!(sp.bytes, expected_bytes);
+        let sp = StringProtocol::from_value(input.to_string()).unwrap();
+        assert_eq!(sp.get_bytes(), expected_bytes);
     }
 
     #[test]
@@ -1060,25 +1029,24 @@ mod tests {
             .to_vec();
         let expected_bytes = [varint_bytes.as_slice(), input.as_bytes()].concat();
 
-        let sp = StringProtocol::from_string(&input).unwrap();
-        assert_eq!(sp.bytes, expected_bytes);
+        let sp = StringProtocol::from_value(input.clone()).unwrap();
+        assert_eq!(sp.get_bytes(), expected_bytes);
     }
 
     #[test]
     fn test_write_to_read_loop() {
         let input = "こんにちは、世界! 🌍";
-        let sp = StringProtocol::from_string(input).unwrap();
-        let decoded = StringProtocol::from_bytes(&sp.bytes).unwrap();
-        assert_eq!(decoded.string, input);
+        let sp = StringProtocol::from_value(input.to_string()).unwrap();
+        let decoded = StringProtocol::from_bytes(&sp.get_bytes()).unwrap();
+        assert_eq!(decoded.get_value(), input);
     }
 
     #[test]
     fn test_unsigned_short_from_value() {
-        // Test some known values
         let values = [0x0000, 0x0001, 0x00FF, 0x1234, 0xFFFF];
 
         for &val in &values {
-            let us = UnsignedShort::from_value(val);
+            let us = UnsignedShort::from_value(val).unwrap();
             assert_eq!(us.get_value(), val, "Value mismatch");
             assert_eq!(us.get_bytes(), &val.to_be_bytes(), "Bytes mismatch");
         }
@@ -1086,7 +1054,6 @@ mod tests {
 
     #[test]
     fn test_unsigned_short_from_bytes_exact() {
-        // Test exact byte sequences
         let test_cases = vec![
             (vec![0x00, 0x00], 0x0000),
             (vec![0x00, 0x01], 0x0001),
@@ -1113,7 +1080,6 @@ mod tests {
 
     #[test]
     fn test_unsigned_short_from_bytes_with_extra_data() {
-        // The struct should only read the first two bytes and ignore the rest
         let bytes = vec![0x12, 0x34, 0xAB, 0xCD];
         let us = UnsignedShort::from_bytes(&bytes).unwrap();
         assert_eq!(us.get_value(), 0x1234);
@@ -1122,25 +1088,20 @@ mod tests {
 
     #[test]
     fn test_unsigned_short_invalid_input() {
-        // Not enough bytes
         let bytes = vec![0x12];
         let err = UnsignedShort::from_bytes(&bytes).unwrap_err();
-        assert!(
-            matches!(
-                err,
-                CodecError::Decoding(DataType::UnsignedShort, ErrorReason::ValueTooSmall)
-            ),
-            "Expected ValueTooSmall error for insufficient bytes"
-        );
+        assert!(matches!(
+            err,
+            CodecError::Decoding(DataType::UnsignedShort, ErrorReason::ValueTooSmall)
+        ));
     }
 
     #[test]
     fn test_unsigned_short_roundtrip() {
-        // Random roundtrip tests
         let mut rng = rand::thread_rng();
         for _ in 0..1000 {
             let value = rng.gen::<u16>();
-            let us = UnsignedShort::from_value(value);
+            let us = UnsignedShort::from_value(value).unwrap();
             let decoded = UnsignedShort::from_bytes(us.get_bytes()).unwrap();
             assert_eq!(
                 decoded.get_value(),
@@ -1149,20 +1110,5 @@ mod tests {
                 value
             );
         }
-    }
-
-    #[test]
-    fn test_unsigned_short_try_from() {
-        // Using the TryFrom implementation
-        let bytes = [0xAB, 0xCD];
-        let us = UnsignedShort::try_from(&bytes[..]).unwrap();
-        assert_eq!(us.get_value(), 0xABCD);
-
-        let too_few_bytes = [0xAB];
-        let err = UnsignedShort::try_from(&too_few_bytes[..]).unwrap_err();
-        assert!(matches!(
-            err,
-            CodecError::Decoding(DataType::UnsignedShort, ErrorReason::ValueTooSmall)
-        ));
     }
 }

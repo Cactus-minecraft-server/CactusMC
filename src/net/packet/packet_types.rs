@@ -4,133 +4,120 @@ use super::{
     data_types::{
         CodecError, DataType, Encodable, ErrorReason, StringProtocol, UnsignedShort, VarInt,
     },
-    Packet, PacketId,
+    Packet, PacketBuilder, PacketError,
 };
 
 #[derive(Debug)]
+/// This is not simply a VarInt, this is an Enum VarInt.
 pub enum NextState {
-    Status,
-    Login,
-    Transfer,
+    Status(VarInt),
+    Login(VarInt),
+    Transfer(VarInt),
 }
 
 impl NextState {
     /// Parses a NextState from a VarInt
     pub fn new(next_state: VarInt) -> Result<Self, CodecError> {
         match next_state.get_value() {
-            0x01 => Ok(NextState::Status),
-            0x02 => Ok(NextState::Login),
-            0x03 => Ok(NextState::Transfer),
+            0x01 => Ok(NextState::Status(next_state)),
+            0x02 => Ok(NextState::Login(next_state)),
+            0x03 => Ok(NextState::Transfer(next_state)),
             _ => Err(CodecError::Decoding(
-                DataType::NextState,
+                DataType::Other("NextState"),
                 ErrorReason::UnknownValue,
             )),
         }
     }
 
-    /// Returns the i32 associated value from the current NextState object.
-    pub fn get_value(&self) -> i32 {
+    /// Returns a reference to the inner VarInt.
+    pub fn get_varint(&self) -> &VarInt {
         match self {
-            NextState::Status => 1,
-            NextState::Login => 2,
-            NextState::Transfer => 3,
+            NextState::Status(varint) => varint,
+            NextState::Login(varint) => varint,
+            NextState::Transfer(varint) => varint,
         }
     }
+}
 
-    /// Returns the length in bytes of the encoded type.
+/// Typically a trait only implemented for client-exclusive packets (like Handshake) that the
+/// server does not need to create from values, only read from bytes.
+///
+/// A trait that parses a type of packet from bytes.
+trait ParsablePacket: Sized {
+    const PACKET_ID: i32;
+
+    /// Tries to create the object by parsing bytes;
+    /// `Packet` is compatible in this function (Because it has implemented AsRef).
+    fn from_bytes<T: AsRef<[u8]>>(bytes: T) -> Result<Self, CodecError>;
+
+    /// Maybe &Packet, or Packet, or Result<Packet, SomeError>.
+    type PacketType;
+
+    /// Returns a **newly created** (inefficient) owned `Packet` from the current packet fields.
     ///
-    /// This is not optimized.
-    /// This is terrible code.
-    /// TODO: Optimize/refactor this.
-    pub fn len(&self) -> usize {
-        VarInt::from_value(self.get_value()).unwrap().len()
-    }
+    /// If you have it, use the `Packet` that's already been created because this function creates
+    /// a new bytes buffer and then a `Packet`.
+    fn get_packet(&self) -> Self::PacketType;
+
+    /// Returns the numer of bytes of the packet.
+    fn len(&self) -> usize;
+}
+
+/// A trait that allows to encode a type of packet.
+trait EncodablePacket: ParsablePacket {
+    type Fields;
+    fn from_values(packet_fields: Self::Fields) -> Result<Self, CodecError>;
 }
 
 #[derive(Debug)]
 pub struct Handshake {
-    id: PacketId,
-    protocol_version: VarInt,
-    server_address: StringProtocol,
-    server_port: UnsignedShort,
-    next_state: NextState,
+    pub protocol_version: VarInt,
+    pub server_address: StringProtocol,
+    pub server_port: UnsignedShort,
+    pub next_state: NextState,
+
     /// Number of bytes of the packet
     length: usize,
 }
 
-impl Handshake {
-    /// Tries to parse a Handshake packet from bytes.
-    /// Accepts `Packet`.
-    pub fn new<T: AsRef<[u8]>>(bytes: T) -> Result<Self, CodecError> {
+impl ParsablePacket for Handshake {
+    const PACKET_ID: i32 = 0x00;
+
+    fn from_bytes<T: AsRef<[u8]>>(bytes: T) -> Result<Self, CodecError> {
         let mut data: &[u8] = bytes.as_ref();
 
-        let id = parse_bytes(&mut data, DataType::PacketId)?;
+        let protocol_version: VarInt = VarInt::consume_from_bytes(&mut data)?;
+        let server_address: StringProtocol = StringProtocol::consume_from_bytes(&mut data)?;
+        let server_port: UnsignedShort = UnsignedShort::consume_from_bytes(&mut data)?;
+        let next_state: NextState = NextState::new(VarInt::consume_from_bytes(&mut data)?)?;
 
-        let mut offset: usize = 0;
-
-        let id = {
-            let varint = VarInt::from_bytes(data)?;
-            PacketId::try_from(varint).map_err(|err| {
-                CodecError::Decoding(
-                    DataType::Handshake,
-                    ErrorReason::InvalidFormat(err.to_string()),
-                )
-            })?
-        };
-        offset += id.len();
-
-        let protocol_version = VarInt::from_bytes(&data[offset..])?;
-        offset += protocol_version.get_bytes().len();
-
-        let server_address = StringProtocol::from_bytes(&data[offset..])?;
-        offset += server_address.get_bytes().len();
-
-        let server_port = UnsignedShort::from_bytes(&data[offset..])?;
-        offset += server_port.get_bytes().len();
-
-        let next_state = {
-            let varint = VarInt::from_bytes(&data[offset..])?;
-            NextState::new(varint)?
-        };
+        let length: usize = protocol_version.len()
+            + server_address.len()
+            + server_port.len()
+            + next_state.get_varint().len();
 
         Ok(Self {
-            id,
             protocol_version,
             server_address,
             server_port,
             next_state,
-            length: offset,
+            length,
         })
     }
 
-    /// Returns the length of the bytes of the Handshake packet.
-    pub fn len(&self) -> usize {
+    type PacketType = Result<Packet, PacketError>;
+
+    fn get_packet(&self) -> Self::PacketType {
+        PacketBuilder::new()
+            .append_bytes(self.protocol_version.get_bytes())
+            .append_bytes(self.server_address.get_bytes())
+            .append_bytes(self.server_port.get_bytes())
+            .append_bytes(self.next_state.get_varint().get_bytes())
+            .build(Self::PACKET_ID)
+    }
+
+    fn len(&self) -> usize {
         self.length
-    }
-
-    /// Returns a reference to the current `PacketID`.
-    pub fn get_id(&self) -> &PacketId {
-        &self.id
-    }
-
-    /// Returns a reference to the current protocol version. (`VarInt`).
-    pub fn get_protocol_version(&self) -> &VarInt {
-        &self.protocol_version
-    }
-
-    /// Returns a reference to the current `StringProtocol`.
-    pub fn get_server_address(&self) -> &StringProtocol {
-        &self.server_address
-    }
-
-    /// Returns a reference to the current server port (`UnsignedShort`).
-    pub fn get_server_port(&self) -> &UnsignedShort {
-        &self.server_port
-    }
-
-    /// Returns a reference to the current `NextState`.
-    pub fn get_next_state(&self) -> &NextState {
-        &self.next_state
     }
 }
 
@@ -138,6 +125,6 @@ impl TryFrom<Packet> for Handshake {
     type Error = CodecError;
 
     fn try_from(value: Packet) -> Result<Self, Self::Error> {
-        Self::new(value.get_full_packet())
+        Self::from_bytes(value)
     }
 }
