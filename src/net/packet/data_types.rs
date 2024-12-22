@@ -1,9 +1,16 @@
-use core::str;
+use core::{fmt, str};
 
+use bytes::BufMut;
 use log::debug;
 use thiserror::Error;
 
-pub trait Encodable: Sized {
+use crate::gracefully_exit;
+
+pub trait Encodable: Sized + Default + fmt::Debug + Clone {
+    // Note to future-self: we can't make a custom type for `from_bytes`.
+    // For the case of `Array`, its `from_bytes` takes TWO arguments.
+    // And passing in a tuple if not sexy.
+
     /// Creates an instance from the first data type from a byte slice.
     /// The input slice remains unmodified.
     fn from_bytes<T: AsRef<[u8]>>(bytes: T) -> Result<Self, CodecError>;
@@ -42,7 +49,7 @@ pub enum DataType {
     StringProtocol,
     UnsignedShort,
     Uuid,
-    Array,
+    Array(Vec<DataType>),
     Other(&'static str),
 }
 
@@ -54,8 +61,23 @@ impl std::fmt::Display for DataType {
             DataType::StringProtocol => write!(f, "String"),
             DataType::UnsignedShort => write!(f, "UnsignedShort"),
             DataType::Uuid => write!(f, "UUID"),
-            DataType::Array => write!(f, "Array"),
+            DataType::Array(types) => write!(f, "Array of {types:?}"),
             DataType::Other(name) => write!(f, "{}", name),
+        }
+    }
+}
+
+impl From<ArrayType> for DataType {
+    fn from(value: ArrayType) -> Self {
+        match value {
+            ArrayType::VarInt(_) => Self::VarInt,
+            ArrayType::VarLong(_) => DataType::VarLong,
+            ArrayType::StringProtocol(_) => DataType::StringProtocol,
+            ArrayType::UnsignedShort(_) => DataType::UnsignedShort,
+            ArrayType::Uuid(_) => DataType::Uuid,
+            // We lose information here, this might arise problems in the future.
+            ArrayType::Array(_) => DataType::Array(Vec::new()),
+            ArrayType::Other(_) => DataType::Other(""), // Or however you handle "Other"
         }
     }
 }
@@ -94,7 +116,7 @@ pub enum CodecError {
 /// Implementation of the LEB128 variable-length code compression algorithm.
 /// Pseudo-code of this algorithm taken from https://wiki.vg/Protocol#VarInt_and_VarLong
 /// A VarInt may not be longer than 5 bytes.
-#[derive(Debug, Default)]
+#[derive(Debug, Default, Clone)]
 pub struct VarInt {
     // We're storing both the value and bytes to avoid redundant conversions.
     value: i32,
@@ -217,6 +239,7 @@ impl Encodable for VarInt {
 /// Implementation of the LEB128 variable-length compression algorithm.
 /// Pseudo-code of this algorithm from https://wiki.vg/Protocol#VarInt_and_VarLong.
 /// A VarLong may not be longer than 10 bytes.
+#[derive(Debug, Default, Clone)]
 pub struct VarLong {
     // We're storing both the value and bytes to avoid redundant conversions.
     value: i64,
@@ -337,7 +360,7 @@ impl Encodable for VarLong {
 /// For instance, with &[6, 72, 69, 76, 76, 79, 33, 0xFF, 0xFF, 0xFF] the function
 /// will return "HELLO!" and 0xFF are just garbage data, since the string is 6 bytes long,
 /// the 0xFF are ignored.
-#[derive(Debug)]
+#[derive(Debug, Default, Clone)]
 pub struct StringProtocol {
     string: String,
     bytes: Vec<u8>,
@@ -492,7 +515,7 @@ impl Encodable for StringProtocol {
 }
 
 /// Implementation of the Big Endian unsigned short as per the Protocol Wiki.
-#[derive(Debug)]
+#[derive(Debug, Default, Clone)]
 pub struct UnsignedShort {
     value: u16,
     bytes: [u8; 2],
@@ -550,7 +573,7 @@ impl Encodable for UnsignedShort {
 
 /// Represents a UUID. Encoded as an unsigned 128-bit integer in the protocol:
 /// https://minecraft.wiki/w/Minecraft_Wiki:Projects/wiki.vg_merge/Protocol#Type:UUID
-#[derive(Debug)]
+#[derive(Debug, Default, Clone)]
 pub struct Uuid {
     value: u128,
     /// There are 16 bytes in a u128.
@@ -618,6 +641,64 @@ impl Encodable for Uuid {
     }
 }
 
+#[derive(Debug, Clone)]
+/// Used in `Array` to hold data inside the enum's variants.
+pub enum ArrayType {
+    VarInt(VarInt),
+    VarLong(VarLong),
+    StringProtocol(StringProtocol),
+    UnsignedShort(UnsignedShort),
+    Uuid(Uuid),
+    Array(Array),
+    Other(&'static str),
+}
+
+impl ArrayType {
+    /// Returns the length in bytes of the ArrayType.
+    pub fn len(&self) -> usize {
+        match self {
+            ArrayType::VarInt(varint) => varint.len(),
+            ArrayType::VarLong(varlong) => varlong.len(),
+            ArrayType::StringProtocol(string_protocol) => string_protocol.len(),
+            ArrayType::UnsignedShort(unsigned_short) => unsigned_short.len(),
+            ArrayType::Uuid(uuid) => uuid.len(),
+            ArrayType::Array(array) => array.len(),
+            ArrayType::Other(_) => 0, // Assuming `Other` doesn't have a meaningful length
+        }
+    }
+
+    /// Returns the bytes of the ArrayType.
+    pub fn get_bytes(&self) -> &[u8] {
+        match self {
+            ArrayType::VarInt(varint) => varint.get_bytes(),
+            ArrayType::VarLong(varlong) => varlong.get_bytes(),
+            ArrayType::StringProtocol(string_protocol) => string_protocol.get_bytes(),
+            ArrayType::UnsignedShort(unsigned_short) => unsigned_short.get_bytes(),
+            ArrayType::Uuid(uuid) => uuid.get_bytes(),
+            ArrayType::Array(array) => array.get_bytes(),
+            ArrayType::Other(_) => &[], // Assuming `Other` doesn't have a meaningful length
+        }
+    }
+}
+
+/// This impl is for the sake of throwing an error is the `DataType` is modified without mirroring
+/// changes onto the `ArrayTypes` enum.
+///
+/// Sadly it's redundant code... But I don't have faith in my memory.
+impl DataType {
+    pub fn _compiler_happy(&self) -> ArrayType {
+        match self {
+            DataType::VarInt => ArrayType::VarInt(VarInt::default()),
+            DataType::VarLong => ArrayType::VarLong(VarLong::default()),
+            DataType::StringProtocol => ArrayType::StringProtocol(StringProtocol::default()),
+            DataType::UnsignedShort => ArrayType::UnsignedShort(UnsignedShort::default()),
+            DataType::Uuid => ArrayType::Uuid(Uuid::default()),
+            DataType::Array(_) => ArrayType::Array(Array::default()),
+            DataType::Other(_) => ArrayType::Other(""),
+        }
+    }
+}
+
 // TODO: Find a way to implement Array.
 // TODO: It seems we cannot implement the Encodable trait because the from_bytes() function needs
 // more than just bytes to deduce what type of information the function has to parse, that is, if I
@@ -625,15 +706,138 @@ impl Encodable for Uuid {
 //
 // Here is the example where Array has multiple types of data:
 // https://minecraft.wiki/w/Minecraft_Wiki:Projects/wiki.vg_merge/Protocol#Login_Success
-struct Array {
-    /// The `Array` length is known from context when reading certain packets.
-    /// Can be positive or zero.
-    length: usize,
-    types: Vec<DataType>,
+//
+// This structure is non-standard because it is not implementing Encodable because of the dynamic
+// nature of the `Array`, it needs to know what are the data types for parsing and creating itself.
+#[derive(Debug, Default, Clone)]
+pub struct Array {
+    /// There can be 0 or more types in an Array.
+    types: Vec<ArrayType>,
     bytes: Vec<u8>,
 }
 
-/// Tests mostly written by AI, and not human-checked. 1141
+impl Array {
+    /// Creates a new `Array` from bytes and what types to parse.
+    fn from_bytes<T: AsRef<[u8]>>(bytes: T, data_types: &[DataType]) -> Result<Self, CodecError> {
+        let mut data: &[u8] = bytes.as_ref();
+
+        let mut array_types: Vec<ArrayType> = Vec::new();
+
+        // All of the Array's types lengths.
+        let mut array_length: usize = 0;
+
+        // - Parse the values from bytes and append `values`.
+        // - Append the length of all the values to `array_length`.
+        for data_type in data_types {
+            match data_type {
+                DataType::VarInt => {
+                    let varint = VarInt::consume_from_bytes(&mut data)?;
+                    array_length += varint.len();
+                    array_types.push(ArrayType::VarInt(varint));
+                }
+                DataType::VarLong => {
+                    let varlong = VarLong::consume_from_bytes(&mut data)?;
+                    array_length += varlong.len();
+                    array_types.push(ArrayType::VarLong(varlong));
+                }
+                DataType::StringProtocol => {
+                    let string_protocol = StringProtocol::consume_from_bytes(&mut data)?;
+                    array_length += string_protocol.len();
+                    array_types.push(ArrayType::StringProtocol(string_protocol));
+                }
+                DataType::UnsignedShort => {
+                    let unsigned_short = UnsignedShort::consume_from_bytes(&mut data)?;
+                    array_length += unsigned_short.len();
+                    array_types.push(ArrayType::UnsignedShort(unsigned_short));
+                }
+                DataType::Uuid => {
+                    let uuid = Uuid::consume_from_bytes(&mut data)?;
+                    array_length += uuid.len();
+                    array_types.push(ArrayType::Uuid(uuid));
+                }
+                DataType::Array(types) => {
+                    // Recursive call under the hood.
+                    //
+                    // Absolute banger of a line of code
+                    let array = Self::consume_from_bytes(&mut data, types)?;
+                    array_length += array.len();
+                    array_types.push(ArrayType::Array(array));
+                }
+                DataType::Other(value) => {
+                    // Other is just a placeholder, not a real data type.
+                    // Or "super-types" like `PacketId` which is a `VarInt`.
+                    return Err(CodecError::Decoding(
+                        DataType::Array(data_types.to_vec()),
+                        ErrorReason::UnknownValue(format!(
+                            "Unexpected 'Other' data type with value: {} at index {}",
+                            value, array_length
+                        )),
+                    ));
+                }
+            }
+        }
+
+        // Use as_ref() again because `data` has been consumed.
+        let array_bytes: &[u8] = &bytes.as_ref()[..array_length];
+
+        Ok(Self {
+            types: array_types,
+            bytes: array_bytes.to_vec(),
+        })
+    }
+
+    /// Creates an instance of `Array` from the data_types inputted.
+    /// Consumes the bytes buffer.
+    fn consume_from_bytes(bytes: &mut &[u8], data_types: &[DataType]) -> Result<Self, CodecError> {
+        let instance = Self::from_bytes(&bytes, data_types)?;
+        *bytes = &bytes[instance.len()..];
+        Ok(instance)
+    }
+
+    /// This is because Array takes a Vec<DataType>, but data_types is a
+    /// &[ArrayType], so we use the .into() (From<ArrayType> is implemented for
+    /// DataType) to convert, but because of the borrowing rule we need to
+    /// dereference the &ArrayType and clone it before use .into().
+    fn convert_array_types(data_types: &[ArrayType]) -> Vec<DataType> {
+        data_types.iter().map(|i| (*i).clone().into()).collect()
+    }
+
+    /// Tries to return an `Array` from a slice of `ArrayType`s.
+    fn from_value(data_types: &[ArrayType]) -> Result<Self, CodecError> {
+        let total_size: usize = data_types.iter().map(|t| t.len()).sum();
+        let mut bytes: Vec<u8> = Vec::with_capacity(total_size);
+
+        for t in data_types {
+            bytes.extend_from_slice(t.get_bytes());
+        }
+
+        Ok(Self {
+            types: data_types.to_vec(),
+            bytes,
+        })
+    }
+
+    /// Returns an immutable reference to the bytes of the array.
+    ///
+    /// The bytes of the array are the contatenation of every data type bytes the array contains.
+    ///
+    /// The bytes of the array can then be directly concatenated into a `Packet`.
+    fn get_bytes(&self) -> &[u8] {
+        &self.bytes
+    }
+
+    /// Returns all of the data_types inside the current `Array`.
+    fn get_value(&self) -> &[ArrayType] {
+        &self.types
+    }
+
+    /// Returns the length of all types in the Array.
+    fn len(&self) -> usize {
+        self.bytes.len()
+    }
+}
+
+/// Tests mostly written by AI, and not human-checked.
 
 #[cfg(test)]
 mod tests {
@@ -1359,5 +1563,262 @@ mod tests {
         assert_eq!(consumed_uuid.get_value(), value);
         // Ensure extra bytes remain unconsumed
         assert_eq!(slice_ref.len(), 10);
+    }
+
+    #[test]
+    fn test_array_from_bytes_single_varint() {
+        // We want to parse a single VarInt (let's pick 12345).
+        let varint = VarInt::from_value(12345).unwrap();
+        let encoded = varint.get_bytes().to_vec();
+
+        // Our DataType for the array is just [VarInt].
+        let data_types = vec![DataType::VarInt];
+
+        // Build the array from bytes.
+        let array = Array::from_bytes(&encoded, &data_types).unwrap();
+
+        // Check length and bytes.
+        assert_eq!(
+            array.len(),
+            encoded.len(),
+            "Array length should match encoded VarInt length."
+        );
+        assert_eq!(
+            array.get_bytes(),
+            &encoded,
+            "Array bytes should match original VarInt bytes."
+        );
+
+        // Check that we have exactly one ArrayType::VarInt inside.
+        assert_eq!(
+            array.get_value().len(),
+            1,
+            "Should contain exactly one element."
+        );
+        match &array.get_value()[0] {
+            ArrayType::VarInt(parsed_varint) => {
+                assert_eq!(parsed_varint.get_value(), 12345);
+            }
+            _ => panic!("Expected first element to be a VarInt."),
+        }
+    }
+
+    #[test]
+    fn test_array_from_bytes_multiple_datatypes() {
+        // Build individual Encodables we want in our Array.
+        let varint = VarInt::from_value(42).unwrap();
+        let varlong = VarLong::from_value(9999999999).unwrap();
+        let string = StringProtocol::from_value("Hello".into()).unwrap();
+        let ushort = UnsignedShort::from_value(65535).unwrap();
+        let uuid_val = Uuid::from_value(0x0123_4567_89AB_CDEF_0123_4567_89AB_CDEF).unwrap();
+
+        // Concatenate their bytes in the same order we list our data types.
+        let mut encoded = Vec::new();
+        encoded.extend_from_slice(varint.get_bytes());
+        encoded.extend_from_slice(varlong.get_bytes());
+        encoded.extend_from_slice(string.get_bytes());
+        encoded.extend_from_slice(ushort.get_bytes());
+        encoded.extend_from_slice(uuid_val.get_bytes());
+
+        // Our DataType array:
+        let data_types = vec![
+            DataType::VarInt,
+            DataType::VarLong,
+            DataType::StringProtocol,
+            DataType::UnsignedShort,
+            DataType::Uuid,
+        ];
+
+        // Parse the array from bytes.
+        let array = Array::from_bytes(&encoded, &data_types).unwrap();
+
+        // Confirm length and internal bytes.
+        assert_eq!(array.len(), encoded.len());
+        assert_eq!(array.get_bytes(), &encoded);
+
+        // Check each parsed element in order.
+        let parsed = array.get_value();
+        assert_eq!(parsed.len(), 5);
+
+        match &parsed[0] {
+            ArrayType::VarInt(val) => assert_eq!(val.get_value(), 42),
+            _ => panic!("First element should be VarInt(42)."),
+        }
+        match &parsed[1] {
+            ArrayType::VarLong(val) => assert_eq!(val.get_value(), 9999999999),
+            _ => panic!("Second element should be VarLong(9999999999)."),
+        }
+        match &parsed[2] {
+            ArrayType::StringProtocol(val) => assert_eq!(val.get_value(), "Hello"),
+            _ => panic!("Third element should be StringProtocol(\"Hello\")."),
+        }
+        match &parsed[3] {
+            ArrayType::UnsignedShort(val) => assert_eq!(val.get_value(), 65535),
+            _ => panic!("Fourth element should be UnsignedShort(65535)."),
+        }
+        match &parsed[4] {
+            ArrayType::Uuid(val) => {
+                assert_eq!(val.get_value(), 0x0123_4567_89AB_CDEF_0123_4567_89AB_CDEF)
+            }
+            _ => panic!("Fifth element should be the provided UUID."),
+        }
+    }
+
+    #[test]
+    fn test_array_from_bytes_nested_array() {
+        // Build a nested array of one VarInt (e.g., 256).
+        let nested_varint = VarInt::from_value(256).unwrap();
+        let nested_encoded = nested_varint.get_bytes().to_vec();
+
+        // Outer array has DataType::Array with subtypes [VarInt]
+        let nested_data_types = vec![DataType::VarInt];
+        let nested_array = Array::from_bytes(&nested_encoded, &nested_data_types).unwrap();
+        // This is our final ArrayType::Array(...) that will be inside the top-level array.
+        let array_type_nested = ArrayType::Array(nested_array);
+
+        // Build the top-level array from just that single "Array" item.
+        // We'll do it with manual byte assembly to show how a nested array might appear in practice.
+        let mut top_encoded = Vec::new();
+        // The top-level DataType is [Array([...])].
+        // According to the code, reading the top-level Array is:
+        //   1) read the nested array from the known subtypes.
+        top_encoded.extend_from_slice(&nested_encoded);
+
+        // The top-level data types is a single element: DataType::Array([VarInt]).
+        let top_data_types = vec![DataType::Array(nested_data_types)];
+
+        // Parse the top-level array.
+        let top_array = Array::from_bytes(&top_encoded, &top_data_types).unwrap();
+
+        // Confirm we have exactly one element, which is ArrayType::Array(...).
+        assert_eq!(top_array.get_value().len(), 1);
+        match &top_array.get_value()[0] {
+            ArrayType::Array(inner) => {
+                // The inner array should have exactly one VarInt: 256
+                assert_eq!(inner.get_value().len(), 1);
+                match &inner.get_value()[0] {
+                    ArrayType::VarInt(val) => {
+                        assert_eq!(val.get_value(), 256);
+                    }
+                    _ => panic!("Expected VarInt inside nested array."),
+                }
+            }
+            _ => panic!("Expected an ArrayType::Array."),
+        }
+    }
+
+    #[test]
+    fn test_array_from_bytes_empty() {
+        // An empty array is possible. Provide zero bytes and zero data types.
+        let empty_encoded = Vec::new();
+        let empty_data_types = vec![];
+
+        let array = Array::from_bytes(&empty_encoded, &empty_data_types).unwrap();
+        assert_eq!(array.len(), 0, "Empty array should have length zero.");
+        assert!(array.get_bytes().is_empty());
+        assert!(array.get_value().is_empty(), "Should have no elements.");
+    }
+
+    #[test]
+    fn test_array_consume_from_bytes() {
+        // Suppose we have multiple data encoded in a single buffer, and we only
+        // want to parse the first array. Let's parse a single VarInt array, then
+        // see that the leftover data is correct.
+
+        // VarInt(777) plus some trailing bytes (0x01, 0x02).
+        let varint = VarInt::from_value(777).unwrap();
+        let encoded_varint = varint.get_bytes().to_vec();
+
+        let mut combined = Vec::new();
+        combined.extend_from_slice(&encoded_varint);
+        combined.push(0x01);
+        combined.push(0x02);
+
+        let data_types = vec![DataType::VarInt];
+
+        // We'll parse using consume_from_bytes.
+        let mut buffer_slice: &[u8] = &combined;
+        let array = Array::consume_from_bytes(&mut buffer_slice, &data_types).unwrap();
+
+        // The leftover buffer should have 2 bytes (0x01, 0x02).
+        assert_eq!(buffer_slice, &[0x01, 0x02]);
+
+        // Check that array is correct.
+        assert_eq!(array.len(), encoded_varint.len());
+        assert_eq!(array.get_bytes(), &encoded_varint);
+        match &array.get_value()[0] {
+            ArrayType::VarInt(val) => assert_eq!(val.get_value(), 777),
+            _ => panic!("Should contain VarInt(777)."),
+        }
+    }
+
+    #[test]
+    fn test_array_from_bytes_error_truncated_input() {
+        // Suppose we claim there's a VarInt in the data, but actually pass zero bytes.
+        let empty_bytes = Vec::new();
+        let data_types = vec![DataType::VarInt];
+
+        let result = Array::from_bytes(&empty_bytes, &data_types);
+        assert!(
+            result.is_err(),
+            "Should fail with truncated input for VarInt."
+        );
+        match result.err().unwrap() {
+            CodecError::Decoding(dt, reason) => {
+                assert_eq!(dt, DataType::VarInt, "Error DataType should be VarInt.");
+                assert_eq!(
+                    reason,
+                    ErrorReason::ValueEmpty,
+                    "Should be ValueEmpty error."
+                );
+            }
+            _ => panic!("Expected a decoding error for VarInt with ValueEmpty."),
+        }
+    }
+
+    #[test]
+    fn test_array_from_bytes_error_unknown_other() {
+        // Provide a single DataType::Other entry.
+        let data_types = vec![DataType::Other("test")];
+        let some_bytes = vec![0x01, 0x02, 0x03];
+
+        let result = Array::from_bytes(&some_bytes, &data_types);
+        assert!(result.is_err(), "Should fail with unknown DataType::Other.");
+        match result.err().unwrap() {
+            CodecError::Decoding(DataType::Array(_), ErrorReason::UnknownValue(info)) => {
+                assert!(
+                    info.contains("test"),
+                    "Error message should mention the 'Other' data type value."
+                );
+            }
+            _ => panic!("Expected CodecError::Decoding for an unexpected 'Other' type."),
+        }
+    }
+
+    #[test]
+    fn test_array_from_value() {
+        // Manually build an Array from a slice of ArrayType.
+        let varint_10 = ArrayType::VarInt(VarInt::from_value(10).unwrap());
+        let str_hello =
+            ArrayType::StringProtocol(StringProtocol::from_value("Hello".into()).unwrap());
+        let my_array_types = vec![varint_10.clone(), str_hello.clone()];
+
+        let array = Array::from_value(&my_array_types).unwrap();
+        assert_eq!(array.get_value().len(), 2);
+
+        match &array.get_value()[0] {
+            ArrayType::VarInt(v) => assert_eq!(v.get_value(), 10),
+            _ => panic!("First element should be VarInt(10)."),
+        }
+        match &array.get_value()[1] {
+            ArrayType::StringProtocol(s) => assert_eq!(s.get_value(), "Hello"),
+            _ => panic!("Second element should be StringProtocol(\"Hello\")."),
+        }
+
+        // Compare final concatenated bytes with the expected direct concatenation.
+        let mut expected_bytes = Vec::new();
+        expected_bytes.extend_from_slice(varint_10.get_bytes());
+        expected_bytes.extend_from_slice(str_hello.get_bytes());
+        assert_eq!(array.get_bytes(), &expected_bytes);
     }
 }
