@@ -1,10 +1,7 @@
 use core::{fmt, str};
 
-use bytes::BufMut;
 use log::debug;
 use thiserror::Error;
-
-use crate::gracefully_exit;
 
 pub trait Encodable: Sized + Default + fmt::Debug + Clone {
     // Note to future-self: we can't make a custom type for `from_bytes`.
@@ -50,6 +47,7 @@ pub enum DataType {
     UnsignedShort,
     Uuid,
     Array(Vec<DataType>),
+    Boolean,
     Other(&'static str),
 }
 
@@ -62,6 +60,7 @@ impl std::fmt::Display for DataType {
             DataType::UnsignedShort => write!(f, "UnsignedShort"),
             DataType::Uuid => write!(f, "UUID"),
             DataType::Array(types) => write!(f, "Array of {types:?}"),
+            DataType::Boolean => write!(f, "Boolean"),
             DataType::Other(name) => write!(f, "{}", name),
         }
     }
@@ -77,6 +76,7 @@ impl From<ArrayType> for DataType {
             ArrayType::Uuid(_) => DataType::Uuid,
             // We lose information here, this might arise problems in the future.
             ArrayType::Array(_) => DataType::Array(Vec::new()),
+            ArrayType::Boolean(_) => DataType::Boolean,
             ArrayType::Other(_) => DataType::Other(""), // Or however you handle "Other"
         }
     }
@@ -650,6 +650,7 @@ pub enum ArrayType {
     UnsignedShort(UnsignedShort),
     Uuid(Uuid),
     Array(Array),
+    Boolean(Boolean),
     Other(&'static str),
 }
 
@@ -663,6 +664,7 @@ impl ArrayType {
             ArrayType::UnsignedShort(unsigned_short) => unsigned_short.len(),
             ArrayType::Uuid(uuid) => uuid.len(),
             ArrayType::Array(array) => array.len(),
+            ArrayType::Boolean(boolean) => boolean.len(),
             ArrayType::Other(_) => 0, // Assuming `Other` doesn't have a meaningful length
         }
     }
@@ -676,6 +678,7 @@ impl ArrayType {
             ArrayType::UnsignedShort(unsigned_short) => unsigned_short.get_bytes(),
             ArrayType::Uuid(uuid) => uuid.get_bytes(),
             ArrayType::Array(array) => array.get_bytes(),
+            ArrayType::Boolean(boolean) => boolean.get_bytes(),
             ArrayType::Other(_) => &[], // Assuming `Other` doesn't have a meaningful length
         }
     }
@@ -694,6 +697,7 @@ impl DataType {
             DataType::UnsignedShort => ArrayType::UnsignedShort(UnsignedShort::default()),
             DataType::Uuid => ArrayType::Uuid(Uuid::default()),
             DataType::Array(_) => ArrayType::Array(Array::default()),
+            DataType::Boolean => ArrayType::Boolean(Boolean::default()),
             DataType::Other(_) => ArrayType::Other(""),
         }
     }
@@ -762,6 +766,11 @@ impl Array {
                     let array = Self::consume_from_bytes(&mut data, types)?;
                     array_length += array.len();
                     array_types.push(ArrayType::Array(array));
+                }
+                DataType::Boolean => {
+                    let boolean = Boolean::consume_from_bytes(&mut data)?;
+                    array_length += boolean.len();
+                    array_types.push(ArrayType::Boolean(boolean));
                 }
                 DataType::Other(value) => {
                     // Other is just a placeholder, not a real data type.
@@ -834,6 +843,76 @@ impl Array {
     /// Returns the length of all types in the Array.
     fn len(&self) -> usize {
         self.bytes.len()
+    }
+}
+
+#[derive(Debug, Default, Clone, PartialEq, Eq)]
+struct Boolean {
+    value: bool,
+    bytes: [u8; 1],
+}
+
+impl Boolean {
+    const FALSE_BYTE: u8 = 0x00;
+    const TRUE_BYTE: u8 = 0x01;
+}
+
+impl Encodable for Boolean {
+    /// Converts a byte slice into a `Boolean` struct.
+    ///
+    /// # Errors
+    /// Returns a `CodecError` if the slice is empty or the first byte is not 0 or 1.
+    fn from_bytes<T: AsRef<[u8]>>(bytes: T) -> Result<Self, CodecError> {
+        let data: &[u8] = bytes.as_ref();
+
+        if data.is_empty() {
+            return Err(CodecError::Decoding(
+                DataType::Boolean,
+                ErrorReason::ValueEmpty,
+            ));
+        }
+
+        let value = match data[0] {
+            Self::FALSE_BYTE => false,
+            Self::TRUE_BYTE => true,
+            _ => {
+                return Err(CodecError::Decoding(
+                    DataType::Boolean,
+                    ErrorReason::UnknownValue(format!(
+                        "Expected either 0 or 1, found: {}",
+                        data[0]
+                    )),
+                ));
+            }
+        };
+
+        Ok(Self {
+            value,
+            bytes: [data[0]],
+        })
+    }
+
+    type ValueInput = bool;
+
+    /// Converts a boolean into a `Boolean` object.
+    fn from_value(value: Self::ValueInput) -> Result<Self, CodecError> {
+        Ok(Self {
+            value,
+            bytes: [value as u8],
+        })
+    }
+
+    /// Returns a reference to the associated byte with the `Boolean` object.
+    /// Either 0x00 or 0x01.
+    fn get_bytes(&self) -> &[u8] {
+        &self.bytes
+    }
+
+    type ValueOutput = bool;
+
+    /// Returns the bool value contained in the `Boolean` object.
+    fn get_value(&self) -> Self::ValueOutput {
+        self.value
     }
 }
 
@@ -1820,5 +1899,128 @@ mod tests {
         expected_bytes.extend_from_slice(varint_10.get_bytes());
         expected_bytes.extend_from_slice(str_hello.get_bytes());
         assert_eq!(array.get_bytes(), &expected_bytes);
+    }
+
+    #[test]
+    fn test_from_value_false() {
+        let boolean = Boolean::from_value(false).expect("Failed to create Boolean from false");
+        assert_eq!(boolean.get_value(), false, "Boolean value should be false");
+        assert_eq!(
+            boolean.get_bytes(),
+            &[Boolean::FALSE_BYTE],
+            "Byte representation should be 0x00"
+        );
+    }
+
+    #[test]
+    fn test_from_value_true() {
+        let boolean = Boolean::from_value(true).expect("Failed to create Boolean from true");
+        assert_eq!(boolean.get_value(), true, "Boolean value should be true");
+        assert_eq!(
+            boolean.get_bytes(),
+            &[Boolean::TRUE_BYTE],
+            "Byte representation should be 0x01"
+        );
+    }
+
+    #[test]
+    fn test_from_bytes_false() {
+        let bytes = [Boolean::FALSE_BYTE];
+        let boolean = Boolean::from_bytes(&bytes).expect("Failed to parse false byte");
+        assert_eq!(boolean.get_value(), false, "Parsed value should be false");
+        assert_eq!(
+            boolean.get_bytes(),
+            &[Boolean::FALSE_BYTE],
+            "Byte representation should be 0x00"
+        );
+    }
+
+    #[test]
+    fn test_from_bytes_true() {
+        let bytes = [Boolean::TRUE_BYTE];
+        let boolean = Boolean::from_bytes(&bytes).expect("Failed to parse true byte");
+        assert_eq!(boolean.get_value(), true, "Parsed value should be true");
+        assert_eq!(
+            boolean.get_bytes(),
+            &[Boolean::TRUE_BYTE],
+            "Byte representation should be 0x01"
+        );
+    }
+
+    #[test]
+    fn test_from_bytes_empty_slice() {
+        let bytes: [u8; 0] = [];
+        let result = Boolean::from_bytes(&bytes);
+        assert!(result.is_err(), "Empty slice should result in an error");
+        if let Err(CodecError::Decoding(_, reason)) = result {
+            match reason {
+                ErrorReason::ValueEmpty => (), // expected
+                _ => panic!("Expected ErrorReason::ValueEmpty, got {:?}", reason),
+            }
+        } else {
+            panic!("Expected a decoding error");
+        }
+    }
+
+    #[test]
+    fn test_from_bytes_invalid_value() {
+        let bytes = [0x05];
+        let result = Boolean::from_bytes(&bytes);
+        assert!(result.is_err(), "Invalid byte should result in an error");
+        if let Err(CodecError::Decoding(_, reason)) = result {
+            match reason {
+                ErrorReason::UnknownValue(msg) => assert!(
+                    msg.contains("Expected either 0 or 1, found: 5"),
+                    "Error message should indicate unknown byte value"
+                ),
+                _ => panic!("Expected ErrorReason::UnknownValue, got {:?}", reason),
+            }
+        } else {
+            panic!("Expected a decoding error");
+        }
+    }
+
+    #[test]
+    fn test_consume_from_bytes_true() {
+        let mut data: &[u8] = &[Boolean::TRUE_BYTE, 0xFF];
+        let boolean = Boolean::consume_from_bytes(&mut data).expect("Failed to consume bytes");
+        assert_eq!(boolean.get_value(), true, "Parsed value should be true");
+        assert_eq!(data, &[0xFF], "Remaining data should skip the Boolean byte");
+    }
+
+    #[test]
+    fn test_consume_from_bytes_false() {
+        let mut data: &[u8] = &[Boolean::FALSE_BYTE, 0xFF];
+        let boolean = Boolean::consume_from_bytes(&mut data).expect("Failed to consume bytes");
+        assert_eq!(boolean.get_value(), false, "Parsed value should be false");
+        assert_eq!(data, &[0xFF], "Remaining data should skip the Boolean byte");
+    }
+
+    #[test]
+    fn test_len() {
+        let boolean = Boolean::from_value(true).expect("Failed to create Boolean from true");
+        assert_eq!(boolean.len(), 1, "Boolean length should be 1 byte");
+    }
+
+    #[test]
+    fn test_roundtrip_false() {
+        let original = Boolean::from_value(false).expect("Failed to create Boolean from false");
+        let bytes = original.get_bytes();
+        let decoded = Boolean::from_bytes(bytes).expect("Failed to decode bytes back into Boolean");
+        assert_eq!(
+            original, decoded,
+            "Roundtrip for false should produce the same object"
+        );
+    }
+
+    #[test]
+    fn test_roundtrip_true() {
+        let original = Boolean::from_value(true).expect("Failed to create Boolean from true");
+        let bytes = original.get_bytes();
+        let decoded = Boolean::from_bytes(bytes).expect("Failed to decode bytes back into Boolean");
+        assert_eq!(
+            original, decoded,
+            "Roundtrip for true should produce the same object"
+        );
     }
 }
