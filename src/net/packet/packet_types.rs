@@ -234,6 +234,10 @@ impl ParsablePacket for LoginSuccess {
 }
 
 impl EncodablePacket for LoginSuccess {
+    // UUID (Uuid)
+    // Username (StringProtocol)
+    // Number of Properties (VarInt)
+    // Property (Array[StringProtocol, StringProtocol, Boolean, OptionalStringProtocol])
     type Fields = (Uuid, StringProtocol);
 
     fn from_values(packet_fields: Self::Fields) -> Result<Self, CodecError> {
@@ -241,6 +245,7 @@ impl EncodablePacket for LoginSuccess {
             uuid: packet_fields.0,
             username: packet_fields.1,
             number_of_properties: VarInt::from_value(0)?,
+            property: Array::default(), // TODO: !!!
         })
     }
 }
