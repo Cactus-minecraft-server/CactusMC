@@ -6,7 +6,8 @@ use crate::{gracefully_exit, player};
 
 use super::{
     data_types::{
-        CodecError, DataType, Encodable, ErrorReason, StringProtocol, UnsignedShort, Uuid, VarInt,
+        Array, CodecError, DataType, Encodable, ErrorReason, StringProtocol, UnsignedShort, Uuid,
+        VarInt,
     },
     Packet, PacketBuilder, PacketError,
 };
@@ -204,8 +205,7 @@ pub struct LoginSuccess {
     uuid: Uuid,
     username: StringProtocol,
     number_of_properties: VarInt,
-    // TODO: Implement the 'Property' (Array) field name
-
+    property: Array,
     // There also exists the 'Strict Error Handling' (Boolean) field name which only exists for
     // 1.20.5 to 1.21.1.
 }
