@@ -176,9 +176,10 @@ async fn handle_packet(conn: &Connection, packet: Packet) -> Result<Response, Ne
 mod dispatch {
     use super::*;
     use packet::{
-        data_types::Encodable,
+        data_types::{Array, Encodable, VarInt},
         packet_types::{
-            EncodablePacket, Handshake, LoginAcknowledged, LoginStart, LoginSuccess, ParsablePacket,
+            ClientboundKnownPacks, EncodablePacket, Handshake, LoginAcknowledged, LoginStart,
+            LoginSuccess, ParsablePacket, ServerboundKnownPacks,
         },
         Response,
     };
@@ -242,8 +243,14 @@ mod dispatch {
 
                 debug!("Got login Start packet: {login_start:#?}");
 
-                let login_success: LoginSuccess =
-                    LoginSuccess::from_values((login_start.player_uuid, login_start.name))?;
+                let args = (
+                    login_start.player_uuid,
+                    login_start.name,
+                    VarInt::from_value(0)?, // No packs
+                    Array::default(),
+                );
+
+                let login_success: LoginSuccess = LoginSuccess::from_values(args)?;
 
                 Ok(Response::new(Some(login_success.get_packet()?)))
             }
@@ -255,7 +262,14 @@ mod dispatch {
                 conn.set_state(ConnectionState::Configuration).await;
 
                 // Don't respond anything
-                Ok(Response::new(None))
+                //Ok(Response::new(None))
+                //
+                // Respond with a Clientbound Known Packs packet
+                let args = (VarInt::from_value(0)?, None);
+                let clientbound_known_packs: Packet =
+                    ClientboundKnownPacks::from_values(args)?.get_packet()?;
+
+                Ok(Response::new(Some(clientbound_known_packs)))
             }
             _ => {
                 warn!("Unknown packet ID, State: Status");
@@ -295,6 +309,12 @@ mod dispatch {
             }
             0x05 => {
                 // TODO: Ping packet
+                Ok(Response::new(None))
+            }
+            0x07 => {
+                let serverbound_known_packs: ServerboundKnownPacks = packet.try_into()?;
+                debug!("Got Serverbound Known Packs packet: {serverbound_known_packs:?}");
+
                 Ok(Response::new(None))
             }
             // TODO: And a lot, lot more to follow
