@@ -1,13 +1,21 @@
 //! A module to parse known packets.
 
+// TODO: MODULES SEPARATING THE PACKET IN THEIR DIFFERENT STATES (HANSHAKE, LOGIN, PLAY,
+// CONFIGURATION, ...)
+//
+// TODO: SOME GENERIC PACKET WITH NO FIELDS (it seems their are quite numerous, habing a generic
+// one would save some code)
+
+use core::fmt;
+
 use log::{debug, error};
 
 use crate::{gracefully_exit, player};
 
 use super::{
     data_types::{
-        Array, CodecError, DataType, Encodable, ErrorReason, StringProtocol, UnsignedShort, Uuid,
-        VarInt,
+        Array, CodecError, DataType, DataTypeContent, Encodable, ErrorReason, StringProtocol,
+        UnsignedShort, Uuid, VarInt,
     },
     Packet, PacketBuilder, PacketError,
 };
@@ -48,7 +56,7 @@ impl NextState {
 /// server does not need to create from values, only read from bytes.
 ///
 /// A trait that parses a type of packet from bytes.
-pub trait ParsablePacket: Sized {
+pub trait ParsablePacket: Sized + fmt::Debug {
     const PACKET_ID: i32;
 
     /// Tries to create the object by parsing bytes;
@@ -238,19 +246,20 @@ impl EncodablePacket for LoginSuccess {
     // Username (StringProtocol)
     // Number of Properties (VarInt)
     // Property (Array[StringProtocol, StringProtocol, Boolean, OptionalStringProtocol])
-    type Fields = (Uuid, StringProtocol);
+    type Fields = (Uuid, StringProtocol, VarInt, Array);
 
     fn from_values(packet_fields: Self::Fields) -> Result<Self, CodecError> {
         Ok(Self {
             uuid: packet_fields.0,
             username: packet_fields.1,
-            number_of_properties: VarInt::from_value(0)?,
-            property: Array::default(), // TODO: !!!
+            number_of_properties: packet_fields.2,
+            property: packet_fields.3,
         })
     }
 }
 
 /// This packet switches the connection state to configuration.
+#[derive(Debug)]
 pub struct LoginAcknowledged {}
 
 impl ParsablePacket for LoginAcknowledged {
@@ -285,5 +294,193 @@ impl TryFrom<Packet> for LoginAcknowledged {
 
     fn try_from(value: Packet) -> Result<Self, Self::Error> {
         Self::from_bytes(value.get_payload())
+    }
+}
+
+/// https://minecraft.wiki/w/Minecraft_Wiki:Projects/wiki.vg_merge/Protocol#Clientbound_Known_Packs
+#[derive(Debug)]
+pub struct ClientboundKnownPacks {
+    /// The number of known packs in the following array
+    known_pack_count: VarInt,
+
+    /// Array[String (Namespace), String (ID), String (Version)]
+    known_packs: Vec<Array>,
+}
+
+impl ClientboundKnownPacks {
+    const PACK_DATA_TYPES: [DataType; 3] = [
+        DataType::StringProtocol,
+        DataType::StringProtocol,
+        DataType::StringProtocol,
+    ];
+}
+
+impl ParsablePacket for ClientboundKnownPacks {
+    const PACKET_ID: i32 = 0x0E;
+
+    fn from_bytes<T: AsRef<[u8]>>(bytes: T) -> Result<Self, CodecError> {
+        let mut data: &[u8] = bytes.as_ref();
+
+        let known_pack_count: VarInt = VarInt::consume_from_bytes(&mut data)?;
+        let pack_count: usize = known_pack_count.get_value() as usize;
+
+        // Define the structure of each known pack once.
+
+        // Parse known packs
+        let known_packs: Vec<Array> = (0..pack_count)
+            .map(|i| {
+                Array::consume_from_bytes(&mut data, &Self::PACK_DATA_TYPES).map_err(|e| {
+                    CodecError::Decoding(
+                        DataType::Array(Self::PACK_DATA_TYPES.to_vec()),
+                        ErrorReason::InvalidFormat(format!(
+                            "Failed to parse known pack at index {}. Reason: {e}",
+                            i
+                        )),
+                    )
+                })
+            })
+            .collect::<Result<_, _>>()?;
+
+        Ok(Self {
+            known_pack_count,
+            known_packs,
+        })
+    }
+
+    type PacketType = Result<Packet, PacketError>;
+
+    fn get_packet(&self) -> Self::PacketType {
+        PacketBuilder::new()
+            .append_bytes(self.known_pack_count.get_bytes())
+            // Make a single buffer of bytes containing all packs.
+            .append_bytes(
+                self.known_packs
+                    .iter()
+                    .flat_map(|pack| pack.get_bytes().iter().copied())
+                    .collect::<Vec<u8>>(),
+            )
+            .build(Self::PACKET_ID)
+    }
+
+    fn len(&self) -> usize {
+        self.known_pack_count.len() + self.known_packs.len()
+    }
+}
+
+impl EncodablePacket for ClientboundKnownPacks {
+    type Fields = (VarInt, Option<Vec<Array>>);
+
+    fn from_values(packet_fields: Self::Fields) -> Result<Self, CodecError> {
+        let known_pack_count: VarInt = packet_fields.0;
+        if let None = packet_fields.1 {
+            if known_pack_count.get_value() != 0 {
+                return Err(CodecError::Encoding(
+                    DataType::Other("ClientboundKnownPacks packet"),
+                    ErrorReason::InvalidFormat(format!(
+                        "Even though known packs is None, the known packet count is {}",
+                        known_pack_count.get_value()
+                    )),
+                ));
+            }
+            return Ok(Self {
+                known_pack_count,
+                known_packs: Vec::new(),
+            });
+        }
+
+        let known_packs: Vec<Array> = packet_fields.1.unwrap();
+
+        // If number of packs is the the actual number of packs.
+        if known_pack_count.get_value() as usize != known_packs.len() {
+            return Err(CodecError::Encoding(
+                DataType::Other("ClientboundKnownPacks packet"),
+                ErrorReason::InvalidFormat(format!(
+                    "The VarInt value must correspond to the number of packs. VarInt value: {} / Number of packs: {}", known_pack_count.get_value(), known_packs.len()
+                )),
+            ));
+        }
+
+        // If the layout of the Array is not three StringProtocol.
+        for pack in &known_packs {
+            for inner_type in pack.get_value() {
+                let cast_type: DataType = (*inner_type).clone().into();
+                if cast_type != DataType::StringProtocol {
+                    return Err(
+                        CodecError::Encoding(DataType::Other("ClientboundKnownPacks"), ErrorReason::InvalidFormat(
+                            format!("The pack array data types must be three consecutive StringProtocol. Pack: {pack:?}")
+                        ))
+                    );
+                }
+            }
+        }
+
+        Ok(Self {
+            known_pack_count,
+            known_packs,
+        })
+    }
+}
+
+impl TryFrom<Packet> for ClientboundKnownPacks {
+    type Error = CodecError;
+
+    fn try_from(value: Packet) -> Result<Self, Self::Error> {
+        Self::from_bytes(value.get_payload())
+    }
+}
+
+/// Essentially a wrapper around `ClientboundKnownPacks`, only the ID is different.
+#[derive(Debug)]
+pub struct ServerboundKnownPacks {
+    inner: ClientboundKnownPacks,
+}
+
+impl ParsablePacket for ServerboundKnownPacks {
+    const PACKET_ID: i32 = 0x07;
+
+    fn from_bytes<T: AsRef<[u8]>>(bytes: T) -> Result<Self, CodecError> {
+        let inner = ClientboundKnownPacks::from_bytes(bytes)?;
+        Ok(Self { inner })
+    }
+
+    type PacketType = Result<Packet, PacketError>;
+
+    fn get_packet(&self) -> Self::PacketType {
+        let mut packet = self.inner.get_packet()?;
+        packet.id = VarInt::from_value(Self::PACKET_ID)?;
+        Ok(packet)
+    }
+
+    fn len(&self) -> usize {
+        self.inner.len()
+    }
+}
+
+impl TryFrom<Packet> for ServerboundKnownPacks {
+    type Error = CodecError;
+
+    fn try_from(value: Packet) -> Result<Self, Self::Error> {
+        Self::from_bytes(value.get_payload())
+    }
+}
+
+#[derive(Debug)]
+struct FinishConfiguration {}
+
+impl ParsablePacket for FinishConfiguration {
+    const PACKET_ID: i32 = 0x03;
+
+    fn from_bytes<T: AsRef<[u8]>>(bytes: T) -> Result<Self, CodecError> {
+        if 
+    }
+
+    type PacketType;
+
+    fn get_packet(&self) -> Self::PacketType {
+        todo!()
+    }
+
+    fn len(&self) -> usize {
+        todo!()
     }
 }

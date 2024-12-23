@@ -805,7 +805,10 @@ pub struct Array {
 
 impl Array {
     /// Creates a new `Array` from bytes and what types to parse.
-    fn from_bytes<T: AsRef<[u8]>>(bytes: T, data_types: &[DataType]) -> Result<Self, CodecError> {
+    pub fn from_bytes<T: AsRef<[u8]>>(
+        bytes: T,
+        data_types: &[DataType],
+    ) -> Result<Self, CodecError> {
         let mut data: &[u8] = bytes.as_ref();
 
         let mut array_types: Vec<DataTypeContent> = Vec::new();
@@ -831,7 +834,10 @@ impl Array {
 
     /// Creates an instance of `Array` from the data_types inputted.
     /// Consumes the bytes buffer.
-    fn consume_from_bytes(bytes: &mut &[u8], data_types: &[DataType]) -> Result<Self, CodecError> {
+    pub fn consume_from_bytes(
+        bytes: &mut &[u8],
+        data_types: &[DataType],
+    ) -> Result<Self, CodecError> {
         let instance = Self::from_bytes(&bytes, data_types)?;
         *bytes = &bytes[instance.len()..];
         Ok(instance)
@@ -841,12 +847,12 @@ impl Array {
     /// &[ArrayType], so we use the .into() (From<ArrayType> is implemented for
     /// DataType) to convert, but because of the borrowing rule we need to
     /// dereference the &ArrayType and clone it before use .into().
-    fn convert_array_types(data_types: &[DataTypeContent]) -> Vec<DataType> {
+    pub fn convert_array_types(data_types: &[DataTypeContent]) -> Vec<DataType> {
         data_types.iter().map(|i| (*i).clone().into()).collect()
     }
 
     /// Tries to return an `Array` from a slice of `ArrayType`s.
-    fn from_value(data_types: &[DataTypeContent]) -> Result<Self, CodecError> {
+    pub fn from_value(data_types: &[DataTypeContent]) -> Result<Self, CodecError> {
         let total_size: usize = data_types.iter().map(|t| t.len()).sum();
         let mut bytes: Vec<u8> = Vec::with_capacity(total_size);
 
@@ -865,17 +871,17 @@ impl Array {
     /// The bytes of the array are the contatenation of every data type bytes the array contains.
     ///
     /// The bytes of the array can then be directly concatenated into a `Packet`.
-    fn get_bytes(&self) -> &[u8] {
+    pub fn get_bytes(&self) -> &[u8] {
         &self.bytes
     }
 
     /// Returns all of the data_types inside the current `Array`.
-    fn get_value(&self) -> &[DataTypeContent] {
+    pub fn get_value(&self) -> &[DataTypeContent] {
         &self.types
     }
 
     /// Returns the length of all types in the Array.
-    fn len(&self) -> usize {
+    pub fn len(&self) -> usize {
         self.bytes.len()
     }
 }
