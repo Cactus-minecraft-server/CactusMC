@@ -465,22 +465,52 @@ impl TryFrom<Packet> for ServerboundKnownPacks {
 }
 
 #[derive(Debug)]
-struct FinishConfiguration {}
+/// https://minecraft.wiki/w/Minecraft_Wiki:Projects/wiki.vg_merge/Protocol#Finish_Configuration
+/// This packet switches the connection state to play
+///
+/// Sent by the server to notify the client that the configuration process has finished.
+/// The client answers with Acknowledge Finish Configuration whenever it is ready to continue.
+pub struct FinishConfiguration {}
 
 impl ParsablePacket for FinishConfiguration {
     const PACKET_ID: i32 = 0x03;
 
     fn from_bytes<T: AsRef<[u8]>>(bytes: T) -> Result<Self, CodecError> {
-        if 
+        if bytes.as_ref().len() != 0 {
+            Err(CodecError::Decoding(
+                DataType::Other("Finish Configuration packet"),
+                ErrorReason::InvalidFormat(
+                    "The payload of the LoginAcknowledged packet should be empty.".to_string(),
+                ),
+            ))
+        } else {
+            Ok(Self {})
+        }
     }
 
-    type PacketType;
+    type PacketType = Result<Packet, PacketError>;
 
     fn get_packet(&self) -> Self::PacketType {
-        todo!()
+        PacketBuilder::new().build(Self::PACKET_ID)
     }
 
     fn len(&self) -> usize {
-        todo!()
+        0
+    }
+}
+
+impl EncodablePacket for FinishConfiguration {
+    type Fields = Option<bool>;
+
+    fn from_values(packet_fields: Self::Fields) -> Result<Self, CodecError> {
+        Ok(Self {})
+    }
+}
+
+impl TryFrom<Packet> for FinishConfiguration {
+    type Error = CodecError;
+
+    fn try_from(value: Packet) -> Result<Self, Self::Error> {
+        Self::from_bytes(value.get_payload())
     }
 }

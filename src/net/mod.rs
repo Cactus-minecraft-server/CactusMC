@@ -4,7 +4,7 @@ pub mod slp;
 use crate::config;
 use bytes::BytesMut;
 use log::{debug, error, info, warn};
-use packet::data_types::CodecError;
+use packet::data_types::{CodecError, Encodable};
 use packet::{Packet, PacketError, Response};
 use std::io;
 use std::sync::Arc;
@@ -65,6 +65,7 @@ enum ConnectionState {
     Status,
     Login,
     Configuration,
+    Play,
     Transfer,
 }
 
@@ -146,6 +147,7 @@ async fn handle_connection(socket: TcpStream) -> Result<(), NetError> {
         if let Some(packet) = response.get_packet() {
             // TODO: Make sure that sent packets are big endians (data types).
             connection.write(packet).await?;
+            debug!("Sent a packet with ID={:02X}", packet.get_id().get_value());
 
             if response.does_close_conn() {
                 warn!("Sent a packet that will close the connection");
@@ -169,17 +171,20 @@ async fn handle_packet(conn: &Connection, packet: Packet) -> Result<Response, Ne
         ConnectionState::Status => dispatch::status(packet).await,
         ConnectionState::Login => dispatch::login(conn, packet).await,
         ConnectionState::Configuration => dispatch::configuration(conn, packet).await,
+        ConnectionState::Play => dispatch::play(conn, packet).await,
         ConnectionState::Transfer => dispatch::transfer(conn, packet).await,
     }
 }
 
 mod dispatch {
+    use std::env::args;
+
     use super::*;
     use packet::{
         data_types::{Array, Encodable, VarInt},
         packet_types::{
-            ClientboundKnownPacks, EncodablePacket, Handshake, LoginAcknowledged, LoginStart,
-            LoginSuccess, ParsablePacket, ServerboundKnownPacks,
+            ClientboundKnownPacks, EncodablePacket, FinishConfiguration, Handshake,
+            LoginAcknowledged, LoginStart, LoginSuccess, ParsablePacket, ServerboundKnownPacks,
         },
         Response,
     };
@@ -300,6 +305,13 @@ mod dispatch {
                 Ok(Response::new(None))
             }
             0x03 => {
+                let acknowledge_finish_configuration: FinishConfiguration = packet.try_into()?;
+                debug!(
+                    "Got Acknowledge Finish Configuration: {acknowledge_finish_configuration:?}"
+                );
+
+                conn.set_state(ConnectionState::Play).await;
+
                 // TODO: Finish Configuration packet
                 Ok(Response::new(None))
             }
@@ -315,7 +327,11 @@ mod dispatch {
                 let serverbound_known_packs: ServerboundKnownPacks = packet.try_into()?;
                 debug!("Got Serverbound Known Packs packet: {serverbound_known_packs:?}");
 
-                Ok(Response::new(None))
+                // Switch connection state to Play.
+                conn.set_state(ConnectionState::Play).await;
+
+                let finish_configuration = FinishConfiguration::from_values(None)?.get_packet()?;
+                Ok(Response::new(Some(finish_configuration)))
             }
             // TODO: And a lot, lot more to follow
 
@@ -328,6 +344,18 @@ mod dispatch {
                 warn!("Unknown packet ID, State: Configuration");
                 Err(NetError::UnknownPacketId(format!(
                     "unknown packet ID, State: Configuration, PacketId: {}",
+                    packet.get_id().get_value()
+                )))
+            }
+        }
+    }
+
+    pub async fn play(conn: &Connection, packet: Packet) -> Result<Response, NetError> {
+        match packet.get_id().get_value() {
+            _ => {
+                warn!("Unknown packet ID, State: Play");
+                Err(NetError::UnknownPacketId(format!(
+                    "unknown packet ID, State: Play, PacketId: {}",
                     packet.get_id().get_value()
                 )))
             }
