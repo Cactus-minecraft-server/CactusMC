@@ -156,9 +156,6 @@ impl AsRef<[u8]> for Packet {
 
 #[derive(Error, Debug)]
 pub enum PacketError {
-    #[error("Failed to decode the packet id")]
-    IdDecodingError,
-
     #[error("Failed to decode the packet length")]
     LengthDecodingError,
 

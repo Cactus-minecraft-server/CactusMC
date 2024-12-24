@@ -1,27 +1,126 @@
 //! A module to parse known packets.
 
-// TODO: MODULES SEPARATING THE PACKET IN THEIR DIFFERENT STATES (HANSHAKE, LOGIN, PLAY,
-// CONFIGURATION, ...)
-//
-// TODO: SOME GENERIC PACKET WITH NO FIELDS (it seems their are quite numerous, habing a generic
-// one would save some code)
-
 use core::fmt;
+use std::sync::OnceLock;
 
+use dashmap::DashMap;
 use log::{debug, error};
 
-use crate::{gracefully_exit, player};
+use crate::gracefully_exit;
 
 use super::{
     data_types::{
-        Array, CodecError, DataType, DataTypeContent, Encodable, ErrorReason, StringProtocol,
-        UnsignedShort, Uuid, VarInt,
+        Array, CodecError, DataType, Encodable, ErrorReason, StringProtocol, UnsignedShort, Uuid,
+        VarInt,
     },
     Packet, PacketBuilder, PacketError,
 };
 
+// TODO: MODULES SEPARATING THE PACKET IN THEIR DIFFERENT STATES (HANSHAKE, LOGIN, PLAY,
+// CONFIGURATION, ...)
+
+// TODO: If possible: tests using dynamic features to test ALL packets at a time using their
+// traits. (Some king of for loop on all Packet types based on GenericPacket, the other traits)
+
+/// Define generic methods that all custom packets should implement.
+pub trait GenericPacket: Sized + fmt::Debug + Clone + Eq + PartialEq + Default {
+    /// Each packet has its specific ID.
+    const PACKET_ID: i32;
+
+    /// Returns a reference to a `Packet` that had been constructed from the current packet type.
+    fn get_packet(&self) -> &Packet;
+
+    /// Returns the numer of bytes of the packet.
+    fn len(&self) -> usize {
+        self.get_packet().len()
+    }
+}
+
+/// Methods only clienbound packets should implement.
+/// Clientbound packets are sent towards the client.
+pub trait ClientboundPacket: GenericPacket {
+    /// Creates a new packet from values.
+    fn from_values<T: PacketFields>(packet_fields: T) -> Result<Self, PacketError>;
+}
+
+/// Methods only serverbound packets should implement.
+/// Serverbound packets are sent towards the server (us).
+pub trait ServerboundPacket: GenericPacket + TryFrom<Packet> {
+    /// Tries to create the object by parsing bytes;
+    /// `Packet` is compatible in this function (Because it implements AsRef<[u8]>).
+    fn from_bytes<T: AsRef<[u8]>>(bytes: T) -> Result<Self, PacketError>;
+
+    fn consume_from_bytes(bytes: &mut &[u8]) -> Result<Self, PacketError> {
+        let parsed = Self::from_bytes(*bytes)?;
+        *bytes = &bytes[parsed.len()..]; // Advance the slice
+        Ok(parsed)
+    }
+}
+
+/// This trait should be implemented to packet structs for the sake of validating the inputted
+/// data.
+pub trait PacketFields: fmt::Debug + Clone + Eq + PartialEq + Default {
+    /// Validate struct values.
+    fn validate(&self) -> Result<(), PacketError>;
+}
+
+/// A packet which an empty payload.
+pub trait EmptyPayloadPacket: GenericPacket + TryFrom<Packet> {
+    /// Returns a packet with no payload.
+    fn new() -> Self {
+        Self::default()
+    }
+
+    /// Returns a reference to a `Packet` that had been constructed from the current packet type.
+    ///
+    /// All of those shenanigans so that the struct implementing `EmptyPayloadPacket` does not have
+    /// to define the `get_packet()` function. This problem could have been fixed by just returning
+    /// a `Packet` and not `&Packet` but I want to keep things as they are.
+    /// Credit: partly to AI
+    fn get_packet(&self) -> &Packet {
+        // Thread-safe static HashMap to store OnceLocks for each type
+        static PACKET_MAP: OnceLock<DashMap<i32, &'static OnceLock<Packet>>> = OnceLock::new();
+
+        // Initialize the map if not already done
+        let map = PACKET_MAP.get_or_init(|| DashMap::new());
+
+        // Retrieve or initialize the OnceLock for this type
+        let key: i32 = Self::PACKET_ID;
+        let once_lock = map.entry(key).or_insert_with(|| {
+            // Box::leak() ensures the OnceLock has a static lifetime
+            // (In actuality causes a true memory leak each time it's called)
+            Box::leak(Box::new(OnceLock::new()))
+        });
+
+        // Initialize the packet if it's not already created
+        once_lock.get_or_init(|| {
+            let mut packet = Packet::default();
+            let packet_id =
+                VarInt::from_value(Self::PACKET_ID).expect("PACKET_ID must be a valid VarInt");
+            packet.id = packet_id;
+            packet
+        })
+    }
+
+    /// Tries to create the object by parsing bytes;
+    /// `Packet` is compatible in this function (Because it implements AsRef<[u8]>).
+    fn from_bytes<T: AsRef<[u8]>>(bytes: T) -> Result<Self, PacketError> {
+        let data: &[u8] = bytes.as_ref();
+        if !data.is_empty() {
+            Err(PacketError::Codec(CodecError::Decoding(
+                DataType::Other("Empty payload packet"),
+                ErrorReason::InvalidFormat(format!(
+                    "The packet payload must be empty. Current is: {data:?}"
+                )),
+            )))
+        } else {
+            Ok(Self::new())
+        }
+    }
+}
+
 #[derive(Debug)]
-/// This is not simply a VarInt, this is an Enum VarInt.
+/// This is not simply a VarInt, this is an 'Enum VarInt'.
 pub enum NextState {
     Status(VarInt),
     Login(VarInt),
@@ -50,36 +149,6 @@ impl NextState {
             NextState::Transfer(varint) => varint,
         }
     }
-}
-
-/// Typically a trait only implemented for client-exclusive packets (like Handshake) that the
-/// server does not need to create from values, only read from bytes.
-///
-/// A trait that parses a type of packet from bytes.
-pub trait ParsablePacket: Sized + fmt::Debug {
-    const PACKET_ID: i32;
-
-    /// Tries to create the object by parsing bytes;
-    /// `Packet` is compatible in this function (Because it has implemented AsRef).
-    fn from_bytes<T: AsRef<[u8]>>(bytes: T) -> Result<Self, CodecError>;
-
-    /// Maybe &Packet, or Packet, or Result<Packet, SomeError>.
-    type PacketType;
-
-    /// Returns a **newly created** (inefficient) owned `Packet` from the current packet fields.
-    ///
-    /// If you have it, use the `Packet` that's already been created because this function creates
-    /// a new bytes buffer and then a `Packet`.
-    fn get_packet(&self) -> Self::PacketType;
-
-    /// Returns the numer of bytes of the packet.
-    fn len(&self) -> usize;
-}
-
-/// A trait that allows to encode a type of packet.
-pub trait EncodablePacket: ParsablePacket {
-    type Fields;
-    fn from_values(packet_fields: Self::Fields) -> Result<Self, CodecError>;
 }
 
 #[derive(Debug)]
