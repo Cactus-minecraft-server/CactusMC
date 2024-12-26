@@ -101,6 +101,12 @@ impl From<DataTypeContent> for DataType {
     }
 }
 
+impl PartialEq<DataTypeContent> for DataType {
+    fn eq(&self, other: &DataTypeContent) -> bool {
+        other == self // Delegate to the other implementation
+    }
+}
+
 #[derive(Eq, PartialEq, Clone, Debug)]
 pub enum ErrorReason {
     ValueTooLarge,
@@ -763,6 +769,23 @@ impl DataTypeContent {
         let instance = Self::from_bytes(&bytes, data_type)?;
         *bytes = &bytes[instance.len()..];
         Ok(instance)
+    }
+}
+
+impl PartialEq<DataType> for DataTypeContent {
+    fn eq(&self, other: &DataType) -> bool {
+        match (self, other) {
+            (DataTypeContent::VarInt(_), DataType::VarInt) => true,
+            (DataTypeContent::VarLong(_), DataType::VarLong) => true,
+            (DataTypeContent::StringProtocol(_), DataType::StringProtocol) => true,
+            (DataTypeContent::UnsignedShort(_), DataType::UnsignedShort) => true,
+            (DataTypeContent::Uuid(_), DataType::Uuid) => true,
+            (DataTypeContent::Array(_), DataType::Array(_)) => true, // Matching structure, not content
+            (DataTypeContent::Boolean(_), DataType::Boolean) => true,
+            (DataTypeContent::Optional(_), DataType::Optional(_)) => true, // Matching structure
+            (DataTypeContent::Other(content), DataType::Other(other)) => content == other,
+            _ => false, // Fallback for mismatched types
+        }
     }
 }
 

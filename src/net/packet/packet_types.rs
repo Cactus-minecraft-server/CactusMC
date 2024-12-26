@@ -4,9 +4,8 @@ use core::fmt;
 use std::sync::OnceLock;
 
 use dashmap::DashMap;
-use log::{debug, error};
-
-use crate::gracefully_exit;
+use handshake::Handshake;
+use log::error;
 
 use super::{
     data_types::{
@@ -39,8 +38,10 @@ pub trait GenericPacket: Sized + fmt::Debug + Clone + Eq + PartialEq + Default {
 /// Methods only clienbound packets should implement.
 /// Clientbound packets are sent towards the client.
 pub trait ClientboundPacket: GenericPacket {
+    type PacketFields;
+
     /// Creates a new packet from values.
-    fn from_values<T: PacketFields>(packet_fields: T) -> Result<Self, PacketError>;
+    fn from_values(packet_fields: Self::PacketFields) -> Result<Self, PacketError>;
 }
 
 /// Methods only serverbound packets should implement.
@@ -55,13 +56,6 @@ pub trait ServerboundPacket: GenericPacket + TryFrom<Packet> {
         *bytes = &bytes[parsed.len()..]; // Advance the slice
         Ok(parsed)
     }
-}
-
-/// This trait should be implemented to packet structs for the sake of validating the inputted
-/// data.
-pub trait PacketFields: fmt::Debug + Clone + Eq + PartialEq + Default {
-    /// Validate struct values.
-    fn validate(&self) -> Result<(), PacketError>;
 }
 
 /// A packet which an empty payload.
@@ -119,9 +113,17 @@ pub trait EmptyPayloadPacket: GenericPacket + TryFrom<Packet> {
     }
 }
 
-#[derive(Debug)]
+//Handshake,
+//Status,
+//Login,
+//Configuration,
+//Play,
+//Transfer,
+
+#[derive(Debug, Clone, PartialEq, Eq)]
 /// This is not simply a VarInt, this is an 'Enum VarInt'.
 pub enum NextState {
+    Handshake(VarInt),
     Status(VarInt),
     Login(VarInt),
     Transfer(VarInt),
@@ -131,6 +133,7 @@ impl NextState {
     /// Parses a NextState from a VarInt
     pub fn new(next_state: VarInt) -> Result<Self, CodecError> {
         match next_state.get_value() {
+            0x00 => Ok(NextState::Handshake(next_state)),
             0x01 => Ok(NextState::Status(next_state)),
             0x02 => Ok(NextState::Login(next_state)),
             0x03 => Ok(NextState::Transfer(next_state)),
@@ -144,6 +147,7 @@ impl NextState {
     /// Returns a reference to the inner VarInt.
     pub fn get_varint(&self) -> &VarInt {
         match self {
+            NextState::Handshake(varint) => varint,
             NextState::Status(varint) => varint,
             NextState::Login(varint) => varint,
             NextState::Transfer(varint) => varint,
@@ -151,435 +155,426 @@ impl NextState {
     }
 }
 
-#[derive(Debug)]
-pub struct Handshake {
-    pub protocol_version: VarInt,
-    pub server_address: StringProtocol,
-    pub server_port: UnsignedShort,
-    pub next_state: NextState,
-
-    /// Number of bytes of the packet
-    length: usize,
-}
-
-impl ParsablePacket for Handshake {
-    const PACKET_ID: i32 = 0x00;
-
-    fn from_bytes<T: AsRef<[u8]>>(bytes: T) -> Result<Self, CodecError> {
-        let mut data: &[u8] = bytes.as_ref();
-
-        debug!("data: {data:?}");
-
-        let protocol_version: VarInt = VarInt::consume_from_bytes(&mut data)?;
-        debug!("data: {data:?}");
-
-        let server_address: StringProtocol = StringProtocol::consume_from_bytes(&mut data)?;
-        debug!("data: {data:?}");
-
-        let server_port: UnsignedShort = UnsignedShort::consume_from_bytes(&mut data)?;
-        debug!("data: {data:?}");
-
-        let next_state: NextState = NextState::new(VarInt::consume_from_bytes(&mut data)?)?;
-        debug!("data: {data:?}");
-
-        let length: usize = protocol_version.len()
-            + server_address.len()
-            + server_port.len()
-            + next_state.get_varint().len();
-
-        Ok(Self {
-            protocol_version,
-            server_address,
-            server_port,
-            next_state,
-            length,
-        })
-    }
-
-    type PacketType = Result<Packet, PacketError>;
-
-    fn get_packet(&self) -> Self::PacketType {
-        PacketBuilder::new()
-            .append_bytes(self.protocol_version.get_bytes())
-            .append_bytes(self.server_address.get_bytes())
-            .append_bytes(self.server_port.get_bytes())
-            .append_bytes(self.next_state.get_varint().get_bytes())
-            .build(Self::PACKET_ID)
-    }
-
-    fn len(&self) -> usize {
-        self.length
+impl Default for NextState {
+    fn default() -> Self {
+        let varint: VarInt = VarInt::from_value(0).expect("Failed to create VarInt with value=0.");
+        NextState::Handshake(varint)
     }
 }
 
-impl TryFrom<Packet> for Handshake {
-    type Error = CodecError;
+pub mod handshake {
+    use super::*;
 
-    fn try_from(value: Packet) -> Result<Self, Self::Error> {
-        Self::from_bytes(value.get_payload())
-    }
-}
+    /// This packet causes the server to switch into the target state, it should be sent right after opening the TCP connection to avoid the server from disconnecting.
+    ///
+    /// Direction: Serverbound
+    /// https://minecraft.wiki/w/Minecraft_Wiki:Projects/wiki.vg_merge/Protocol#Handshake
+    #[derive(Debug, Clone, Eq, PartialEq, Default)]
+    pub struct Handshake {
+        pub protocol_version: VarInt,
+        pub server_address: StringProtocol,
+        pub server_port: UnsignedShort,
+        pub next_state: NextState,
 
-/// Represents the LoginStart packet.
-/// The second packet in the login sequence.
-///
-/// Login sequence: https://minecraft.wiki/w/Minecraft_Wiki:Projects/wiki.vg_merge/Protocol_FAQ#What's_the_normal_login_sequence_for_a_client?
-///
-/// A packet sent by the client to login to the server.
-///
-/// https://minecraft.wiki/w/Minecraft_Wiki:Projects/wiki.vg_merge/Protocol#Login_Start
-#[derive(Debug)]
-pub struct LoginStart {
-    pub name: StringProtocol,
-    pub player_uuid: Uuid,
-
-    /// The number of bytes of the packet.
-    length: usize,
-}
-
-impl ParsablePacket for LoginStart {
-    const PACKET_ID: i32 = 0x00;
-
-    /// Tries to parse a LoginStart packet from bytes.
-    fn from_bytes<T: AsRef<[u8]>>(bytes: T) -> Result<Self, CodecError> {
-        let mut data: &[u8] = bytes.as_ref();
-
-        let name: StringProtocol = StringProtocol::consume_from_bytes(&mut data)?;
-        let player_uuid: Uuid = Uuid::consume_from_bytes(&mut data)?;
-        let length: usize = name.len() + player_uuid.len();
-
-        Ok(Self {
-            name,
-            player_uuid,
-            length,
-        })
+        packet: Packet,
     }
 
-    type PacketType = Result<Packet, PacketError>;
+    impl GenericPacket for Handshake {
+        const PACKET_ID: i32 = 0x00;
 
-    fn get_packet(&self) -> Self::PacketType {
-        PacketBuilder::new()
-            .append_bytes(self.name.get_bytes())
-            .append_bytes(self.player_uuid.get_bytes())
-            .build(Self::PACKET_ID)
-    }
-
-    fn len(&self) -> usize {
-        self.length
-    }
-}
-
-impl TryFrom<Packet> for LoginStart {
-    type Error = CodecError;
-
-    fn try_from(value: Packet) -> Result<Self, Self::Error> {
-        Self::from_bytes(value.get_payload())
-    }
-}
-
-#[derive(Debug)]
-pub struct LoginSuccess {
-    uuid: Uuid,
-    username: StringProtocol,
-    number_of_properties: VarInt,
-    property: Array,
-    // There also exists the 'Strict Error Handling' (Boolean) field name which only exists for
-    // 1.20.5 to 1.21.1.
-}
-
-impl ParsablePacket for LoginSuccess {
-    const PACKET_ID: i32 = 0x02;
-
-    fn from_bytes<T: AsRef<[u8]>>(bytes: T) -> Result<Self, CodecError> {
-        error!("Tried to parse a server-only packet (Login Success). Closing the server...");
-        gracefully_exit(crate::ExitCode::Failure);
-    }
-
-    type PacketType = Result<Packet, PacketError>;
-
-    fn get_packet(&self) -> Self::PacketType {
-        PacketBuilder::new()
-            .append_bytes(self.uuid.get_bytes())
-            .append_bytes(self.username.get_bytes())
-            .append_bytes(self.number_of_properties.get_bytes())
-            .build(Self::PACKET_ID)
-    }
-
-    fn len(&self) -> usize {
-        self.uuid.len() + self.username.len() + self.number_of_properties.len()
-    }
-}
-
-impl EncodablePacket for LoginSuccess {
-    // UUID (Uuid)
-    // Username (StringProtocol)
-    // Number of Properties (VarInt)
-    // Property (Array[StringProtocol, StringProtocol, Boolean, OptionalStringProtocol])
-    type Fields = (Uuid, StringProtocol, VarInt, Array);
-
-    fn from_values(packet_fields: Self::Fields) -> Result<Self, CodecError> {
-        Ok(Self {
-            uuid: packet_fields.0,
-            username: packet_fields.1,
-            number_of_properties: packet_fields.2,
-            property: packet_fields.3,
-        })
-    }
-}
-
-/// This packet switches the connection state to configuration.
-#[derive(Debug)]
-pub struct LoginAcknowledged {}
-
-impl ParsablePacket for LoginAcknowledged {
-    const PACKET_ID: i32 = 0x03;
-
-    fn from_bytes<T: AsRef<[u8]>>(bytes: T) -> Result<Self, CodecError> {
-        if bytes.as_ref().len() != 0 {
-            Err(CodecError::Decoding(
-                DataType::Other("Login Acknowledged packet"),
-                ErrorReason::InvalidFormat(
-                    "The payload of the LoginAcknowledged packet should be empty.".to_string(),
-                ),
-            ))
-        } else {
-            Ok(Self {})
+        fn get_packet(&self) -> &Packet {
+            &self.packet
         }
     }
 
-    type PacketType = Packet;
+    impl ServerboundPacket for Handshake {
+        fn from_bytes<T: AsRef<[u8]>>(bytes: T) -> Result<Self, PacketError> {
+            let mut data: &[u8] = bytes.as_ref();
 
-    fn get_packet(&self) -> Self::PacketType {
-        Packet::default()
-    }
+            let protocol_version: VarInt = VarInt::consume_from_bytes(&mut data)?;
+            let server_address: StringProtocol = StringProtocol::consume_from_bytes(&mut data)?;
+            let server_port: UnsignedShort = UnsignedShort::consume_from_bytes(&mut data)?;
+            let next_state: NextState = NextState::new(VarInt::consume_from_bytes(&mut data)?)?;
 
-    fn len(&self) -> usize {
-        0
-    }
-}
+            let packet: Packet = PacketBuilder::new()
+                .append_bytes(protocol_version.get_bytes())
+                .append_bytes(server_address.get_bytes())
+                .append_bytes(server_port.get_bytes())
+                .append_bytes(next_state.get_varint().get_bytes())
+                .build(Self::PACKET_ID)?;
 
-impl TryFrom<Packet> for LoginAcknowledged {
-    type Error = CodecError;
+            assert_eq!(packet.get_payload(), bytes.as_ref());
 
-    fn try_from(value: Packet) -> Result<Self, Self::Error> {
-        Self::from_bytes(value.get_payload())
-    }
-}
-
-/// https://minecraft.wiki/w/Minecraft_Wiki:Projects/wiki.vg_merge/Protocol#Clientbound_Known_Packs
-#[derive(Debug)]
-pub struct ClientboundKnownPacks {
-    /// The number of known packs in the following array
-    known_pack_count: VarInt,
-
-    /// Array[String (Namespace), String (ID), String (Version)]
-    known_packs: Vec<Array>,
-}
-
-impl ClientboundKnownPacks {
-    const PACK_DATA_TYPES: [DataType; 3] = [
-        DataType::StringProtocol,
-        DataType::StringProtocol,
-        DataType::StringProtocol,
-    ];
-}
-
-impl ParsablePacket for ClientboundKnownPacks {
-    const PACKET_ID: i32 = 0x0E;
-
-    fn from_bytes<T: AsRef<[u8]>>(bytes: T) -> Result<Self, CodecError> {
-        let mut data: &[u8] = bytes.as_ref();
-
-        let known_pack_count: VarInt = VarInt::consume_from_bytes(&mut data)?;
-        let pack_count: usize = known_pack_count.get_value() as usize;
-
-        // Define the structure of each known pack once.
-
-        // Parse known packs
-        let known_packs: Vec<Array> = (0..pack_count)
-            .map(|i| {
-                Array::consume_from_bytes(&mut data, &Self::PACK_DATA_TYPES).map_err(|e| {
-                    CodecError::Decoding(
-                        DataType::Array(Self::PACK_DATA_TYPES.to_vec()),
-                        ErrorReason::InvalidFormat(format!(
-                            "Failed to parse known pack at index {}. Reason: {e}",
-                            i
-                        )),
-                    )
-                })
+            Ok(Self {
+                protocol_version,
+                server_address,
+                server_port,
+                next_state,
+                packet,
             })
-            .collect::<Result<_, _>>()?;
-
-        Ok(Self {
-            known_pack_count,
-            known_packs,
-        })
+        }
     }
 
-    type PacketType = Result<Packet, PacketError>;
+    impl TryFrom<Packet> for Handshake {
+        type Error = PacketError;
 
-    fn get_packet(&self) -> Self::PacketType {
-        PacketBuilder::new()
-            .append_bytes(self.known_pack_count.get_bytes())
-            // Make a single buffer of bytes containing all packs.
-            .append_bytes(
-                self.known_packs
-                    .iter()
-                    .flat_map(|pack| pack.get_bytes().iter().copied())
-                    .collect::<Vec<u8>>(),
-            )
-            .build(Self::PACKET_ID)
-    }
-
-    fn len(&self) -> usize {
-        self.known_pack_count.len() + self.known_packs.len()
+        fn try_from(value: Packet) -> Result<Self, Self::Error> {
+            Self::from_bytes(value.get_payload())
+        }
     }
 }
 
-impl EncodablePacket for ClientboundKnownPacks {
-    type Fields = (VarInt, Option<Vec<Array>>);
+pub mod status {}
 
-    fn from_values(packet_fields: Self::Fields) -> Result<Self, CodecError> {
-        let known_pack_count: VarInt = packet_fields.0;
-        if let None = packet_fields.1 {
-            if known_pack_count.get_value() != 0 {
-                return Err(CodecError::Encoding(
-                    DataType::Other("ClientboundKnownPacks packet"),
-                    ErrorReason::InvalidFormat(format!(
-                        "Even though known packs is None, the known packet count is {}",
-                        known_pack_count.get_value()
-                    )),
-                ));
+pub mod login {
+    use super::*;
+
+    /// Represents the LoginStart packet.
+    /// The second packet in the login sequence.
+    ///
+    /// Login sequence: https://minecraft.wiki/w/Minecraft_Wiki:Projects/wiki.vg_merge/Protocol_FAQ#What's_the_normal_login_sequence_for_a_client?
+    ///
+    /// A packet sent by the client to login to the server.
+    ///
+    /// https://minecraft.wiki/w/Minecraft_Wiki:Projects/wiki.vg_merge/Protocol#Login_Start
+    #[derive(Debug, Clone, Default, Eq, PartialEq)]
+    pub struct LoginStart {
+        pub name: StringProtocol,
+        pub player_uuid: Uuid,
+        packet: Packet,
+    }
+
+    impl GenericPacket for LoginStart {
+        const PACKET_ID: i32 = 0x00;
+
+        fn get_packet(&self) -> &Packet {
+            &self.packet
+        }
+    }
+
+    impl ServerboundPacket for LoginStart {
+        fn from_bytes<T: AsRef<[u8]>>(bytes: T) -> Result<Self, PacketError> {
+            let mut data: &[u8] = bytes.as_ref();
+
+            let name: StringProtocol = StringProtocol::consume_from_bytes(&mut data)?;
+            let player_uuid: Uuid = Uuid::consume_from_bytes(&mut data)?;
+
+            let packet: Packet = PacketBuilder::new()
+                .append_bytes(name.get_bytes())
+                .append_bytes(player_uuid.get_bytes())
+                .build(Self::PACKET_ID)?;
+
+            Ok(Self {
+                name,
+                player_uuid,
+                packet,
+            })
+        }
+    }
+
+    impl TryFrom<Packet> for LoginStart {
+        type Error = PacketError;
+
+        fn try_from(value: Packet) -> Result<Self, Self::Error> {
+            Self::from_bytes(value.get_payload())
+        }
+    }
+
+    /// Direction: Clientbound
+    /// https://minecraft.wiki/w/Minecraft_Wiki:Projects/wiki.vg_merge/Protocol#Login_Success
+    #[derive(Debug, Clone, Default, Eq, PartialEq)]
+    pub struct LoginSuccess {
+        pub uuid: Uuid,
+        pub username: StringProtocol,
+        pub number_of_properties: VarInt,
+        pub property: Vec<Array>, // Each array: [String, String, Boolean, Optional String]
+        // There also exists the 'Strict Error Handling' (Boolean) field name which only exists for
+        // 1.20.5 to 1.21.1.
+        packet: Packet,
+    }
+
+    impl GenericPacket for LoginSuccess {
+        const PACKET_ID: i32 = 0x02;
+
+        fn get_packet(&self) -> &Packet {
+            &self.packet
+        }
+    }
+
+    impl ClientboundPacket for LoginSuccess {
+        type PacketFields = (Uuid, StringProtocol, VarInt, Vec<Array>);
+        /// type PacketFields = (Uuid, StringProtocol, VarInt, Array);
+        fn from_values(packet_fields: Self::PacketFields) -> Result<Self, PacketError> {
+            let property_types: [DataType; 4] = [
+                DataType::StringProtocol,
+                DataType::StringProtocol,
+                DataType::Boolean,
+                DataType::Optional(Box::new(DataType::StringProtocol)),
+            ];
+
+            for array in &packet_fields.3 {
+                if array.get_value() != property_types {
+                    return Err(PacketError::BuildPacket(format!(
+                        "Incorrect types inside LoginSuccess 'property'. Expected {:?}, got {:?}",
+                        property_types,
+                        array.get_value()
+                    )));
+                }
             }
-            return Ok(Self {
-                known_pack_count,
-                known_packs: Vec::new(),
-            });
+
+            let packet: Packet = PacketBuilder::new()
+                .append_bytes(packet_fields.0.get_bytes())
+                .append_bytes(packet_fields.1.get_bytes())
+                .append_bytes(packet_fields.2.get_bytes())
+                .append_bytes(
+                    packet_fields
+                        .3
+                        .iter()
+                        .flat_map(|a| a.get_bytes().iter().copied())
+                        .collect::<Vec<_>>(),
+                )
+                .build(Self::PACKET_ID)?;
+
+            Ok(Self {
+                uuid: packet_fields.0,
+                username: packet_fields.1,
+                number_of_properties: packet_fields.2,
+                property: packet_fields.3,
+                packet,
+            })
         }
+    }
 
-        let known_packs: Vec<Array> = packet_fields.1.unwrap();
+    /// Acknowledgement to the Login Success packet sent by the server.
+    /// This packet switches the connection state to configuration.
+    /// Direction: Serverbound
+    /// https://minecraft.wiki/w/Minecraft_Wiki:Projects/wiki.vg_merge/Protocol#Login_Acknowledged
+    #[derive(Debug, Default, Clone, Eq, PartialEq)]
+    pub struct LoginAcknowledged {}
 
-        // If number of packs is the the actual number of packs.
-        if known_pack_count.get_value() as usize != known_packs.len() {
-            return Err(CodecError::Encoding(
-                DataType::Other("ClientboundKnownPacks packet"),
-                ErrorReason::InvalidFormat(format!(
-                    "The VarInt value must correspond to the number of packs. VarInt value: {} / Number of packs: {}", known_pack_count.get_value(), known_packs.len()
-                )),
-            ));
+    impl GenericPacket for LoginAcknowledged {
+        const PACKET_ID: i32 = 0x03;
+
+        fn get_packet(&self) -> &Packet {
+            EmptyPayloadPacket::get_packet(self)
         }
+    }
 
-        // If the layout of the Array is not three StringProtocol.
-        for pack in &known_packs {
-            for inner_type in pack.get_value() {
-                let cast_type: DataType = (*inner_type).clone().into();
-                if cast_type != DataType::StringProtocol {
-                    return Err(
+    impl EmptyPayloadPacket for LoginAcknowledged {}
+
+    impl TryFrom<Packet> for LoginAcknowledged {
+        type Error = PacketError;
+
+        fn try_from(value: Packet) -> Result<Self, Self::Error> {
+            Self::from_bytes(value.get_payload())
+        }
+    }
+}
+
+pub mod configuration {
+    use super::*;
+
+    /// Informs the client of which data packs are present on the server.
+    /// Direction: Clientbound
+    /// https://minecraft.wiki/w/Minecraft_Wiki:Projects/wiki.vg_merge/Protocol#Clientbound_Known_Packs
+    #[derive(Debug, Clone, Default, Eq, PartialEq)]
+    pub struct ClientboundKnownPacks {
+        /// The number of known packs in the following array
+        pub known_pack_count: VarInt,
+
+        /// Array[String (Namespace), String (ID), String (Version)]
+        pub known_packs: Vec<Array>,
+
+        packet: Packet,
+    }
+
+    impl ClientboundKnownPacks {
+        const PACK_DATA_TYPES: [DataType; 3] = [
+            DataType::StringProtocol,
+            DataType::StringProtocol,
+            DataType::StringProtocol,
+        ];
+    }
+
+    impl GenericPacket for ClientboundKnownPacks {
+        const PACKET_ID: i32 = 0x0E;
+
+        fn get_packet(&self) -> &Packet {
+            &self.packet
+        }
+    }
+
+    impl ClientboundPacket for ClientboundKnownPacks {
+        type PacketFields = (VarInt, Vec<Array>);
+
+        /// Fields: VarInt, Vec<Array[String, String, String]>
+        fn from_values(packet_fields: Self::PacketFields) -> Result<Self, PacketError> {
+            let known_pack_count: VarInt = packet_fields.0;
+            let known_packs: Vec<Array> = packet_fields.1;
+
+            // Number of packs and actual number of packs not corresponding.
+            // Returning an error is just soo loooong
+            if known_pack_count.get_value() as usize != known_packs.len() {
+                return Err(PacketError::Codec(CodecError::Encoding(
+                    DataType::Other("Clientbound Know Packs packet"),
+                    ErrorReason::InvalidFormat(format!(
+                        "Mismatch: number of packs: {}, actual provided number of packs: {}",
+                        known_pack_count.get_value(),
+                        known_packs.len()
+                    )),
+                )));
+            }
+
+            // No packs.
+            if known_pack_count.get_value() == 0 {
+                let packet: Packet = PacketBuilder::new()
+                    .append_bytes(known_pack_count.get_bytes())
+                    .build(Self::PACKET_ID)?;
+                return Ok(Self {
+                    known_pack_count,
+                    known_packs: Vec::new(),
+                    packet,
+                });
+            }
+
+            // If the layout of the Array is not three StringProtocol.
+            for pack in &known_packs {
+                for inner_type in pack.get_value() {
+                    let cast_type: DataType = (*inner_type).clone().into();
+                    if cast_type != DataType::StringProtocol {
+                        return Err(
+                            PacketError::Codec(
                         CodecError::Encoding(DataType::Other("ClientboundKnownPacks"), ErrorReason::InvalidFormat(
                             format!("The pack array data types must be three consecutive StringProtocol. Pack: {pack:?}")
                         ))
+                            )
                     );
+                    }
                 }
             }
-        }
 
-        Ok(Self {
-            known_pack_count,
-            known_packs,
-        })
-    }
-}
+            let packet: Packet = PacketBuilder::new()
+                .append_bytes(known_pack_count.get_bytes())
+                // Append all bytes from all of the arrays
+                .append_bytes(
+                    known_packs
+                        .iter()
+                        .flat_map(|a| a.get_bytes().iter().copied())
+                        .collect::<Vec<_>>(),
+                )
+                .build(Self::PACKET_ID)?;
 
-impl TryFrom<Packet> for ClientboundKnownPacks {
-    type Error = CodecError;
-
-    fn try_from(value: Packet) -> Result<Self, Self::Error> {
-        Self::from_bytes(value.get_payload())
-    }
-}
-
-/// Essentially a wrapper around `ClientboundKnownPacks`, only the ID is different.
-#[derive(Debug)]
-pub struct ServerboundKnownPacks {
-    inner: ClientboundKnownPacks,
-}
-
-impl ParsablePacket for ServerboundKnownPacks {
-    const PACKET_ID: i32 = 0x07;
-
-    fn from_bytes<T: AsRef<[u8]>>(bytes: T) -> Result<Self, CodecError> {
-        let inner = ClientboundKnownPacks::from_bytes(bytes)?;
-        Ok(Self { inner })
-    }
-
-    type PacketType = Result<Packet, PacketError>;
-
-    fn get_packet(&self) -> Self::PacketType {
-        let mut packet = self.inner.get_packet()?;
-        packet.id = VarInt::from_value(Self::PACKET_ID)?;
-        Ok(packet)
-    }
-
-    fn len(&self) -> usize {
-        self.inner.len()
-    }
-}
-
-impl TryFrom<Packet> for ServerboundKnownPacks {
-    type Error = CodecError;
-
-    fn try_from(value: Packet) -> Result<Self, Self::Error> {
-        Self::from_bytes(value.get_payload())
-    }
-}
-
-#[derive(Debug)]
-/// https://minecraft.wiki/w/Minecraft_Wiki:Projects/wiki.vg_merge/Protocol#Finish_Configuration
-/// This packet switches the connection state to play
-///
-/// Sent by the server to notify the client that the configuration process has finished.
-/// The client answers with Acknowledge Finish Configuration whenever it is ready to continue.
-pub struct FinishConfiguration {}
-
-impl ParsablePacket for FinishConfiguration {
-    const PACKET_ID: i32 = 0x03;
-
-    fn from_bytes<T: AsRef<[u8]>>(bytes: T) -> Result<Self, CodecError> {
-        if bytes.as_ref().len() != 0 {
-            Err(CodecError::Decoding(
-                DataType::Other("Finish Configuration packet"),
-                ErrorReason::InvalidFormat(
-                    "The payload of the LoginAcknowledged packet should be empty.".to_string(),
-                ),
-            ))
-        } else {
-            Ok(Self {})
+            Ok(Self {
+                known_pack_count,
+                known_packs,
+                packet,
+            })
         }
     }
 
-    type PacketType = Result<Packet, PacketError>;
+    /// Informs the server of which data packs are present on the client.
+    /// Direction: Serverbound
+    /// https://minecraft.wiki/w/Minecraft_Wiki:Projects/wiki.vg_merge/Protocol#Serverbound_Known_Packs
+    #[derive(Debug, Default, Clone, Eq, PartialEq)]
+    pub struct ServerboundKnownPacks {
+        /// The number of known packs in the following array
+        pub known_pack_count: VarInt,
 
-    fn get_packet(&self) -> Self::PacketType {
-        PacketBuilder::new().build(Self::PACKET_ID)
+        /// Array[String (Namespace), String (ID), String (Version)]
+        pub known_packs: Vec<Array>,
+
+        packet: Packet,
     }
 
-    fn len(&self) -> usize {
-        0
+    impl GenericPacket for ServerboundKnownPacks {
+        const PACKET_ID: i32 = 0x07;
+
+        fn get_packet(&self) -> &Packet {
+            &self.packet
+        }
+    }
+
+    impl ServerboundPacket for ServerboundKnownPacks {
+        fn from_bytes<T: AsRef<[u8]>>(bytes: T) -> Result<Self, PacketError> {
+            let mut data: &[u8] = bytes.as_ref();
+
+            let known_pack_count: VarInt = VarInt::consume_from_bytes(&mut data)?;
+            let pack_count: usize = known_pack_count.get_value() as usize;
+
+            // Define the structure of each known pack once.
+
+            // Parse known packs
+            let known_packs: Vec<Array> = (0..pack_count)
+                .map(|i| {
+                    Array::consume_from_bytes(&mut data, &ClientboundKnownPacks::PACK_DATA_TYPES)
+                        .map_err(|e| {
+                            CodecError::Decoding(
+                                DataType::Array(ClientboundKnownPacks::PACK_DATA_TYPES.to_vec()),
+                                ErrorReason::InvalidFormat(format!(
+                                    "Failed to parse known pack at index {}. Reason: {e}",
+                                    i
+                                )),
+                            )
+                        })
+                })
+                .collect::<Result<_, _>>()?;
+
+            let packet: Packet = PacketBuilder::new()
+                .append_bytes(known_pack_count.get_bytes())
+                // Append all bytes from all of the arrays
+                .append_bytes(
+                    known_packs
+                        .iter()
+                        .flat_map(|a| a.get_bytes().iter().copied())
+                        .collect::<Vec<_>>(),
+                )
+                .build(Self::PACKET_ID)?;
+
+            Ok(Self {
+                known_pack_count,
+                known_packs,
+                packet,
+            })
+        }
+    }
+
+    impl TryFrom<Packet> for ServerboundKnownPacks {
+        type Error = PacketError;
+
+        fn try_from(value: Packet) -> Result<Self, Self::Error> {
+            Self::from_bytes(value.get_payload())
+        }
+    }
+
+    /// https://minecraft.wiki/w/Minecraft_Wiki:Projects/wiki.vg_merge/Protocol#Finish_Configuration
+    /// This packet switches the connection state to play
+    ///
+    /// Direction: Clientbound
+    ///
+    /// Sent by the server to notify the client that the configuration process has finished.
+    /// The client answers with Acknowledge Finish Configuration whenever it is ready to continue.
+    #[derive(Debug, Default, Clone, Eq, PartialEq)]
+    pub struct FinishConfiguration {}
+
+    impl GenericPacket for FinishConfiguration {
+        const PACKET_ID: i32 = 0x03;
+
+        fn get_packet(&self) -> &Packet {
+            EmptyPayloadPacket::get_packet(self)
+        }
+    }
+
+    impl EmptyPayloadPacket for FinishConfiguration {}
+
+    impl TryFrom<Packet> for FinishConfiguration {
+        type Error = PacketError;
+
+        fn try_from(value: Packet) -> Result<Self, Self::Error> {
+            Self::from_bytes(value.get_payload())
+        }
     }
 }
 
-impl EncodablePacket for FinishConfiguration {
-    type Fields = Option<bool>;
+pub mod transfer {}
 
-    fn from_values(packet_fields: Self::Fields) -> Result<Self, CodecError> {
-        Ok(Self {})
-    }
-}
-
-impl TryFrom<Packet> for FinishConfiguration {
-    type Error = CodecError;
-
-    fn try_from(value: Packet) -> Result<Self, Self::Error> {
-        Self::from_bytes(value.get_payload())
-    }
-}
+pub mod play {}
