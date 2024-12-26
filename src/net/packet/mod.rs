@@ -21,7 +21,7 @@ use thiserror::Error;
 /// Length (VarInt): Length of Packet ID + Data
 /// Packet ID (VarInt): An ID each packet has
 /// Data (Byte Array): Actual data bytes
-#[derive(Clone)]
+#[derive(Clone, Eq, PartialEq)]
 pub struct Packet {
     /// Length of `id` + `data`
     length: usize,

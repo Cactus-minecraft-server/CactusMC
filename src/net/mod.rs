@@ -180,12 +180,15 @@ mod dispatch {
     use std::env::args;
 
     use super::*;
+    use packet::packet_types::configuration::*;
+    use packet::packet_types::handshake::*;
+    use packet::packet_types::login::*;
+    use packet::packet_types::status::*;
+    use packet::packet_types::ClientboundPacket;
+    use packet::packet_types::EmptyPayloadPacket;
+    use packet::packet_types::GenericPacket;
     use packet::{
         data_types::{Array, Encodable, VarInt},
-        packet_types::{
-            ClientboundKnownPacks, EncodablePacket, FinishConfiguration, Handshake,
-            LoginAcknowledged, LoginStart, LoginSuccess, ParsablePacket, ServerboundKnownPacks,
-        },
         Response,
     };
 
@@ -205,6 +208,14 @@ mod dispatch {
             }
             packet::packet_types::NextState::Transfer(_) => {
                 conn.set_state(ConnectionState::Transfer).await
+            }
+            packet::packet_types::NextState::Handshake(_) => {
+                return Err(NetError::Codec(CodecError::Decoding(
+                    packet::data_types::DataType::Other("Handshake packet"),
+                    packet::data_types::ErrorReason::UnknownValue(
+                        "Got handshake next_state.".to_string(),
+                    ),
+                )));
             }
         }
 
@@ -252,12 +263,11 @@ mod dispatch {
                     login_start.player_uuid,
                     login_start.name,
                     VarInt::from_value(0)?, // No packs
-                    Array::default(),
+                    Vec::new(),
                 );
 
                 let login_success: LoginSuccess = LoginSuccess::from_values(args)?;
-
-                Ok(Response::new(Some(login_success.get_packet()?)))
+                Ok(Response::new(Some(login_success.get_packet().clone())))
             }
             0x03 => {
                 // Parse it just to be sure it's the Login Acknowledged packet.
@@ -270,9 +280,10 @@ mod dispatch {
                 //Ok(Response::new(None))
                 //
                 // Respond with a Clientbound Known Packs packet
-                let args = (VarInt::from_value(0)?, None);
-                let clientbound_known_packs: Packet =
-                    ClientboundKnownPacks::from_values(args)?.get_packet()?;
+                let args = (VarInt::from_value(0)?, Vec::new());
+                let clientbound_known_packs: Packet = ClientboundKnownPacks::from_values(args)?
+                    .get_packet()
+                    .clone();
 
                 Ok(Response::new(Some(clientbound_known_packs)))
             }
@@ -330,8 +341,10 @@ mod dispatch {
                 // Switch connection state to Play.
                 conn.set_state(ConnectionState::Play).await;
 
-                let finish_configuration = FinishConfiguration::from_values(None)?.get_packet()?;
-                Ok(Response::new(Some(finish_configuration)))
+                let finish_configuration = FinishConfiguration::new();
+                let finish_config_packet =
+                    EmptyPayloadPacket::get_packet(&finish_configuration).clone();
+                Ok(Response::new(Some(finish_config_packet)))
             }
             // TODO: And a lot, lot more to follow
 
