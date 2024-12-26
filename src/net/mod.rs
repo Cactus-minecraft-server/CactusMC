@@ -323,7 +323,43 @@ mod dispatch {
 
                 conn.set_state(ConnectionState::Play).await;
 
-                // TODO: Finish Configuration packet
+                // TODO: Send a 'Login (play)' packet
+                // TODO: Send a 'Login (play)' packet
+                // TODO: Send a 'Login (play)' packet
+                // TODO: Send a 'Login (play)' packet
+                // TODO: Send a 'Login (play)' packet
+                // TODO: Send a 'Login (play)' packet
+                // TODO: Send a 'Login (play)' packet
+                // TODO: Send a 'Login (play)' packet
+                // TODO: Send a 'Login (play)' packet
+                // TODO: Send a 'Login (play)' packet
+                // TODO: Send a 'Login (play)' packet
+                // TODO: Send a 'Login (play)' packet
+                // TODO: Send a 'Login (play)' packet
+                // TODO: Send a 'Login (play)' packet
+                // TODO: Send a 'Login (play)' packet
+                // TODO: Send a 'Login (play)' packet
+                // TODO: Send a 'Login (play)' packet
+                // TODO: Send a 'Login (play)' packet
+                // TODO: Send a 'Login (play)' packet
+                // TODO: Send a 'Login (play)' packet
+                // TODO: Send a 'Login (play)' packet
+                // TODO: Send a 'Login (play)' packet
+                // TODO: Send a 'Login (play)' packet
+                // TODO: Send a 'Login (play)' packet
+                // TODO: Send a 'Login (play)' packet
+                // TODO: Send a 'Login (play)' packet
+                // TODO: Send a 'Login (play)' packet
+                //
+                // TO IMPLEMENT (for the 'Login (play)' packet):
+                //
+                // https://minecraft.wiki/w/Minecraft_Wiki:Projects/wiki.vg_merge/Protocol#Type:Identifier
+                // https://minecraft.wiki/w/Minecraft_Wiki:Projects/wiki.vg_merge/Protocol#Type:Long
+                // https://minecraft.wiki/w/Minecraft_Wiki:Projects/wiki.vg_merge/Protocol#Type:Unsigned_Byte
+                // https://minecraft.wiki/w/Minecraft_Wiki:Projects/wiki.vg_merge/Protocol#Type:Byte
+                // https://minecraft.wiki/w/Minecraft_Wiki:Projects/wiki.vg_merge/Protocol#Type:Position
+                // https://minecraft.wiki/w/Minecraft_Wiki:Projects/wiki.vg_merge/Protocol#Type:Int
+
                 Ok(Response::new(None))
             }
             0x04 => {
