@@ -10,7 +10,6 @@ mod net;
 use log::{error, info, warn};
 use net::packet;
 mod generate_overworld;
-mod encode_chunk;
 mod player;
 mod seed_hasher;
 mod time;
