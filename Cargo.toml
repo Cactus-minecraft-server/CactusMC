@@ -4,7 +4,7 @@ version = "0.1.0"
 edition = "2021"
 
 [dependencies]
-colored = "2.1.0"
+colored = "3.0.0"
 tokio = { version = "1.39.3", features = ["full"] }
 thiserror = "2.0.2"
 log = "0.4.22"
@@ -22,8 +22,9 @@ image = "0.25.5"
 base64 = "0.22.1"
 hematite-nbt = "0.5.2"
 rayon = "1.10.0"
+noise-engine = { git = "https://github.com/Cactus-minecraft-server/Noise-engine.git" }
 [dev-dependencies]
-rand = "0.8.5"
+rand = "0.9.0"
 tempfile = "3.14.0"
 [profile.release]
 opt-level = 3

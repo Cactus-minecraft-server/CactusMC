@@ -697,9 +697,9 @@ mod tests {
             assert_eq!(value, decoded, "Roundtrip failed for value: {}", value);
         }
 
-        let mut rng = rand::thread_rng();
+        let mut rng = rand::rng();
         for _ in 0..10_000 {
-            let value = rng.gen::<i32>();
+            let value = rng.random::<i32>();
             let varint = VarInt::from_value(value).unwrap();
             let encoded = varint.get_bytes();
             let decoded_varint = VarInt::from_bytes(encoded).unwrap();
@@ -816,9 +816,9 @@ mod tests {
             assert_eq!(value, decoded, "Roundtrip failed for value: {}", value);
         }
 
-        let mut rng = rand::thread_rng();
+        let mut rng = rand::rng();
         for _ in 0..10_000 {
-            let value = rng.gen::<i64>();
+            let value = rng.random::<i64>();
             let varlong = VarLong::from_value(value).unwrap();
             let encoded = varlong.get_bytes();
             let decoded_varlong = VarLong::from_bytes(encoded).unwrap();
@@ -1012,12 +1012,9 @@ mod tests {
 
     #[test]
     fn test_string_read_random_strings() {
-        let mut rng = rand::thread_rng();
+        let mut rng = rand::rng();
         for _ in 0..1000 {
-            let length = rng.gen_range(1..=100);
-            let s: String = (0..length)
-                .map(|_| rng.sample(rand::distributions::Alphanumeric) as char)
-                .collect();
+            let s: String = (0..10).map(|_| rng.random::<u8>() as char).collect();
             let string_bytes = s.as_bytes();
 
             let length_varint = VarInt::from_value(string_bytes.len() as i32)
@@ -1169,9 +1166,9 @@ mod tests {
 
     #[test]
     fn test_unsigned_short_roundtrip() {
-        let mut rng = rand::thread_rng();
+        let mut rng = rand::rng();
         for _ in 0..1000 {
-            let value = rng.gen::<u16>();
+            let value = rng.random::<u16>();
             let us = UnsignedShort::from_value(value).unwrap();
             let decoded = UnsignedShort::from_bytes(us.get_bytes()).unwrap();
             assert_eq!(
@@ -1183,7 +1180,7 @@ mod tests {
         }
     }
 
-    // A helper function to generate a sample Uuid value and its bytes.
+    // A helper function to randomerate a sample Uuid value and its bytes.
     fn sample_uuid() -> (u128, [u8; 16]) {
         let value: u128 = 0x1234567890ABCDEF1234567890ABCDEF;
         (value, value.to_be_bytes())
