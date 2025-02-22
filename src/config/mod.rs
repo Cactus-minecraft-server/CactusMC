@@ -1,14 +1,15 @@
 //! This module is the interface between the server.properties file. Querying for server settings.
+use core::fmt;
 // !TODO generator_settings
 // !Todo text-filtering-config
 // use dot_properties::{read_properties, Properties};
+use read_properties::Properties;
 use std::fs::File;
 use std::io::BufReader;
 use std::io::{Error, ErrorKind};
 use std::net::Ipv4Addr;
 use std::path::Path;
-
-use read_properties::Properties;
+use std::str::FromStr;
 pub mod read_properties;
 //use std::sync::Arc;
 
@@ -56,61 +57,61 @@ pub enum WorldPreset {
 
 #[derive(Debug)]
 pub struct Settings {
-    enable_jmx_monitoring: bool,
-    rcon_port: u16,
-    level_seed: Option<i64>,
+    pub enable_jmx_monitoring: bool,
+    pub rcon_port: u16,
+    pub level_seed: Option<i64>,
     pub gamemode: Gamemode,
-    enable_command_block: bool,
-    enable_query: bool,
+    pub enable_command_block: bool,
+    pub enable_query: bool,
     pub enforce_secure_profile: bool,
-    level_name: Option<String>,
+    pub level_name: Option<String>,
     pub motd: Option<String>,
-    query_port: u16,
-    pvp: bool,
-    generate_structures: bool,
-    max_chained_neighbor_updates: Option<i32>,
-    difficulty: Difficulty,
-    network_compression_threshold: i32,
-    max_tick_time: i64,
-    require_resource_pack: bool,
-    use_native_transport: bool,
+    pub query_port: u16,
+    pub pvp: bool,
+    pub generate_structures: bool,
+    pub max_chained_neighbor_updates: Option<i32>,
+    pub difficulty: Difficulty,
+    pub network_compression_threshold: i32,
+    pub max_tick_time: i64,
+    pub require_resource_pack: bool,
+    pub use_native_transport: bool,
     pub max_players: u32,
-    online_mode: bool,
-    enable_status: bool,
-    allow_flight: bool,
-    initial_disabled_packs: Option<String>,
-    broadcast_rcon_to_ops: bool,
-    view_distance: u8,
+    pub online_mode: bool,
+    pub enable_status: bool,
+    pub allow_flight: bool,
+    pub initial_disabled_packs: Option<String>,
+    pub broadcast_rcon_to_ops: bool,
+    pub view_distance: u8,
     pub server_ip: Option<Ipv4Addr>,
-    resource_pack_prompt: Option<String>,
-    allow_nether: bool,
+    pub resource_pack_prompt: Option<String>,
+    pub allow_nether: bool,
     pub server_port: u16,
-    enable_rcon: bool,
-    sync_chunk_writes: bool,
+    pub enable_rcon: bool,
+    pub sync_chunk_writes: bool,
     pub op_permission_level: u8,
-    prevent_proxy_connections: bool,
-    hide_online_players: bool,
-    resource_pack: Option<String>,
-    entity_broadcast_range_percentage: u8,
-    simulation_distance: u8,
-    rcon_password: Option<String>,
-    player_idle_timeout: i32,
-    force_gamemode: bool,
-    rate_limit: u32,
-    hardcore: bool,
-    white_list: bool,
-    broadcast_console_to_ops: bool,
-    spawn_npcs: bool,
-    spawn_animals: bool,
-    log_ips: bool,
-    function_permission_level: u8,
-    initial_enabled_packs: String,
-    level_type: WorldPreset,
-    spawn_monsters: bool,
-    enforce_whitelist: bool,
-    spawn_protection: u16,
-    resource_pack_sha1: Option<String>,
-    max_world_size: u32,
+    pub prevent_proxy_connections: bool,
+    pub hide_online_players: bool,
+    pub resource_pack: Option<String>,
+    pub entity_broadcast_range_percentage: u8,
+    pub simulation_distance: u8,
+    pub rcon_password: Option<String>,
+    pub player_idle_timeout: i32,
+    pub force_gamemode: bool,
+    pub rate_limit: u32,
+    pub hardcore: bool,
+    pub white_list: bool,
+    pub broadcast_console_to_ops: bool,
+    pub spawn_npcs: bool,
+    pub spawn_animals: bool,
+    pub log_ips: bool,
+    pub function_permission_level: u8,
+    pub initial_enabled_packs: String,
+    pub level_type: WorldPreset,
+    pub spawn_monsters: bool,
+    pub enforce_whitelist: bool,
+    pub spawn_protection: u16,
+    pub resource_pack_sha1: Option<String>,
+    pub max_world_size: u32,
     //generator_settings:todo!(),
     //text_filtering_config:todo!(),
 }
@@ -121,299 +122,214 @@ fn read(filepath: &Path) -> std::io::Result<Properties> {
     read_properties::read_properties(&mut reader)
         .map_err(|e| Error::new(ErrorKind::Other, e.to_string()))
 }
+impl FromStr for Gamemode {
+    type Err = ();
+
+    fn from_str(input: &str) -> Result<Gamemode, Self::Err> {
+        match input.to_lowercase().as_str() {
+            "creative" => Ok(Gamemode::Creative),
+            "survival" => Ok(Gamemode::Survival),
+            "spectator" => Ok(Gamemode::Spectator),
+            "adventure" => Ok(Gamemode::Adventure),
+            _ => Err(()),
+        }
+    }
+}
+impl FromStr for WorldPreset {
+    type Err = ();
+
+    fn from_str(input: &str) -> Result<Self, Self::Err> {
+        match input.to_lowercase().as_str() {
+            "normal" => Ok(WorldPreset::Normal),
+            "flat" => Ok(WorldPreset::Flat),
+            "largebiomes" => Ok(WorldPreset::LargeBiomes),
+            "amplified" => Ok(WorldPreset::Amplified),
+            "singlebiomesurface" => Ok(WorldPreset::SingleBiomeSurface),
+            _ => Err(()),
+        }
+    }
+}
+impl FromStr for Difficulty {
+    type Err = ();
+
+    fn from_str(input: &str) -> Result<Difficulty, Self::Err> {
+        match input.to_lowercase().as_str() {
+            "easy" => Ok(Difficulty::Easy),
+            "normal" => Ok(Difficulty::Normal),
+            "hard" => Ok(Difficulty::Hard),
+            _ => Err(()), // Gère les valeurs inconnues
+        }
+    }
+}
+impl fmt::Display for Difficulty {
+    fn fmt(&self, f: &mut fmt::Formatter) -> fmt::Result {
+        let difficulty = match self {
+            Difficulty::Easy => "easy",
+            Difficulty::Normal => "normal",
+            Difficulty::Hard => "hard",
+        };
+        write!(f, "{}", difficulty)
+    }
+}
 
 impl Settings {
     pub fn new() -> Self {
         let config_file = read(Path::new(crate::consts::file_paths::PROPERTIES))
             .expect("Error reading {server.properties} file");
-
         Self {
-            enable_jmx_monitoring: config_file
-                .get_property("enable-jmx-monitoring")
-                .unwrap()
-                .parse::<bool>()
-                .unwrap(),
-            rcon_port: config_file
-                .get_property("rcon.port")
-                .unwrap()
-                .parse::<u16>()
-                .unwrap(),
-            level_seed: match config_file.get_property("level-seed").unwrap() {
-                "" => None,
-                s => Some(s.parse::<i64>().unwrap()),
-            },
-            gamemode: match config_file
-                .get_property("gamemode")
-                .unwrap()
-                .to_lowercase()
-                .as_str()
-            {
-                "creative" => Gamemode::Creative,
-                "survival" => Gamemode::Survival,
-                "spectator" => Gamemode::Spectator,
-                "adventure" => Gamemode::Adventure,
-                _ => Gamemode::Survival, // default value
-            },
-            enable_command_block: config_file
-                .get_property("enable-command-block")
-                .unwrap()
-                .parse::<bool>()
-                .unwrap(),
-            enable_query: config_file
-                .get_property("enable-query")
-                .unwrap()
-                .parse::<bool>()
-                .unwrap(),
-            enforce_secure_profile: config_file
-                .get_property("enforce-secure-profile")
-                .unwrap()
-                .parse::<bool>()
-                .unwrap(),
-            level_name: match config_file.get_property("level-name").unwrap() {
-                "" => None,
-                s => Some(s.parse::<String>().unwrap()),
-            },
-            motd: match config_file.get_property("motd").unwrap() {
-                "" => None,
-                s => Some(s.parse::<String>().unwrap()),
-            },
-            query_port: config_file
-                .get_property("query.port")
-                .unwrap()
-                .parse::<u16>()
-                .unwrap(),
-            pvp: config_file
-                .get_property("pvp")
-                .unwrap()
-                .parse::<bool>()
-                .unwrap(),
-            generate_structures: config_file
-                .get_property("generate-structures")
-                .unwrap()
-                .parse::<bool>()
-                .unwrap(),
-            max_chained_neighbor_updates: match config_file
-                .get_property("max-chained-neighbor-updates")
-                .unwrap()
-            {
-                "" => None,
-                s => Some(s.parse::<i32>().unwrap()),
-            },
-            difficulty: match config_file.get_property("difficulty").unwrap() {
-                "normal" => Difficulty::Normal,
-                "easy" => Difficulty::Easy,
-                "hard" => Difficulty::Hard,
-                _ => Difficulty::Easy, // default value
-            },
-            network_compression_threshold: config_file
-                .get_property("network-compression-threshold")
-                .unwrap()
-                .parse::<i32>()
-                .unwrap(),
-            max_tick_time: config_file
-                .get_property("max-tick-time")
-                .unwrap()
-                .parse::<i64>()
-                .unwrap(),
-            require_resource_pack: config_file
-                .get_property("require-resource-pack")
-                .unwrap()
-                .parse::<bool>()
-                .unwrap(),
-            use_native_transport: config_file
-                .get_property("use-native-transport")
-                .unwrap()
-                .parse::<bool>()
-                .unwrap(),
-            max_players: config_file
-                .get_property("max-players")
-                .unwrap()
-                .parse::<u32>()
-                .unwrap(),
-            online_mode: config_file
-                .get_property("online-mode")
-                .unwrap()
-                .parse::<bool>()
-                .unwrap(),
-            enable_status: config_file
-                .get_property("enable-status")
-                .unwrap()
-                .parse::<bool>()
-                .unwrap(),
-            allow_flight: config_file
-                .get_property("allow-flight")
-                .unwrap()
-                .parse::<bool>()
-                .unwrap(),
-            initial_disabled_packs: match config_file
-                .get_property("initial-disabled-packs")
-                .unwrap()
-            {
-                "" => None,
-                s => Some(s.parse::<String>().unwrap()),
-            },
-            broadcast_rcon_to_ops: config_file
-                .get_property("broadcast-rcon-to-ops")
-                .unwrap()
-                .parse::<bool>()
-                .unwrap(),
-            view_distance: config_file
-                .get_property("view-distance")
-                .unwrap()
-                .parse::<u8>()
-                .unwrap(),
-            server_ip: match config_file.get_property("server-ip").unwrap() {
-                "" => None,
-                s => Some(s.parse::<Ipv4Addr>().unwrap()),
-            },
-            resource_pack_prompt: match config_file.get_property("resource-pack-prompt").unwrap() {
-                "" => None,
-                s => Some(s.parse::<String>().unwrap()),
-            },
-            allow_nether: config_file
-                .get_property("allow-nether")
-                .unwrap()
-                .parse::<bool>()
-                .unwrap(),
-            server_port: config_file
-                .get_property("server-port")
-                .unwrap()
-                .parse::<u16>()
-                .unwrap(),
-            enable_rcon: config_file
-                .get_property("enable-rcon")
-                .unwrap()
-                .parse::<bool>()
-                .unwrap(),
-            sync_chunk_writes: config_file
-                .get_property("sync-chunk-writes")
-                .unwrap()
-                .parse::<bool>()
-                .unwrap(),
-            op_permission_level: config_file
-                .get_property("op-permission-level")
-                .unwrap()
-                .parse::<u8>()
-                .unwrap(),
-            prevent_proxy_connections: config_file
-                .get_property("prevent-proxy-connections")
-                .unwrap()
-                .parse::<bool>()
-                .unwrap(),
-            hide_online_players: config_file
-                .get_property("hide-online-players")
-                .unwrap()
-                .parse::<bool>()
-                .unwrap(),
-            resource_pack: match config_file.get_property("resource-pack").unwrap() {
-                "" => None,
-                s => Some(s.parse::<String>().unwrap()),
-            },
-            entity_broadcast_range_percentage: config_file
-                .get_property("entity-broadcast-range-percentage")
-                .unwrap()
-                .parse::<u8>()
-                .unwrap(),
-            simulation_distance: config_file
-                .get_property("simulation-distance")
-                .unwrap()
-                .parse::<u8>()
-                .unwrap(),
-            rcon_password: match config_file.get_property("rcon.password").unwrap() {
-                "" => None,
-                s => Some(s.parse::<String>().unwrap()),
-            },
-            player_idle_timeout: config_file
-                .get_property("simulation-distance")
-                .unwrap()
-                .parse::<i32>()
-                .unwrap(),
-            force_gamemode: config_file
-                .get_property("force-gamemode")
-                .unwrap()
-                .parse::<bool>()
-                .unwrap(),
-            rate_limit: config_file
-                .get_property("simulation-distance")
-                .unwrap()
-                .parse::<u32>()
-                .unwrap(),
-            hardcore: config_file
-                .get_property("hardcore")
-                .unwrap()
-                .parse::<bool>()
-                .unwrap(),
-            white_list: config_file
-                .get_property("white-list")
-                .unwrap()
-                .parse::<bool>()
-                .unwrap(),
-            broadcast_console_to_ops: config_file
-                .get_property("broadcast-console-to-ops")
-                .unwrap()
-                .parse::<bool>()
-                .unwrap(),
-            spawn_npcs: config_file
-                .get_property("spawn-npcs")
-                .unwrap()
-                .parse::<bool>()
-                .unwrap(),
-            spawn_animals: config_file
-                .get_property("spawn-animals")
-                .unwrap()
-                .parse::<bool>()
-                .unwrap(),
-            log_ips: config_file
-                .get_property("log-ips")
-                .unwrap()
-                .parse::<bool>()
-                .unwrap(),
-            function_permission_level: config_file
-                .get_property("function-permission-level")
-                .unwrap()
-                .parse::<u8>()
-                .unwrap(),
-            initial_enabled_packs: config_file
-                .get_property("initial-enabled-packs")
-                .unwrap()
-                .parse::<String>()
-                .unwrap(),
-            // level-type and also be "minecraft\:normal"
-            level_type: match config_file.get_property("level-type").unwrap() {
-                "normal" => WorldPreset::Normal,
-                "flat" => WorldPreset::Flat,
-                "large_biomes" => WorldPreset::LargeBiomes,
-                "amplified" => WorldPreset::SingleBiomeSurface,
-                "single_biome_surface" => WorldPreset::Amplified,
-                _ => WorldPreset::Normal, // default value
-            },
-            spawn_monsters: config_file
-                .get_property("spawn-monsters")
-                .unwrap()
-                .parse::<bool>()
-                .unwrap(),
-            enforce_whitelist: config_file
-                .get_property("enforce-whitelist")
-                .unwrap()
-                .parse::<bool>()
-                .unwrap(),
-            spawn_protection: config_file
-                .get_property("spawn-protection")
-                .unwrap()
-                .parse::<u16>()
-                .unwrap(),
-            resource_pack_sha1: match config_file.get_property("resource-pack-sha1").unwrap() {
-                "" => None,
-                s => Some(s.parse::<String>().unwrap()),
-            },
-            max_world_size: config_file
-                .get_property("max-world-size")
-                .unwrap()
-                .parse::<u32>()
-                .unwrap(),
-            //generator_settings: todo!(),
-            //text_filtering_config: todo!(),
+            enable_jmx_monitoring: Self::get_bool(&config_file, "enable-jmx-monitoring", false),
+            rcon_port: Self::get_u16(&config_file, "rcon.port", 25575),
+            level_seed: Self::get_optional_i64(&config_file, "level-seed"),
+            gamemode: Self::get_enum::<Gamemode>(&config_file, "gamemode", Gamemode::Survival),
+            enable_command_block: Self::get_bool(&config_file, "enable-command-block", false),
+            max_players: Self::get_u32(&config_file, "max-players", 20),
+            server_ip: Self::get_optional_ip(&config_file, "server-ip"),
+            server_port: Self::get_u16(&config_file, "server-port", 25565),
+            allow_flight: Self::get_bool(&config_file, "allow-flight", false),
+            allow_nether: Self::get_bool(&config_file, "allow-nether", true),
+            broadcast_console_to_ops: Self::get_bool(
+                &config_file,
+                "broadcast-console-to-ops",
+                true,
+            ),
+            difficulty: config_file
+                .get_property("difficulty")
+                .unwrap_or("easy")
+                .parse::<Difficulty>()
+                .unwrap_or(Difficulty::Easy),
+            broadcast_rcon_to_ops: Self::get_bool(&config_file, "broadcast-rcon-to-ops", true),
+            enable_query: Self::get_bool(&config_file, "enable-query", true),
+            enable_rcon: Self::get_bool(&config_file, "enable-rcon", false),
+            enable_status: Self::get_bool(&config_file, "enable-status", true),
+            enforce_secure_profile: Self::get_bool(&config_file, "enforce-secure-profil", true),
+            enforce_whitelist: Self::get_bool(&config_file, "enforce-whitelist", false),
+            entity_broadcast_range_percentage: Self::get_u8(
+                &config_file,
+                "entity-broadcast-range-percentage",
+                100,
+            ),
+            force_gamemode: Self::get_bool(&config_file, "force-gamemode", false),
+            function_permission_level: Self::get_u8(&config_file, "function-permission-level", 2),
+            generate_structures: Self::get_bool(&config_file, "generate-strucutre", true),
+            hardcore: Self::get_bool(&config_file, "hardcore", false),
+            hide_online_players: Self::get_bool(&config_file, "hide-online-players", false),
+            initial_disabled_packs: Self::get_optional_string(
+                &config_file,
+                "initial-disabled-packs",
+            ),
+            initial_enabled_packs: Self::get_optional_string(&config_file, "initial-enabled-packs")
+                .unwrap_or_else(|| "vanilla".to_string()),
+            level_name: Self::get_optional_string(&config_file, "level-name"),
+            level_type: config_file
+                .get_property("level-type")
+                .unwrap_or("normal")
+                .parse::<WorldPreset>()
+                .unwrap_or(WorldPreset::Normal),
+            log_ips: Self::get_bool(&config_file, "log-ips", true), // this one is obsured
+            max_chained_neighbor_updates: Self::get_optional_i32(
+                &config_file,
+                "max-chained-neighbor-updates",
+            ),
+            max_tick_time: Self::get_i64(&config_file, "max-tick-time", 60000),
+            max_world_size: Self::get_u32(&config_file, "max-world-size", 29999984),
+            motd: Self::get_optional_string(&config_file, "motd"),
+            network_compression_threshold: Self::get_i32(
+                &config_file,
+                "network-compression-threshold",
+                256,
+            ),
+            online_mode: Self::get_bool(&config_file, "online-mode", true),
+            op_permission_level: Self::get_u8(&config_file, "op-permission-level", 4),
+            player_idle_timeout: Self::get_i32(&config_file, "player-idle-timeout", 0),
+            prevent_proxy_connections: Self::get_bool(
+                &config_file,
+                "prevent-proxy-connections",
+                false,
+            ),
+            pvp: Self::get_bool(&config_file, "pvp", true),
+            query_port: Self::get_u16(&config_file, "query-port", 25565),
+            rate_limit: Self::get_u32(&config_file, "rate-limit", 0),
+            rcon_password: Self::get_optional_string(&config_file, "rcon.password"),
+            require_resource_pack: Self::get_bool(&config_file, "require-ressource-pack", false),
+            resource_pack: Self::get_optional_string(&config_file, "resource-pack"),
+            resource_pack_prompt: Self::get_optional_string(&config_file, "resource-pack-prompt"),
+            resource_pack_sha1: Self::get_optional_string(&config_file, "ressource-pack-sha1"),
+            simulation_distance: Self::get_u8(&config_file, "simulation-distance", 10),
+            spawn_animals: Self::get_bool(&config_file, "spawn-animals", true),
+            spawn_monsters: Self::get_bool(&config_file, "spawn-monster", true),
+            spawn_npcs: Self::get_bool(&config_file, "spawn-npcs", true),
+            spawn_protection: Self::get_u16(&config_file, "spawn-protection", 16),
+            sync_chunk_writes: Self::get_bool(&config_file, "sync-chunk-writes", false),
+            use_native_transport: Self::get_bool(&config_file, "use-native-transport", true),
+            view_distance: Self::get_u8(&config_file, "view-distance", 10),
+            white_list: Self::get_bool(&config_file, "white-list", false),
         }
     }
-    //fn gamemode_to_enum(inp)
+    fn get_bool(config: &Properties, key: &str, default: bool) -> bool {
+        config
+            .get_property(key)
+            .unwrap_or(default.to_string().as_str())
+            .parse()
+            .unwrap_or(default)
+    }
+    fn get_u16(config: &Properties, key: &str, default: u16) -> u16 {
+        config
+            .get_property(key)
+            .unwrap_or(default.to_string().as_str())
+            .parse()
+            .unwrap_or(default)
+    }
+    fn get_u32(config: &Properties, key: &str, default: u32) -> u32 {
+        config
+            .get_property(key)
+            .unwrap_or(default.to_string().as_str())
+            .parse()
+            .unwrap_or(default)
+    }
+    fn get_u8(config: &Properties, key: &str, default: u8) -> u8 {
+        config
+            .get_property(key)
+            .unwrap_or(default.to_string().as_str())
+            .parse()
+            .unwrap_or(default)
+    }
+    fn get_i32(config: &Properties, key: &str, default: i32) -> i32 {
+        config
+            .get_property(key)
+            .unwrap_or(default.to_string().as_str())
+            .parse()
+            .unwrap_or(default)
+    }
+    fn get_i64(config: &Properties, key: &str, default: i64) -> i64 {
+        config
+            .get_property(key)
+            .unwrap_or(default.to_string().as_str())
+            .parse()
+            .unwrap_or(default)
+    }
+    fn get_enum<T: std::str::FromStr>(config: &Properties, key: &str, default: T) -> T {
+        config
+            .get_property(key)
+            .unwrap_or("")
+            .parse()
+            .unwrap_or(default)
+    }
+    fn get_optional_string(config: &Properties, key: &str) -> Option<String> {
+        config
+            .get_property(key)
+            .ok()
+            .filter(|s| !s.is_empty())
+            .map(String::from)
+    }
+
+    fn get_optional_i64(config: &Properties, key: &str) -> Option<i64> {
+        config.get_property(key).ok().and_then(|s| s.parse().ok())
+    }
+    fn get_optional_i32(config: &Properties, key: &str) -> Option<i32> {
+        config.get_property(key).ok().and_then(|s| s.parse().ok())
+    }
+
+    fn get_optional_ip(config: &Properties, key: &str) -> Option<Ipv4Addr> {
+        config.get_property(key).ok().and_then(|s| s.parse().ok())
+    }
 }
