@@ -7,13 +7,17 @@ mod file_folder_parser;
 mod fs_manager;
 mod logging;
 mod net;
+use std::net::Ipv4Addr;
+
 use log::{error, info, warn};
 use net::packet;
 mod generate_overworld;
+mod greetings;
+mod handlers;
 mod player;
 mod seed_hasher;
+mod shutdown;
 mod time;
-
 use config::Gamemode;
 use consts::messages;
 use rayon::iter::{IntoParallelRefIterator, ParallelIterator};
@@ -48,8 +52,7 @@ async fn early_init() -> Result<(), Box<dyn std::error::Error>> {
     info!("{}", *messages::SERVER_STARTING);
 
     // Adds custom behavior to CTRL + C signal
-    init_ctrlc_handler()?;
-
+    handlers::init_ctrlc_handler()?;
     // A testing function, only in debug mode
     #[cfg(debug_assertions)]
     test();
@@ -62,17 +65,16 @@ async fn early_init() -> Result<(), Box<dyn std::error::Error>> {
 /// Essential server initialization logic.
 fn init() -> Result<(), Box<dyn std::error::Error>> {
     // Printing a greeting message
-    greet();
+    greetings::greet();
 
-    let tasks: Vec<Box<dyn Fn() + Send + Sync>> = vec![
-        Box::new(|| fs_manager::init().unwrap()),
-        Box::new(|| fs_manager::create_dirs()),
-        Box::new(|| fs_manager::create_other_files()),
-    ];
+    vec![
+        || fs_manager::init(),
+        || Ok(fs_manager::create_dirs()),
+        || Ok(fs_manager::create_other_files()),
+    ]
+    .par_iter()
+    .try_for_each(|task| task())?;
 
-    tasks.par_iter().for_each(|task| task());
-
-    // TODO: Not sure this has to be in main.rs
     let gamemode1 = match config::Settings::new().gamemode {
         Gamemode::Survival => "Survival",
         Gamemode::Adventure => "Adventure",
@@ -88,35 +90,16 @@ fn init() -> Result<(), Box<dyn std::error::Error>> {
 async fn start() -> Result<(), Box<dyn std::error::Error>> {
     info!(
         "Starting Minecraft server on {}:{}",
-        match config::Settings::new().server_ip {
-            Some(ip) => ip.to_string(),
-            None => "*".to_string(),
-        },
+        config::Settings::new()
+            .server_ip
+            .unwrap_or(Ipv4Addr::new(0, 0, 0, 0)), // 0.0.0.0
         config::Settings::new().server_port
     );
     info!("{}", *messages::SERVER_STARTED);
 
-    net::listen().await.map_err(|e| {
-        error!("Failed to listen for packets: {e}");
-        e
-    })?;
+    net::listen().await?;
 
     Ok(())
-}
-
-/// Sets up a behavior when the user executes CTRL + C.
-fn init_ctrlc_handler() -> Result<(), Box<dyn std::error::Error>> {
-    ctrlc::set_handler(move || {
-        info!("Received Ctrl+C, shutting down...");
-        gracefully_exit(ExitCode::CtrlC);
-    })?;
-
-    Ok(())
-}
-
-/// Prints the starting greetings
-fn greet() {
-    info!("{}", *messages::GREET);
 }
 
 #[cfg(debug_assertions)]
