@@ -21,6 +21,7 @@ bytes = "1.9.0"
 image = "0.25.5"
 base64 = "0.22.1"
 hematite-nbt = "0.5.2"
+rayon = "1.10.0"
 [dev-dependencies]
 rand = "0.8.5"
 tempfile = "3.14.0"

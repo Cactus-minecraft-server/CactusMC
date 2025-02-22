@@ -18,6 +18,7 @@ dependencies = [
  "log",
  "once_cell",
  "rand",
+ "rayon",
  "reqwest",
  "serde",
  "serde_json",
