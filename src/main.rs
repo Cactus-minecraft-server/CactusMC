@@ -16,6 +16,7 @@ mod time;
 
 use config::Gamemode;
 use consts::messages;
+use rayon::iter::{IntoParallelRefIterator, ParallelIterator};
 
 #[tokio::main]
 async fn main() {
@@ -63,10 +64,13 @@ fn init() -> Result<(), Box<dyn std::error::Error>> {
     // Printing a greeting message
     greet();
 
-    // Makes sure server files are initialized and valid.
-    fs_manager::init()?;
-    fs_manager::create_dirs();
-    fs_manager::create_other_files();
+    let tasks: Vec<Box<dyn Fn() + Send + Sync>> = vec![
+        Box::new(|| fs_manager::init().unwrap()),
+        Box::new(|| fs_manager::create_dirs()),
+        Box::new(|| fs_manager::create_other_files()),
+    ];
+
+    tasks.par_iter().for_each(|task| task());
 
     // TODO: Not sure this has to be in main.rs
     let gamemode1 = match config::Settings::new().gamemode {
