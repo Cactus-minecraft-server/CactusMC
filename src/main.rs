@@ -7,10 +7,9 @@ mod file_folder_parser;
 mod fs_manager;
 mod logging;
 mod net;
-use std::net::Ipv4Addr;
-
 use log::{error, info, warn};
 use net::packet;
+use std::net::Ipv4Addr;
 mod generate_overworld;
 mod greetings;
 mod handlers;
