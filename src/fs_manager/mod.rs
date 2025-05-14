@@ -213,14 +213,19 @@ pub fn write_ops_json(
 /// useful.
 pub fn clean_files() -> Result<(), std::io::Error> {
     // Define a helper function to handle file removals
+    let mut err: Option<io::Error> = None;
     fn remove_file(file_path: &str) -> Result<(), std::io::Error> {
         match fs::remove_file(file_path) {
             Ok(_) => {
                 info!("File deleted: {}", file_path);
                 Ok(())
             }
+            Err(e) if e.kind() == io::ErrorKind::NotFound => {
+                info!("File already deleted: {}", file_path);
+                Ok(())
+            }
             Err(e) => {
-                info!("Error when deleting file {}: {}", file_path, e);
+                error!("Error when deleting file {}: {}", file_path, e);
                 Err(e)
             }
         }
@@ -228,13 +233,17 @@ pub fn clean_files() -> Result<(), std::io::Error> {
 
     // Define a helper function to handle directory removals
     fn remove_dir(dir_path: &str) -> Result<(), std::io::Error> {
-        match fs::remove_dir(dir_path) {
+        match fs::remove_dir_all(dir_path) {
             Ok(_) => {
                 info!("Directory deleted: {}", dir_path);
                 Ok(())
             }
+            Err(e) if e.kind() == io::ErrorKind::NotFound => {
+                info!("Directory already deleted: {}", dir_path);
+                Ok(())
+            }
             Err(e) => {
-                info!("Error when deleting directory {}: {}", dir_path, e);
+                error!("Error when deleting directory {}: {}", dir_path, e);
                 Err(e)
             }
         }
@@ -253,8 +262,10 @@ pub fn clean_files() -> Result<(), std::io::Error> {
     ];
 
     // Delete files using the `remove_file` helper function
-    for file in &files {
-        remove_file(file)?;
+    for path in &files {
+        if let Err(e) = remove_file(path) {
+            err.get_or_insert(e);
+        }
     }
 
     // List all directories to be deleted
@@ -267,10 +278,13 @@ pub fn clean_files() -> Result<(), std::io::Error> {
     ];
 
     // Delete directories using the `remove_dir` helper function
-    for dir in &directories {
-        remove_dir(dir)?;
+    for path in &directories {
+        if let Err(e) = remove_dir(path) {
+            err.get_or_insert(e);
+        }
     }
-
-    info!("Files cleaned successfully before starting the server.");
-    gracefully_exit(0);
+    match err {
+        Some(e) => Err(e),
+        None => Ok(()),
+    }
 }

@@ -20,8 +20,6 @@ use consts::messages;
 
 #[tokio::main]
 async fn main() {
-    args::init();
-
     if let Err(e) = early_init().await {
         error!("Failed to start the server, error in early initialization: {e}. \nExiting...");
         gracefully_exit(-1);
@@ -44,6 +42,7 @@ async fn main() {
 async fn early_init() -> Result<(), Box<dyn std::error::Error>> {
     // This must executes as early as possible
     logging::init(log::LevelFilter::Debug);
+    args::init();
 
     info!("{}", *messages::SERVER_STARTING);
 
@@ -68,7 +67,6 @@ fn init() -> Result<(), Box<dyn std::error::Error>> {
     fs_manager::init()?;
     fs_manager::create_dirs();
     fs_manager::create_other_files();
-
     // TODO: Not sure this has to be in main.rs
     let gamemode1 = match config::Settings::new().gamemode {
         Gamemode::Survival => "Survival",
