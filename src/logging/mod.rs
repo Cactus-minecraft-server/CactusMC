@@ -1,31 +1,34 @@
-use std::{
-    fs::{File, OpenOptions},
-    os::fd::AsRawFd,
-};
-
-use env_logger::Builder;
+use env_logger::{Builder, Env, Target};
 use log::LevelFilter;
+use std::fs::File;
+use std::io::{self, Write};
+///
+struct Tee<W1: Write, W2: Write> {
+    a: W1,
+    b: W2,
+}
 
-/// Initializes the logging for the whole application
+impl<W1: Write, W2: Write> Write for Tee<W1, W2> {
+    fn write(&mut self, buf: &[u8]) -> io::Result<usize> {
+        let n = self.a.write(buf)?;
+        let _ = self.b.write(buf)?;
+        Ok(n)
+    }
+    fn flush(&mut self) -> io::Result<()> {
+        self.a.flush()?;
+        self.b.flush()
+    }
+}
+
 pub fn init(log_level: LevelFilter) {
-    let mut builder = Builder::new();
+    // TODO: Get back the colors on "INFO", "DEBUG", "ERROR","WARN" which was suppressed by format
+    // format is essential to intercept the log flow but it also modify the style of the logs
+    let file = File::create("logs/latest.log").unwrap();
+    let stderr = io::stderr();
+    let tee = Tee { a: file, b: stderr };
 
-    // TODO: Customize logging format. Making the logging level the right color is time consuming.
-
-    //builder.format(|buf, record| {
-    //    writeln!(
-    //        buf,
-    //        "[{}] [{}] [{}] {}",
-    //        chrono::Local::now().format("%Y-%m-%d %H:%M:%S"),
-    //        record.level(),
-    //        record.target(),
-    //        record.args()
-    //    )
-    //});
-
-    // And add use::io::Write; for the above code.
-
-    builder.filter_level(log_level);
-
-    builder.init();
+    Builder::from_env(Env::default())
+        .target(Target::Pipe(Box::new(tee)))
+        .filter_level(log_level)
+        .init();
 }

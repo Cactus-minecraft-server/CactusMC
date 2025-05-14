@@ -17,10 +17,10 @@ pub fn init() {
     if args.remove_files {
         if let Err(e) = fs_manager::clean_files() {
             error!("Error(s) when cleaning files");
-            gracefully_exit(-1);
+            gracefully_exit(0);
         } else {
             info!("Successfully cleaned the files");
-            gracefully_exit(-1);
+            gracefully_exit(0);
         }
     }
 }
