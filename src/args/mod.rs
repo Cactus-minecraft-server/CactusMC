@@ -1,6 +1,6 @@
-use crate::fs_manager;
+use crate::{fs_manager, gracefully_exit};
 use clap::Parser;
-use log::error;
+use log::{error, info};
 
 #[derive(Parser)]
 #[command(name = "CactusMC")]
@@ -14,10 +14,13 @@ struct Cli {
 /// Retrieves args and initializes the argument parsing logic.
 pub fn init() {
     let args = Cli::parse();
-
     if args.remove_files {
         if let Err(e) = fs_manager::clean_files() {
-            error!("Error(s) when cleaning files: {e}");
+            error!("Error(s) when cleaning files");
+            gracefully_exit(-1);
+        } else {
+            info!("Successfully cleaned the files");
+            gracefully_exit(-1);
         }
     }
 }
