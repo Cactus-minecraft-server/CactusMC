@@ -1,4 +1,4 @@
-use sha2::{Sha256, Digest};
+use sha2::{Digest, Sha256};
 
 fn generate_seed(input: String) -> i64 {
     // Try to parse the input string as an i64 directly
