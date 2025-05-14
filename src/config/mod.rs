@@ -417,4 +417,3 @@ impl Settings {
     }
     //fn gamemode_to_enum(inp)
 }
-
