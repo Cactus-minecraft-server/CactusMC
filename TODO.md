@@ -36,9 +36,9 @@
 * [ ] Extend GitHub Actions:
 
   * [ ] Tests on Linux, macOS, and Windows
-  * [x] Linux
-  * [ ] Windows
-  * [ ] macOS
+    * [x] Linux
+    * [ ] Windows
+    * [ ] macOS
   * [ ] Builds on Stable, Beta, and Nightly
   * [ ] Coverage report (using `tarpaulin` or `grcov`)
 * [ ] Automatically publish documentation to `docs.rs`
