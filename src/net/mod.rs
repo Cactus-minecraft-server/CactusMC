@@ -266,6 +266,21 @@ mod dispatch {
     }
 
     pub async fn transfer(conn: &Connection, packet: Packet) -> Result<Response, NetError> {
-        todo!()
+        if packet.get_id().get_value() != 0x00 {
+            return Err(NetError::UnknownPacketId(format!(
+                "unknown packet ID, State: Transfer, PacketId: {}",
+                packet.get_id().get_value()
+            )));
+        }
+
+        if !packet.get_payload().is_empty() {
+            return Err(NetError::Parsing(packet::PacketError::PayloadDecodeError(
+                "Login Finished packet should not contain data".into(),
+            )));
+        }
+
+        debug!("Received Login Finished, login sequence completed");
+
+        Ok(Response::new(None))
     }
 }
