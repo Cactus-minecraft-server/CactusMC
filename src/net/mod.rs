@@ -154,7 +154,7 @@ async fn handle_packet(conn: &Connection, packet: Packet) -> Result<Response, Ne
 
     // Dispatch packet depending on the current State.
     match conn.get_state().await {
-        ConnectionState::Handshake => dispatch::handshake(conn).await,
+        ConnectionState::Handshake => dispatch::handshake(conn, packet).await,
         ConnectionState::Status => dispatch::status(packet).await,
         ConnectionState::Login => dispatch::login(conn, packet).await,
         ConnectionState::Transfer => dispatch::transfer(conn, packet).await,
@@ -163,11 +163,48 @@ async fn handle_packet(conn: &Connection, packet: Packet) -> Result<Response, Ne
 
 mod dispatch {
     use super::*;
-    use packet::Response;
+    use byteorder::{BigEndian, ByteOrder};
+    use packet::{self, Response};
+    use uuid::Uuid;
+    use crate::player;
 
-    pub async fn handshake(conn: &Connection) -> Result<Response, NetError> {
-        // Set state to Status
-        conn.set_state(ConnectionState::Status).await;
+    pub async fn handshake(conn: &Connection, packet: Packet) -> Result<Response, NetError> {
+        if packet.get_id().get_value() != 0x00 {
+            return Err(NetError::UnknownPacketId(format!(
+                "unknown packet ID, State: Handshake, PacketId: {}",
+                packet.get_id().get_value()
+            )));
+        }
+
+        let data = packet.get_payload();
+        let (protocol_version, mut index) = packet::data_types::varint::read(data)
+            .map_err(|e| NetError::Parsing(packet::PacketError::PayloadDecodeError(e.to_string())))?;
+
+        let (_address, read) = packet::data_types::string::read(&data[index..])
+            .map_err(|e| NetError::Parsing(packet::PacketError::PayloadDecodeError(e.to_string())))?;
+        index += read;
+
+        if index + 2 > data.len() {
+            return Err(NetError::Parsing(packet::PacketError::PayloadDecodeError(
+                "Invalid handshake port".into(),
+            )));
+        }
+        let _port = BigEndian::read_u16(&data[index..index + 2]);
+        index += 2;
+
+        let (next_state, _) = packet::data_types::varint::read(&data[index..])
+            .map_err(|e| NetError::Parsing(packet::PacketError::PayloadDecodeError(e.to_string())))?;
+
+        match next_state {
+            1 => conn.set_state(ConnectionState::Status).await,
+            2 => conn.set_state(ConnectionState::Login).await,
+            _ => conn.set_state(ConnectionState::Status).await,
+        }
+
+        debug!(
+            "Handshake with protocol {protocol_version}, moving to state {:?}",
+            conn.get_state().await
+        );
 
         Ok(Response::new(None))
     }
@@ -203,7 +240,29 @@ mod dispatch {
     }
 
     pub async fn login(conn: &Connection, packet: Packet) -> Result<Response, NetError> {
-        todo!()
+        if packet.get_id().get_value() != 0x00 {
+            return Err(NetError::UnknownPacketId(format!(
+                "unknown packet ID, State: Login, PacketId: {}",
+                packet.get_id().get_value()
+            )));
+        }
+
+        let data = packet.get_payload();
+        let (username, _idx) = packet::data_types::string::read(data)
+            .map_err(|e| NetError::Parsing(packet::PacketError::PayloadDecodeError(e.to_string())))?;
+
+        let uuid = match player::get_uuid(&username).await {
+            Ok(id) => id,
+            Err(_) => Uuid::new_v4().to_string(),
+        };
+
+        let mut builder = packet::PacketBuilder::new();
+        builder.append_string(&uuid).append_string(&username);
+        let login_success = builder.build(0x02)?;
+
+        conn.set_state(ConnectionState::Transfer).await;
+
+        Ok(Response::new(Some(login_success)))
     }
 
     pub async fn transfer(conn: &Connection, packet: Packet) -> Result<Response, NetError> {
