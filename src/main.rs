@@ -8,9 +8,12 @@ mod fs_manager;
 mod logging;
 mod net;
 use log::{error, info, warn};
-use net::packet;
-mod generate_overworld;
+use net::packet::{
+    self,
+    data_types::{self, Encodable, VarInt},
+};
 mod encode_chunk;
+mod generate_overworld;
 mod player;
 mod seed_hasher;
 mod time;
@@ -92,6 +95,15 @@ async fn start() -> Result<(), Box<dyn std::error::Error>> {
         config::Settings::new().server_port
     );
     info!("{}", *messages::SERVER_STARTED);
+
+    // DELTE
+    // let arr: [u8; 10] = [0xFF, 0xFF, 0xFF, 0xFF, 0xFF, 0xFF, 0xFF, 0xFF, 0xFF, 0x01];
+    // let arr = [0b11111111, 0b11111111, 0b11111111, 0b11111111, 0b00001111];
+    // let arr = [0b10000000, 0b10000000, 0b10000000, 0b10000000, 0b00001000];
+    // let a = data_types::VarInt::from_bytes(arr).unwrap();
+    // println!("{arr:?} is {}", a.get_value());
+
+    // DETE
 
     net::listen().await.map_err(|e| {
         error!("Failed to listen for packets: {e}");
