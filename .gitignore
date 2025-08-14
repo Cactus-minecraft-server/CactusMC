@@ -137,3 +137,7 @@ src/server.properties
 
 # Other
 .editorconfig
+
+# Custom documentation
+book/
+docs-prod/

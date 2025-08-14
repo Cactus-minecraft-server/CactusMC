@@ -1,0 +1,60 @@
+name: Build & Publish Docs
+
+on:
+  push:           # just comment the branches main to trigger on any branch push.
+    branches:
+      - main
+  workflow_dispatch:
+
+permissions:
+  contents: read
+  pages: write          # required for actions/deploy-pages
+  id-token: write       # required for OIDC
+
+concurrency:
+  group: "pages"
+  cancel-in-progress: true
+
+jobs:
+  build:
+    runs-on: ubuntu-latest
+    steps:
+      - name: Checkout
+        uses: actions/checkout@v4
+
+      - name: Set up Rust
+        uses: dtolnay/rust-toolchain@stable
+
+      - name: Cache cargo registry + build
+        uses: Swatinem/rust-cache@v2
+        with:
+          cache-on-failure: true
+
+      - name: Install mdBook
+        run: cargo install mdbook --locked
+
+      # If you use any mdBook preprocessors, install them here too, e.g.:
+      # - name: Install mdbook-linkcheck
+      #   run: cargo install mdbook-linkcheck --locked
+
+      - name: Build documentation (mdBook + rustdoc)
+        run: |
+          cd docs
+          chmod +x ./build-docs
+          ./build-docs
+
+      - name: Upload Pages artifact
+        uses: actions/upload-pages-artifact@v3
+        with:
+          path: docs/docs-prod
+
+  deploy:
+    needs: build
+    runs-on: ubuntu-latest
+    environment:
+      name: github-pages
+      url: ${{ steps.deployment.outputs.page_url }}
+    steps:
+      - name: Deploy to GitHub Pages
+        id: deployment
+        uses: actions/deploy-pages@v4
