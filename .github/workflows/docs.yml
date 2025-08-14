@@ -1,15 +1,15 @@
 name: Build & Publish Docs
 
 on:
-  push:           # just comment the branches main to trigger on any branch push.
+  push:  # remove branches - main. to allow any push to trigger the deployment.
     branches:
       - main
   workflow_dispatch:
 
 permissions:
   contents: read
-  pages: write          # required for actions/deploy-pages
-  id-token: write       # required for OIDC
+  pages: write
+  id-token: write
 
 concurrency:
   group: "pages"
@@ -30,12 +30,14 @@ jobs:
         with:
           cache-on-failure: true
 
-      - name: Install mdBook
-        run: cargo install mdbook --locked
+      - name: Download prebuilt mdBook
+        run: |
+          curl -L https://github.com/rust-lang/mdBook/releases/download/v0.4.52/mdbook-v0.4.52-x86_64-unknown-linux-musl.tar.gz \
+            -o mdbook.tar.gz
+          tar -xzf mdbook.tar.gz
+          sudo mv mdbook /usr/local/bin/
+          mdbook --version
 
-      # If you use any mdBook preprocessors, install them here too, e.g.:
-      # - name: Install mdbook-linkcheck
-      #   run: cargo install mdbook-linkcheck --locked
 
       - name: Build documentation (mdBook + rustdoc)
         run: |
