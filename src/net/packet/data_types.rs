@@ -2432,4 +2432,45 @@ mod tests {
             panic!("Expected a decoding error for the invalid byte");
         }
     }
+
+    // ----- Byte data type -----
+
+    #[test]
+    fn test_byte_all_valid_values() {
+        for v in i8::MIN..=i8::MAX {
+            // Test from values
+            let b_val = Byte::from_value(v).unwrap();
+            assert_eq!(b_val.get_value(), v);
+            assert_eq!(b_val.get_bytes(), v.to_be_bytes());
+            assert_eq!(b_val.len(), 1);
+
+            // Test from bytes
+            let b_bytes = Byte::from_bytes(v.to_be_bytes()).unwrap();
+            assert_eq!(b_bytes.get_value(), v);
+            assert_eq!(b_bytes.get_bytes(), v.to_be_bytes());
+            assert_eq!(b_bytes.len(), 1);
+        }
+
+        for v in i8::MIN..=i8::MAX {
+            let b = Byte::from_value(v).unwrap();
+            assert_eq!(Byte::from_bytes(b.get_bytes()).unwrap(), b);
+        }
+    }
+
+    #[test]
+    fn test_byte_all_binary_values() {
+        for v in u8::MIN..=u8::MAX {
+            let b = Byte::from_bytes(v.to_be_bytes()).unwrap();
+
+            assert_eq!(b.get_value(), v.cast_signed());
+            assert_eq!(b.get_bytes(), v.to_be_bytes());
+            assert_eq!(b.len(), 1);
+        }
+    }
+
+    #[test]
+    fn byte_from_bytes_rejects_wrong_lengths() {
+        assert!(Byte::from_bytes([]).is_err());
+        assert!(Byte::from_bytes([0, 1]).is_ok());
+    }
 }
