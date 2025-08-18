@@ -1,11 +1,15 @@
 //! This module manages the TCP server and how/where the packets are managed/sent.
 pub mod packet;
 pub mod slp;
+
 use crate::config;
-use bytes::BytesMut;
+use crate::net::packet::data_types::DataType;
+use crate::net::packet::{data_types, utils};
+use bytes::{Buf, BytesMut};
 use log::{debug, error, info, warn};
 use packet::data_types::{CodecError, Encodable};
 use packet::{Packet, PacketError, Response};
+use std::cmp::min;
 use std::io;
 use std::sync::Arc;
 use thiserror::Error;
@@ -79,13 +83,19 @@ impl Default for ConnectionState {
 struct Connection {
     state: Arc<Mutex<ConnectionState>>,
     socket: Arc<Mutex<TcpStream>>,
+    buffer: Mutex<BytesMut>,
 }
 
 impl Connection {
+    /// Base buffer size and the number of bytes we're trying to read from the socket.
+    const BUFFER_SIZE: usize = 512;
+    const MAX_PACKET_TRIES: usize = 100;
+
     fn new(socket: TcpStream) -> Self {
         Self {
             state: Arc::new(Mutex::new(ConnectionState::default())),
             socket: Arc::new(Mutex::new(socket)),
+            buffer: Mutex::new(BytesMut::with_capacity(Self::BUFFER_SIZE)),
         }
     }
 
@@ -112,6 +122,108 @@ impl Connection {
         Ok(socket.write_all(data.as_ref()).await?)
     }
 
+    /// Attempts to read a packet size (in bytes, in VarInt).
+    /// If yes, return size. (prepending the conn buffer)
+    /// If no, append bytes to connection buffer.
+    async fn wait_size(&self, bytes: &[u8]) -> Result<(usize, usize), ()> {
+        debug!("INTO WAIT_SIZE");
+        // TODO: REWRITE THIS WITH ZERO COPY. INEFFICIENT!
+        // TODO: REWRITE THIS WITH ZERO COPY. INEFFICIENT!
+        // TODO: REWRITE THIS WITH ZERO COPY. INEFFICIENT!
+        // TODO: REWRITE THIS WITH ZERO COPY. INEFFICIENT!
+        // TODO: REWRITE THIS WITH ZERO COPY. INEFFICIENT!
+        // TODO: ADD CONCRETE ERRORS AND PROPAGATE;
+        // TODO: ADD CONCRETE ERRORS AND PROPAGATE;
+        // TODO: ADD CONCRETE ERRORS AND PROPAGATE;
+        // TODO: ADD CONCRETE ERRORS AND PROPAGATE;
+        // TODO: ADD CONCRETE ERRORS AND PROPAGATE;
+        // TODO: ADD CONCRETE ERRORS AND PROPAGATE;
+        let mut buffer = self.buffer.lock().await;
+        let buffer_size: usize = buffer.len();
+        // OLDEST bytes first.
+        let read: Vec<u8> = buffer.iter().chain(bytes).copied().collect();
+        debug!("wait_size() buffer: {}", utils::get_dec_repr(&read));
+
+        match data_types::VarInt::from_bytes(read) {
+            Ok(size) => {
+                debug!("Read VarInt from wait_size(): {}", size.get_value());
+                let s = usize::try_from(size.get_value()).map_err(|e| {
+                    error!("Error while converting packet size into usize: {e}");
+                })?;
+                // Left-shift the buffers' items to account for this VarInt.
+                buffer.advance(min(buffer_size, size.len()));
+                Ok((s, size.len()))
+            }
+            Err(_) => {
+                //buffer.extend_from_slice(bytes);
+                Err(())
+            }
+        }
+    }
+    /// Wait for the number of bytes wait_size() spew.
+    /// If yes, return packet. (prepending the conn buffer)
+    /// If no, append bytes to connection buffer.
+    async fn wait_packet(&self, bytes: &[u8], size: usize, size_size: usize) -> Result<Packet, ()> {
+        // TODO: REWRITE THIS WITH ZERO COPY. INEFFICIENT!
+        // TODO: REWRITE THIS WITH ZERO COPY. INEFFICIENT!
+        // TODO: REWRITE THIS WITH ZERO COPY. INEFFICIENT!
+        // TODO: REWRITE THIS WITH ZERO COPY. INEFFICIENT!
+        // TODO: REWRITE THIS WITH ZERO COPY. INEFFICIENT!
+        // TODO: ADD CONCRETE ERRORS AND PROPAGATE;
+        // TODO: ADD CONCRETE ERRORS AND PROPAGATE;
+        // TODO: ADD CONCRETE ERRORS AND PROPAGATE;
+        // TODO: ADD CONCRETE ERRORS AND PROPAGATE;
+        // TODO: ADD CONCRETE ERRORS AND PROPAGATE;
+
+        let mut buffer = self.buffer.lock().await;
+        // Size of connection buffer.
+        let buffer_size: usize = buffer.len();
+
+        // OLDEST bytes first!
+        let read: Vec<u8> = buffer.iter().chain(bytes).copied().collect();
+
+        // Size of only the payload of the frame (ID + Data)
+        //let payload_size: usize = size - size_size;
+        // Size of ALL the frame.
+        let frame_size: usize = size + size_size;
+
+
+        // The concatenated [CONN BUFF + SOCK READ] is smaller than the frame.
+        if (read.len() < frame_size) {
+            buffer.extend_from_slice(bytes);
+            warn!("Frame size is bigger than cached data");
+            debug!("Cached data: {}", utils::get_dec_repr(&read));
+            debug!("Frame size: {}", frame_size);
+            Err(())
+        } else {
+            //if (size_size >= size) {
+            if 0 == size {
+                error!("Size is zero");
+                return Err(());
+            }
+
+            let frame = &read[..frame_size];
+            debug!("Cached data b4 advance: {}", utils::get_dec_repr(&buffer));
+            buffer.advance(min(frame_size, buffer_size));
+            debug!("Cached data after advance: {}", utils::get_dec_repr(&buffer));
+            debug!("Frame: {frame:?}");
+            match Packet::new(frame) {
+                Ok(p) => {
+                    if (frame_size < read.len()) {
+                        debug!("Cached data b4 extend: {}", utils::get_dec_repr(&buffer));
+                        buffer.extend_from_slice(&read[frame_size..]);
+                        debug!("Cached data after extend: {}", utils::get_dec_repr(&buffer));
+                    }
+                    Ok(p)
+                }
+                Err(e) => {
+                    error!("Error while making packet: {e}");
+                    Err(())
+                }
+            }
+        }
+    }
+
     /// Reads the socket for a full valid frame (packet).
     /// # Behavior
     /// - Maintains a per-connection buffer.
@@ -127,24 +239,114 @@ impl Connection {
     ///
     /// Return the frame.
     async fn read(&self) -> Result<Packet, NetError> {
-        let mut buffer = BytesMut::with_capacity(512);
+        // TODO: DROP TRIES AND ADD TIMEOUT!!
+        // TODO: DROP TRIES AND ADD TIMEOUT!!
+        // TODO: DROP TRIES AND ADD TIMEOUT!!
+        // TODO: DROP TRIES AND ADD TIMEOUT!!
+        // TODO: DROP TRIES AND ADD TIMEOUT!!
+
+        let mut buffer = BytesMut::with_capacity(Self::BUFFER_SIZE);
         let mut socket = self.socket.lock().await;
 
-        let read: usize = socket.read_buf(&mut buffer).await?;
+        for try_count in 1..=Self::MAX_PACKET_TRIES {
+            // 1) Try to parse the length (once).
+            let size_res = Self::wait_size(self, &buffer).await;
+            if size_res.is_err() {
+                let n = socket.read_buf(&mut buffer).await?;
+                if n == 0 { return Err(NetError::ConnectionClosed("read 0 bytes".into())); }
+                continue;
+            }
+            let (size, size_len) = size_res.unwrap();
 
-        if read == 0 {
-            warn!("Read zero bytes; connection should be closed.");
-            return Err(NetError::ConnectionClosed("read 0 bytes".to_string()));
+            // 2) Try to split the frame.
+            if let Ok(pkt) = Self::wait_packet(self, &buffer, size, size_len).await {
+                return Ok(pkt);
+            }
+
+            // 3) Need more bytes.
+            let n = socket.read_buf(&mut buffer).await?;
+            if n == 0 { return Err(NetError::ConnectionClosed("read 0 bytes".into())); }
         }
 
-        Ok(Packet::new(&buffer)?)
+        return Err(NetError::Reading("Failed to delimit".to_string()));
+
+
+
+        // Try to read a packet, up to MAX_PACKET_TRIES tries (basically socket reads).
+        for try_count in 1..=Self::MAX_PACKET_TRIES {
+            let is_conn_buf_empty: bool = { self.buffer.lock().await.is_empty() };
+
+            if Self::wait_size(self, &buffer).await.is_err() {
+                let n = socket.read_buf(&mut buffer).await?;
+                if n == 0 { return Err(NetError::ConnectionClosed("read 0 bytes".into())); }
+                continue;
+            }
+
+            // unwrap??
+            let (size, size_len) = Self::wait_size(self, &buffer).await.unwrap();
+
+            // 2) If we don't yet have size_len + size bytes, read more.
+            if Self::wait_packet(self, &buffer, size, size_len).await.is_err() {
+                let n = socket.read_buf(&mut buffer).await?;
+                if n == 0 { return Err(NetError::ConnectionClosed("read 0 bytes".into())); }
+                continue;
+            }
+
+            // 3) Now we have a full frame.
+            let pkt = Self::wait_packet(self, &buffer, size, size_len).await.unwrap();
+            return Ok(pkt);
+
+            debug!("Try in read() to split a frame from stream");
+            if is_conn_buf_empty {
+                let read: usize = socket.read_buf(&mut buffer).await?;
+                if read == 0 {
+                    warn!("Read zero bytes; connection should be closed.");
+                    return Err(NetError::ConnectionClosed("read 0 bytes".to_string()));
+                }
+            }
+
+            debug!(
+                "TCP buffer received ({}): {}",
+                buffer.len(),
+                crate::net::packet::utils::get_dec_repr(&buffer)
+            );
+            // VarInt Value / VarInt Size
+            if let Ok(size_varint) = Self::wait_size(self, &buffer).await {
+                debug!("Got packet with size: {}", size_varint.0);
+                if let Ok(packet) =
+                    Self::wait_packet(self, &buffer, size_varint.0, size_varint.1).await
+                {
+                    debug!("Split a packet: {packet:?}");
+                    return Ok(packet);
+                } else {
+                    warn!(
+                        "Failed to delimit packet with current read bytes; try #{}/{}",
+                        try_count,
+                        Self::MAX_PACKET_TRIES
+                    );
+                }
+            } else {
+                warn!(
+                    "Failed to delimit packet SIZE with current read bytes; try #{}/{}",
+                    try_count,
+                    Self::MAX_PACKET_TRIES
+                );
+            }
+        }
+
+        Err(NetError::Reading(
+            "Failed to delimit packet in socket stream".to_string(),
+        ))
     }
 
     /// Tries to close the connection with the Minecraft client
     async fn close(&self) -> Result<(), std::io::Error> {
+        info!("Connection closed: {:?}", self.socket);
         self.socket.lock().await.shutdown().await
     }
 }
+
+const IS_CRUEL: bool = true;
 
 /// Handles each connection. Receives every packet.
 async fn handle_connection(socket: TcpStream) -> Result<(), NetError> {
@@ -156,13 +358,18 @@ async fn handle_connection(socket: TcpStream) -> Result<(), NetError> {
     let mut packet_count: usize = 0;
 
     loop {
+        debug!("handle_connection() loop");
         // Read the socket and wait for a packet
-        let packet: Packet = connection.read().await?;
+        let res = connection.read().await;
+        if res.is_err() && IS_CRUEL {
+            connection.close().await?;
+        }
+        let packet: Packet = res?;
 
         #[cfg(debug_assertions)]
         {
             packet_count += 1;
-            debug!("Parsed packet #{}: {}", packet_count, packet);
+            debug!("Got packet #{}: {}", packet_count, packet);
         }
 
         let response: Response = handle_packet(&connection, packet).await?;
@@ -181,9 +388,12 @@ async fn handle_connection(socket: TcpStream) -> Result<(), NetError> {
             // Temp warn
             error!("THIS MUST BE FIXED/MORE INFO!!! PLEASE PAY ATTENTION TO ME~~~!");
             warn!("Got response None. Not sending any packet to the MC client");
+            //connection.close().await?;
         }
     }
 }
+
+//async fn socket_transmitter
 
 /// This function returns an appropriate response given the input `buffer` packet data.
 async fn handle_packet(conn: &Connection, packet: Packet) -> Result<Response, NetError> {
@@ -201,7 +411,6 @@ async fn handle_packet(conn: &Connection, packet: Packet) -> Result<Response, Ne
 }
 
 mod dispatch {
-
     use super::*;
     use packet::packet_types::configuration::*;
     use packet::packet_types::handshake::*;
@@ -216,9 +425,10 @@ mod dispatch {
 
     pub async fn handshake(packet: Packet, conn: &Connection) -> Result<Response, NetError> {
         // Set state to Status
-        debug!("Hanshake packet: {:?}", packet.get_full_packet());
+        debug!("Handshake packet: {:?}", packet.get_full_packet());
         conn.set_state(ConnectionState::Status).await;
 
+        debug!("Trying to create handshake packet...");
         let handshake_packet: Handshake = packet.try_into()?;
 
         match handshake_packet.next_state {
