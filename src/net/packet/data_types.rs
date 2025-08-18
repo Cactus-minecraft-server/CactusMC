@@ -1,7 +1,6 @@
 use core::{fmt, str};
 
 use log::debug;
-use serde_json::error::Category::Data;
 use thiserror::Error;
 
 pub trait Encodable: Sized + Default + fmt::Debug + Clone + PartialEq + Eq {

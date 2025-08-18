@@ -8,10 +8,7 @@ mod fs_manager;
 mod logging;
 mod net;
 use log::{error, info, warn};
-use net::packet::{
-    self,
-    data_types::{self, Encodable, VarInt},
-};
+use net::packet;
 mod encode_chunk;
 mod generate_overworld;
 mod player;
