@@ -29,7 +29,7 @@ pub struct Packet {
     /// An ID that each Packet has, varint-decoded.
     id: VarInt,
 
-    /// The raw bytes making the packet. (so it contains ALL of the packet, Length, Packet ID and
+    /// The raw bytes making the packet. (so it contains ALL the packet, Length, Packet ID and
     /// the data bytes)
     data: BytesMut,
 
@@ -47,7 +47,7 @@ pub struct Packet {
 // TODO: A PACKET BUILDER!!!!!!!!!!!
 
 impl Packet {
-    /// Initalizes a new `Packet` by parsing the `data` buffer.
+    /// Initializes a new `Packet` by parsing the `data` buffer.
     pub fn new<T: AsRef<[u8]>>(data: T) -> Result<Self, PacketError> {
         let parsed = Self::parse_packet(data.as_ref())?;
         Ok(Self {
@@ -260,7 +260,7 @@ impl PacketBuilder {
 // TODO: I wonder if having "invalid" value, like a too short/long Length should propagate an error
 // when creating a Packet.
 
-/// Represents a reponse to the Minecraft client.
+/// Represents a response to the Minecraft client.
 pub struct Response {
     /// The packet to respond
     packet: Option<Packet>,
@@ -301,7 +301,6 @@ impl Response {
 
 #[cfg(test)]
 mod tests {
-
     use super::*;
 
     #[test]

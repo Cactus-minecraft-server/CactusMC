@@ -112,6 +112,20 @@ impl Connection {
         Ok(socket.write_all(data.as_ref()).await?)
     }
 
+    /// Reads the socket for a full valid frame (packet).
+    /// # Behavior
+    /// - Maintains a per-connection buffer.
+    ///
+    /// Zeroth, if connection buffer not empty, read from it.
+    ///
+    /// First, wait for reading a **complete** packet length (VarInt).
+    ///
+    /// Second, waits for reading the complete frame, so it reads the parsed VarInt.
+    ///
+    /// Third, if there is more bytes than what we read as a first frame, we put that inside
+    /// the connection buffer.
+    ///
+    /// Return the frame.
     async fn read(&self) -> Result<Packet, NetError> {
         let mut buffer = BytesMut::with_capacity(512);
         let mut socket = self.socket.lock().await;
@@ -119,7 +133,7 @@ impl Connection {
         let read: usize = socket.read_buf(&mut buffer).await?;
 
         if read == 0 {
-            info!("Connection closed gracefully with (read 0 bytes)");
+            warn!("Read zero bytes; connection should be closed.");
             return Err(NetError::ConnectionClosed("read 0 bytes".to_string()));
         }
 
@@ -138,9 +152,18 @@ async fn handle_connection(socket: TcpStream) -> Result<(), NetError> {
 
     let connection = Connection::new(socket);
 
+    #[cfg(debug_assertions)]
+    let mut packet_count: usize = 0;
+
     loop {
         // Read the socket and wait for a packet
         let packet: Packet = connection.read().await?;
+
+        #[cfg(debug_assertions)]
+        {
+            packet_count += 1;
+            debug!("Parsed packet #{}: {}", packet_count, packet);
+        }
 
         let response: Response = handle_packet(&connection, packet).await?;
 
@@ -150,12 +173,13 @@ async fn handle_connection(socket: TcpStream) -> Result<(), NetError> {
             debug!("Sent a packet with ID={:02X}", packet.get_id().get_value());
 
             if response.does_close_conn() {
-                warn!("Sent a packet that will close the connection");
+                info!("Connection closed.");
                 connection.close().await?;
                 return Ok(());
             }
         } else {
             // Temp warn
+            error!("THIS MUST BE FIXED/MORE INFO!!! PLEASE PAY ATTENTION TO ME~~~!");
             warn!("Got response None. Not sending any packet to the MC client");
         }
     }

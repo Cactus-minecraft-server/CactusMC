@@ -2,11 +2,9 @@
 
 use core::fmt;
 use std::sync::OnceLock;
-use super::utils;
 
 use dashmap::DashMap;
 use handshake::Handshake;
-use log::error;
 
 use super::{
     data_types::{
@@ -196,6 +194,7 @@ pub mod handshake {
             let server_address: StringProtocol = StringProtocol::consume_from_bytes(&mut data)?;
             let server_port: UnsignedShort = UnsignedShort::consume_from_bytes(&mut data)?;
             let next_state: NextState = NextState::new(VarInt::consume_from_bytes(&mut data)?)?;
+            println!("{next_state:?}");
 
             let packet: Packet = PacketBuilder::new()
                 .append_bytes(protocol_version.get_bytes())
@@ -203,10 +202,6 @@ pub mod handshake {
                 .append_bytes(server_port.get_bytes())
                 .append_bytes(next_state.get_varint().get_bytes())
                 .build(Self::PACKET_ID)?;
-
-            println!("1: {}", utils::get_hex_repr(packet.get_payload()));
-            println!("2: {}", utils::get_hex_repr(bytes.as_ref()));
-            assert_eq!(packet.get_payload(), bytes.as_ref());
 
             Ok(Self {
                 protocol_version,
