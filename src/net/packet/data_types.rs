@@ -1,7 +1,7 @@
 use core::{fmt, str};
-use std::fmt::write;
 
 use log::debug;
+use serde_json::error::Category::Data;
 use thiserror::Error;
 
 pub trait Encodable: Sized + Default + fmt::Debug + Clone + PartialEq + Eq {
@@ -50,6 +50,7 @@ pub enum DataType {
     Array(Vec<DataType>),
     Boolean,
     Optional(Box<DataType>),
+    Byte,
     Other(&'static str),
 }
 
@@ -64,6 +65,7 @@ impl std::fmt::Display for DataType {
             DataType::Array(types) => write!(f, "Array of {types:?}"),
             DataType::Boolean => write!(f, "Boolean"),
             DataType::Optional(optional) => write!(f, "Optional of {:?}", *optional),
+            DataType::Byte => write!(f, "Byte"),
             DataType::Other(name) => write!(f, "{}", name),
         }
     }
@@ -96,6 +98,7 @@ impl From<DataTypeContent> for DataType {
                     DataType::Optional(Box::new(Self::Other("")))
                 }
             }
+            DataTypeContent::Byte(_) => DataType::Byte,
             DataTypeContent::Other(_) => DataType::Other(""), // Or however you handle "Other"
         }
     }
@@ -139,7 +142,7 @@ pub enum CodecError {
 }
 
 /// Implementation of the LEB128 variable-length code compression algorithm.
-/// Pseudo-code of this algorithm taken from https://wiki.vg/Protocol#VarInt_and_VarLong
+/// Pseudocode of this algorithm taken from https://wiki.vg/Protocol#VarInt_and_VarLong
 /// A VarInt may not be longer than 5 bytes.
 #[derive(Debug, Default, Clone, PartialEq, Eq)]
 pub struct VarInt {
@@ -190,7 +193,7 @@ impl VarInt {
         }
     }
 
-    /// This function encodes a i32 to a Vec<u8>.
+    /// This function encodes an i32 to a Vec<u8>.
     /// The returned Vec<u8> may not be longer than 5 elements.
     fn write(mut value: i32) -> Result<Vec<u8>, CodecError> {
         let mut result = Vec::<u8>::with_capacity(5);
@@ -262,7 +265,7 @@ impl Encodable for VarInt {
 }
 
 /// Implementation of the LEB128 variable-length compression algorithm.
-/// Pseudo-code of this algorithm from https://wiki.vg/Protocol#VarInt_and_VarLong.
+/// Pseudocode of this algorithm from https://wiki.vg/Protocol#VarInt_and_VarLong.
 /// A VarLong may not be longer than 10 bytes.
 #[derive(Debug, Default, Clone, PartialEq, Eq)]
 pub struct VarLong {
@@ -514,7 +517,7 @@ impl Encodable for StringProtocol {
         let string: (String, usize) = Self::read(data)?;
         Ok(Self {
             string: string.0,
-            // Only take take the string, no more.
+            // Only take the string, no more.
             bytes: data[..string.1].to_vec(),
         })
     }
@@ -601,7 +604,7 @@ impl Encodable for UnsignedShort {
 #[derive(Debug, Default, Clone, PartialEq, Eq)]
 pub struct Uuid {
     value: u128,
-    /// There are 16 bytes in a u128.
+    /// There are 16 bytes in an u128.
     bytes: [u8; 16],
 }
 
@@ -677,6 +680,7 @@ pub enum DataTypeContent {
     Array(Array),
     Boolean(Boolean),
     Optional(Box<Optional>),
+    Byte(Byte),
     Other(&'static str),
 }
 
@@ -692,6 +696,7 @@ impl DataTypeContent {
             DataTypeContent::Array(array) => array.len(),
             DataTypeContent::Boolean(boolean) => boolean.len(),
             DataTypeContent::Optional(optional) => (*optional).len(),
+            DataTypeContent::Byte(v) => v.len(),
             DataTypeContent::Other(_) => 0, // Assuming `Other` doesn't have a meaningful length
         }
     }
@@ -707,6 +712,7 @@ impl DataTypeContent {
             DataTypeContent::Array(array) => array.get_bytes(),
             DataTypeContent::Boolean(boolean) => boolean.get_bytes(),
             DataTypeContent::Optional(optional) => (*optional).get_bytes(),
+            DataTypeContent::Byte(v) => v.get_bytes(),
             DataTypeContent::Other(_) => &[], // Assuming `Other` doesn't have a meaningful length
         }
     }
@@ -753,6 +759,10 @@ impl DataTypeContent {
             DataType::Optional(inner_type) => {
                 let optional = Optional::consume_from_bytes(&mut data, *inner_type)?;
                 Ok(DataTypeContent::Optional(Box::new(optional)))
+            }
+            DataType::Byte => {
+                let byte = Byte::consume_from_bytes(&mut data)?;
+                Ok(DataTypeContent::Byte(byte))
             }
             DataType::Other(value) => Err(CodecError::Decoding(
                 data_type,
@@ -804,6 +814,7 @@ impl DataType {
             DataType::Array(_) => DataTypeContent::Array(Array::default()),
             DataType::Boolean => DataTypeContent::Boolean(Boolean::default()),
             DataType::Optional(_) => DataTypeContent::Optional(Box::new(Optional::default())),
+            DataType::Byte => DataTypeContent::Byte(Byte::default()),
             DataType::Other(_) => DataTypeContent::Other(""),
         }
     }
@@ -836,7 +847,7 @@ impl Array {
 
         let mut array_types: Vec<DataTypeContent> = Vec::new();
 
-        // All of the Array's types lengths.
+        // All the Array's types lengths.
         let mut array_length: usize = 0;
 
         for data_type in data_types {
@@ -1019,8 +1030,10 @@ impl Optional {
     }
 
     /// Creates an instance from the first data type from a byte slice.
-    /// Read bytes are consumed. For instance, if you were to read an UnsignedByte on [1, 5, 4, 8],
+    /// Read bytes are consumed. For instance, if you were to read an UnsignedByte (did I mean an u16?) on [1, 5, 4, 8],
     /// the buffer would then be [4, 8] after the function call.
+    ///
+    /// TODO: IS THIS CORRECT? SHOULD AN OPTIONAL CONSUME? IF THERE IS NO DATA, THERE SHOULD BE NO CONSUMPTION?
     fn consume_from_bytes(bytes: &mut &[u8], data_type: DataType) -> Result<Self, CodecError> {
         let instance = Self::from_bytes(*bytes, data_type)?;
         *bytes = &bytes[instance.len()..];
@@ -1067,37 +1080,30 @@ impl Default for Optional {
     }
 }
 
-/// Represents a signed byte (two's complement)
+/// Represents a signed 8-bit integer, two's complement
+/// Bounds: An integer between -128 and 127
 #[derive(Debug, Default, Clone, PartialEq, Eq)]
 struct Byte {
     value: i8,
-    bytes: [i8; 1],
+    bytes: [u8; 1],
 }
 
 impl Byte {
-    /// Reads the first 8 bytes of the provided data in Big Endian format.
+    /// Reads the first byte of the provided data in Big Endian format.
     fn read<T: AsRef<[u8]>>(bytes: T) -> Result<i8, CodecError> {
         let data: &[u8] = bytes.as_ref();
 
-        if data.len() < 8 {
+        if data.is_empty() {
             return Err(CodecError::Decoding(
                 DataType::Byte,
                 ErrorReason::ValueTooSmall,
             ));
         }
 
-        let bits_byte = data[0..8]
-            .try_into()
-            .map_err(|err: std::array::TryFromSliceError| {
-                CodecError::Encoding(DataType::Byte, ErrorReason::InvalidFormat(err.to_string()))
-            })?;
-
-        Ok(i8::from_be_bytes(bits_byte))
+        Ok(data[0].cast_signed())
     }
 
-    /// Returns the Big Endian representation of an u16.
-    ///
-    /// There is 1 byte in a i8.
+    /// Essentially makes the input byte in Big Endian.
     fn write(value: i8) -> [u8; 1] {
         value.to_be_bytes()
     }
@@ -1105,23 +1111,31 @@ impl Byte {
 
 impl Encodable for Byte {
     fn from_bytes<T: AsRef<[u8]>>(bytes: T) -> Result<Self, CodecError> {
-        todo!()
+        let data: &[u8] = bytes.as_ref();
+        let value: i8 = Self::read(data)?;
+        Ok(Self {
+            value,
+            bytes: [data[0]],
+        })
     }
 
-    type ValueInput;
+    type ValueInput = i8;
 
     fn from_value(value: Self::ValueInput) -> Result<Self, CodecError> {
-        todo!()
+        Ok(Self {
+            value,
+            bytes: Self::write(value),
+        })
     }
 
     fn get_bytes(&self) -> &[u8] {
-        todo!()
+        &self.bytes
     }
 
-    type ValueOutput;
+    type ValueOutput = i8;
 
     fn get_value(&self) -> Self::ValueOutput {
-        todo!()
+        self.value
     }
 }
 

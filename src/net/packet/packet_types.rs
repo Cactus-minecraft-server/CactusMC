@@ -2,6 +2,7 @@
 
 use core::fmt;
 use std::sync::OnceLock;
+use super::utils;
 
 use dashmap::DashMap;
 use handshake::Handshake;
@@ -203,6 +204,8 @@ pub mod handshake {
                 .append_bytes(next_state.get_varint().get_bytes())
                 .build(Self::PACKET_ID)?;
 
+            println!("1: {}", utils::get_hex_repr(packet.get_payload()));
+            println!("2: {}", utils::get_hex_repr(bytes.as_ref()));
             assert_eq!(packet.get_payload(), bytes.as_ref());
 
             Ok(Self {
