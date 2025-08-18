@@ -162,12 +162,13 @@ impl Default for NextState {
 
 pub mod handshake {
     use super::*;
+    use std::fmt::{Debug, Formatter};
 
     /// This packet causes the server to switch into the target state, it should be sent right after opening the TCP connection to avoid the server from disconnecting.
     ///
     /// Direction: Serverbound
     /// https://minecraft.wiki/w/Minecraft_Wiki:Projects/wiki.vg_merge/Protocol#Handshake
-    #[derive(Debug, Clone, Eq, PartialEq, Default)]
+    #[derive(Clone, Eq, PartialEq, Default)]
     pub struct Handshake {
         pub protocol_version: VarInt,
         pub server_address: StringProtocol,
@@ -182,6 +183,19 @@ pub mod handshake {
 
         fn get_packet(&self) -> &Packet {
             &self.packet
+        }
+    }
+
+    impl Debug for Handshake {
+        fn fmt(&self, f: &mut Formatter<'_>) -> std::fmt::Result {
+            write!(
+                f,
+                "P. Ver.: {} / S. Addr.: {}, S. P.: {}, N. state: {}",
+                self.protocol_version.get_value(),
+                self.server_address.get_value(),
+                self.server_port.get_value(),
+                self.next_state.get_varint().get_value()
+            )
         }
     }
 
@@ -201,8 +215,8 @@ pub mod handshake {
                 .append_bytes(next_state.get_varint().get_bytes())
                 .build(Self::PACKET_ID)?;
 
-            println!("1: {}", utils::get_hex_repr(packet.get_payload()));
-            println!("2: {}", utils::get_hex_repr(bytes.as_ref()));
+            println!("Received: {}", utils::get_hex_repr(bytes.as_ref()));
+            println!("Parsed: {}", utils::get_hex_repr(packet.get_payload()));
             assert_eq!(packet.get_payload(), bytes.as_ref());
 
             Ok(Self {

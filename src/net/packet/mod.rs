@@ -7,8 +7,9 @@ pub mod utils;
 
 use core::fmt;
 use std::{collections::VecDeque, fmt::Debug};
-
+use std::fmt::{write, Formatter};
 use bytes::BytesMut;
+use log::debug;
 use data_types::{CodecError, Encodable, StringProtocol, VarInt};
 use thiserror::Error;
 
@@ -63,8 +64,10 @@ impl Packet {
         &self.data
     }
 
-    /// This is the PAYLOAD. So the the bytes except the Packet Length and the Packet ID.
+    /// This is the PAYLOAD. So the bytes except the Packet Length and the Packet ID.
     pub fn get_payload(&self) -> &[u8] {
+        // TODO: del this debug
+        debug!("PACKET: payload: {}", utils::get_dec_repr(&self.payload));
         &self.payload
     }
 
@@ -131,10 +134,14 @@ impl Default for Packet {
 
 /// When printing a `Packet`, the hexadecimal representation will be shown.
 impl fmt::Display for Packet {
+    // fn fmt(&self, f: &mut Formatter<'_>) -> std::fmt::Result {
+    //     write!(f, "{:?}", &self.data)
+    // }
     fn fmt(&self, f: &mut std::fmt::Formatter<'_>) -> std::fmt::Result {
-        let hex = utils::get_hex_repr(&self.data);
+        let hex = utils::get_dec_repr(&self.data);
         write!(f, "{hex}")
     }
+
 }
 
 impl fmt::Debug for Packet {
