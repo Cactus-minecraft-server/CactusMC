@@ -177,18 +177,16 @@ async fn handle_packet(conn: &Connection, packet: Packet) -> Result<Response, Ne
 }
 
 mod dispatch {
-    use std::env::args;
 
     use super::*;
     use packet::packet_types::configuration::*;
     use packet::packet_types::handshake::*;
     use packet::packet_types::login::*;
-    use packet::packet_types::status::*;
     use packet::packet_types::ClientboundPacket;
     use packet::packet_types::EmptyPayloadPacket;
     use packet::packet_types::GenericPacket;
     use packet::{
-        data_types::{Array, Encodable, VarInt},
+        data_types::{Encodable, VarInt},
         Response,
     };
 
@@ -323,6 +321,7 @@ mod dispatch {
 
                 conn.set_state(ConnectionState::Play).await;
 
+                // TODO: Send a 'Login (play)' packet
                 // TODO: Send a 'Login (play)' packet
                 // TODO: Send a 'Login (play)' packet
                 // TODO: Send a 'Login (play)' packet

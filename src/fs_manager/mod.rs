@@ -1,13 +1,11 @@
 use std::fs::{self, File, OpenOptions};
 use std::io::{self, BufRead, Seek, SeekFrom};
 use std::path::Path;
-use std::vec;
 mod utils;
 use crate::{consts, gracefully_exit};
 use colored::Colorize;
 use log::{error, info, warn};
 use serde::{Deserialize, Serialize};
-use serde_json::{json, Map, Value};
 use std::io::Read;
 use std::io::Write;
 

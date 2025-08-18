@@ -1,12 +1,8 @@
 //! A module to parse known packets.
 
+use super::utils;
 use core::fmt;
 use std::sync::OnceLock;
-use super::utils;
-
-use dashmap::DashMap;
-use handshake::Handshake;
-use log::error;
 
 use super::{
     data_types::{
@@ -15,6 +11,7 @@ use super::{
     },
     Packet, PacketBuilder, PacketError,
 };
+use dashmap::DashMap;
 
 // TODO: MODULES SEPARATING THE PACKET IN THEIR DIFFERENT STATES (HANSHAKE, LOGIN, PLAY,
 // CONFIGURATION, ...)
