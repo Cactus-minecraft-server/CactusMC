@@ -96,5 +96,11 @@ There is at least four places to add your data type in.
 - Add your data type to the `DataType` enum.
 - Add your data type to the `DataTypeContent` enum.
 
+V. Write tests (very important)
+
+Now unit test your data type very thoroughly to make sure it works even (and most importantly) on edge cases.
+
+The best would be to test ALL public methods for your data type.
+
 [^1]: I am now in fact not so sure a signed integer is the appropriate type for a `VarInt`,
 because a Minecraft `VarInt` can hold five bytes at maximum.
