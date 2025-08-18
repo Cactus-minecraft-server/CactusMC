@@ -25,8 +25,22 @@ pub mod messages {
     pub static SERVER_STARTED: Lazy<String> =
         Lazy::new(|| "[ SERVER STARTED ]".bright_green().bold().to_string());
 
-    pub static SERVER_SHUTDOWN: Lazy<String> =
+    pub static SERVER_SHUTDOWN_SUCCESS: Lazy<String> =
         Lazy::new(|| "[ SERVER SHUT DOWN ]".bright_red().bold().to_string());
+
+    pub static SERVER_SHUTDOWN_ERROR: Lazy<String> = Lazy::new(|| {
+        "[ SERVER SHUT DOWN WITH ERROR ]"
+            .bright_red()
+            .bold()
+            .to_string()
+    });
+
+    pub static SERVER_SHUTDOWN_CTRL_C: Lazy<String> = Lazy::new(|| {
+        "[ SERVER SHUT DOWN WITH CTRL+C ]"
+            .bright_red()
+            .bold()
+            .to_string()
+    });
 
     pub static GREET: Lazy<String> =
         Lazy::new(|| "Hello, world from Cactus!".green().bold().to_string());
@@ -84,7 +98,7 @@ allow-nether=true
 broadcast-console-to-ops=true
 broadcast-rcon-to-ops=true
 bug-report-link=
-difficulty=easy
+difficulty=normal
 enable-command-block=false
 enable-jmx-monitoring=false
 enable-query=false
@@ -110,7 +124,7 @@ max-chained-neighbor-updates=1000000
 max-players=20
 max-tick-time=60000
 max-world-size=29999984
-motd=A Minecraft Server
+motd=A beautiful CactusMC server!
 network-compression-threshold=256
 online-mode=true
 op-permission-level=4
@@ -201,7 +215,7 @@ pub mod protocol {
         // TODO: Implement logic such that, if no icon is provided, not include it in the JSON.
         if let Err(err) = get_favicon() {
             error!("Server icon not found: {err}. Shutting down the server...");
-            gracefully_exit(1);
+            gracefully_exit(crate::ExitCode::Failure);
         }
         let favicon = get_favicon().unwrap();
 

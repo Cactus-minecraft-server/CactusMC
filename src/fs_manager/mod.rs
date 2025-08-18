@@ -1,13 +1,11 @@
 use std::fs::{self, File, OpenOptions};
-use std::io::{self, BufRead};
+use std::io::{self, BufRead, Seek, SeekFrom};
 use std::path::Path;
-use std::vec;
 mod utils;
 use crate::{consts, gracefully_exit};
 use colored::Colorize;
 use log::{error, info, warn};
 use serde::{Deserialize, Serialize};
-use serde_json::{json, Value};
 use std::io::Read;
 use std::io::Write;
 
@@ -24,13 +22,13 @@ fn eula() -> io::Result<()> {
         create_eula()?;
         let content = "Please agree to the 'eula.txt' and start the server again.";
         warn!("{}", content.bright_red().bold());
-        gracefully_exit(0);
+        gracefully_exit(crate::ExitCode::Failure);
     } else {
         let is_agreed_eula = check_eula()?;
         if !is_agreed_eula {
             let error_content = "Cannot start the server, please agree to the 'eula.txt'";
             error!("{}", error_content.bright_red().bold().blink());
-            gracefully_exit(-1);
+            gracefully_exit(crate::ExitCode::Failure);
         }
         Ok(())
     }
@@ -169,7 +167,7 @@ struct Player {
     uuid: String,
     name: String,
     level: u8,
-    bypassesplayerlimit: bool,
+    bypassesPlayerLimit: bool,
 }
 
 pub fn write_ops_json(
@@ -182,50 +180,55 @@ pub fn write_ops_json(
     let mut file = OpenOptions::new()
         .read(true)
         .write(true)
-        .truncate(true)
+        .create(true)
         .open(filename)?;
 
     let mut content = String::new();
     file.read_to_string(&mut content)?;
 
-    let mut json_data: Vec<Value> = if content.trim().is_empty() {
-        vec![]
-    } else {
-        serde_json::from_str(&content)?
-    };
-    let new_object = json!({
-        "name": name,
-        "uuid": uuid,
-        "level": level,
-        "bypassesPlayerLimit": bypasses_player_limit
-    });
-    json_data.push(new_object);
-    file.set_len(0)?;
-    if let Err(e) = file.write_all(serde_json::to_string_pretty(&json_data)?.as_bytes()) {
-        warn!("Failed to write to ops: {e}");
+    if content.starts_with('\u{feff}') {
+        content = content.trim_start_matches('\u{feff}').to_string();
     }
+
+    let mut players: Vec<Player> = if content.trim().is_empty() {
+        Vec::new()
+    } else {
+        serde_json::from_str(&content).unwrap_or_else(|_| Vec::new())
+    };
+
+    if !players.iter().any(|p| p.uuid == uuid) {
+        players.push(Player {
+            uuid: uuid.to_string(),
+            name: name.to_string(),
+            level,
+            bypassesPlayerLimit: bypasses_player_limit,
+        });
+        info!("Made {} a server operator", name.to_string())
+    } else {
+        warn!("Nothing changed. The player already is an operator")
+    }
+
+    // Réécrire le fichier avec le contenu mis à jour
+    file.set_len(0)?;
+    file.seek(SeekFrom::Start(0))?;
+    file.write_all(serde_json::to_string_pretty(&players)?.as_bytes())?;
+
     Ok(())
 }
-
 /// Removes all files related to the server, excluding the server.
 ///
 /// I am not sure if this is a good idea, because it takes some time to maintain and is not very
-/// useful.
+/// useful but it's mostly for dev purpose.
 pub fn clean_files() -> Result<(), std::io::Error> {
     // Define a helper function to handle file removals
-    let mut err: Option<io::Error> = None;
     fn remove_file(file_path: &str) -> Result<(), std::io::Error> {
         match fs::remove_file(file_path) {
             Ok(_) => {
                 info!("File deleted: {}", file_path);
                 Ok(())
             }
-            Err(e) if e.kind() == io::ErrorKind::NotFound => {
-                info!("File already deleted: {}", file_path);
-                Ok(())
-            }
             Err(e) => {
-                error!("Error when deleting file {}: {}", file_path, e);
+                info!("Error when deleting file {}: {}", file_path, e);
                 Err(e)
             }
         }
@@ -233,17 +236,13 @@ pub fn clean_files() -> Result<(), std::io::Error> {
 
     // Define a helper function to handle directory removals
     fn remove_dir(dir_path: &str) -> Result<(), std::io::Error> {
-        match fs::remove_dir_all(dir_path) {
+        match fs::remove_dir(dir_path) {
             Ok(_) => {
                 info!("Directory deleted: {}", dir_path);
                 Ok(())
             }
-            Err(e) if e.kind() == io::ErrorKind::NotFound => {
-                info!("Directory already deleted: {}", dir_path);
-                Ok(())
-            }
             Err(e) => {
-                error!("Error when deleting directory {}: {}", dir_path, e);
+                info!("Error when deleting directory {}: {}", dir_path, e);
                 Err(e)
             }
         }
@@ -262,10 +261,8 @@ pub fn clean_files() -> Result<(), std::io::Error> {
     ];
 
     // Delete files using the `remove_file` helper function
-    for path in &files {
-        if let Err(e) = remove_file(path) {
-            err.get_or_insert(e);
-        }
+    for file in &files {
+        remove_file(file)?;
     }
 
     // List all directories to be deleted
@@ -278,13 +275,10 @@ pub fn clean_files() -> Result<(), std::io::Error> {
     ];
 
     // Delete directories using the `remove_dir` helper function
-    for path in &directories {
-        if let Err(e) = remove_dir(path) {
-            err.get_or_insert(e);
-        }
+    for dir in &directories {
+        remove_dir(dir)?;
     }
-    match err {
-        Some(e) => Err(e),
-        None => Ok(()),
-    }
+
+    info!("Files cleaned successfully before starting the server.");
+    gracefully_exit(crate::ExitCode::Success);
 }

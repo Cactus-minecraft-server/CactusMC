@@ -130,14 +130,13 @@ session.lock
 version.json
 eula.txt
 
-src/server.properties
+server.properties
 
 # macOS files
 .DS_Store
 
 # Other
 .editorconfig
+.test/ #test env
 
-# Custom documentation
-book/
-docs-prod/
+docs/
