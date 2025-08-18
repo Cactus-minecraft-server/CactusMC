@@ -224,120 +224,180 @@ impl Connection {
         }
     }
 
-    /// Reads the socket for a full valid frame (packet).
-    /// # Behavior
-    /// - Maintains a per-connection buffer.
-    ///
-    /// Zeroth, if connection buffer not empty, read from it.
-    ///
-    /// First, wait for reading a **complete** packet length (VarInt).
-    ///
-    /// Second, waits for reading the complete frame, so it reads the parsed VarInt.
-    ///
-    /// Third, if there is more bytes than what we read as a first frame, we put that inside
-    /// the connection buffer.
-    ///
-    /// Return the frame.
+    /// TODO: CHECK & REWRITE
+    /// TODO: CHECK & REWRITE
+    /// TODO: CHECK & REWRITE
+    /// TODO: CHECK & REWRITE
+    /// TODO: CHECK & REWRITE
     async fn read(&self) -> Result<Packet, NetError> {
-        // TODO: DROP TRIES AND ADD TIMEOUT!!
-        // TODO: DROP TRIES AND ADD TIMEOUT!!
-        // TODO: DROP TRIES AND ADD TIMEOUT!!
-        // TODO: DROP TRIES AND ADD TIMEOUT!!
-        // TODO: DROP TRIES AND ADD TIMEOUT!!
-
-        let mut buffer = BytesMut::with_capacity(Self::BUFFER_SIZE);
         let mut socket = self.socket.lock().await;
 
-        for try_count in 1..=Self::MAX_PACKET_TRIES {
-            // 1) Try to parse the length (once).
-            let size_res = Self::wait_size(self, &buffer).await;
-            if size_res.is_err() {
-                let n = socket.read_buf(&mut buffer).await?;
-                if n == 0 { return Err(NetError::ConnectionClosed("read 0 bytes".into())); }
-                continue;
-            }
-            let (size, size_len) = size_res.unwrap();
+        loop {
+            // Try to parse the VarInt length from the start of the connection buffer.
+            let (len_opt, len_len_opt) = {
+                let recv = self.buffer.lock().await;
 
-            // 2) Try to split the frame.
-            if let Ok(pkt) = Self::wait_packet(self, &buffer, size, size_len).await {
-                return Ok(pkt);
-            }
-
-            // 3) Need more bytes.
-            let n = socket.read_buf(&mut buffer).await?;
-            if n == 0 { return Err(NetError::ConnectionClosed("read 0 bytes".into())); }
-        }
-
-        return Err(NetError::Reading("Failed to delimit".to_string()));
-
-
-
-        // Try to read a packet, up to MAX_PACKET_TRIES tries (basically socket reads).
-        for try_count in 1..=Self::MAX_PACKET_TRIES {
-            let is_conn_buf_empty: bool = { self.buffer.lock().await.is_empty() };
-
-            if Self::wait_size(self, &buffer).await.is_err() {
-                let n = socket.read_buf(&mut buffer).await?;
-                if n == 0 { return Err(NetError::ConnectionClosed("read 0 bytes".into())); }
-                continue;
-            }
-
-            // unwrap??
-            let (size, size_len) = Self::wait_size(self, &buffer).await.unwrap();
-
-            // 2) If we don't yet have size_len + size bytes, read more.
-            if Self::wait_packet(self, &buffer, size, size_len).await.is_err() {
-                let n = socket.read_buf(&mut buffer).await?;
-                if n == 0 { return Err(NetError::ConnectionClosed("read 0 bytes".into())); }
-                continue;
-            }
-
-            // 3) Now we have a full frame.
-            let pkt = Self::wait_packet(self, &buffer, size, size_len).await.unwrap();
-            return Ok(pkt);
-
-            debug!("Try in read() to split a frame from stream");
-            if is_conn_buf_empty {
-                let read: usize = socket.read_buf(&mut buffer).await?;
-                if read == 0 {
-                    warn!("Read zero bytes; connection should be closed.");
-                    return Err(NetError::ConnectionClosed("read 0 bytes".to_string()));
-                }
-            }
-
-            debug!(
-                "TCP buffer received ({}): {}",
-                buffer.len(),
-                crate::net::packet::utils::get_dec_repr(&buffer)
-            );
-            // VarInt Value / VarInt Size
-            if let Ok(size_varint) = Self::wait_size(self, &buffer).await {
-                debug!("Got packet with size: {}", size_varint.0);
-                if let Ok(packet) =
-                    Self::wait_packet(self, &buffer, size_varint.0, size_varint.1).await
-                {
-                    debug!("Split a packet: {packet:?}");
-                    return Ok(packet);
+                if recv.is_empty() {
+                    (None, None)
                 } else {
-                    warn!(
-                        "Failed to delimit packet with current read bytes; try #{}/{}",
-                        try_count,
-                        Self::MAX_PACKET_TRIES
-                    );
+                    // Parse at most 5 bytes for the VarInt prefix.
+                    let to_parse = recv.len().min(5);
+                    match data_types::VarInt::from_bytes(recv[..to_parse].to_vec()) {
+                        Ok(v) => {
+                            let len_usize = usize::try_from(v.get_value()).map_err(|_| {
+                                NetError::Reading("Frame length does not fit in usize".to_string())
+                            })?;
+                            (Some(len_usize), Some(v.len()))
+                        }
+                        Err(_) => (None, None) // need more bytes for the length
+                    }
                 }
-            } else {
-                warn!(
-                    "Failed to delimit packet SIZE with current read bytes; try #{}/{}",
-                    try_count,
-                    Self::MAX_PACKET_TRIES
-                );
+            };
+
+            if let (Some(len), Some(len_len)) = (len_opt, len_len_opt) {
+                if len == 0 {
+                    return Err(NetError::Reading("Zero-length frame".to_string()));
+                }
+
+                let total = len_len + len;
+
+                // If we already have the full frame, split and parse.
+                if {
+                    let recv = self.buffer.lock().await;
+                    recv.len() >= total
+                } {
+                    let mut recv = self.buffer.lock().await;
+                    let frame = recv.split_to(total);
+                    drop(recv);
+
+                    return Packet::new(&frame).map_err(NetError::Parsing);
+                }
+                // else: we know the size but need more bytes; fall through to read.
+            }
+
+            // Read more bytes from the socket into the connection buffer.
+            let mut recv = self.buffer.lock().await;
+            let n = socket.read_buf(&mut *recv).await?;
+            if n == 0 {
+                return Err(NetError::ConnectionClosed("read 0 bytes".to_string()));
             }
         }
-
-        Err(NetError::Reading(
-            "Failed to delimit packet in socket stream".to_string(),
-        ))
     }
+    //
+    // /// Reads the socket for a full valid frame (packet).
+    // /// # Behavior
+    // /// - Maintains a per-connection buffer.
+    // ///
+    // /// Zeroth, if connection buffer not empty, read from it.
+    // ///
+    // /// First, wait for reading a **complete** packet length (VarInt).
+    // ///
+    // /// Second, waits for reading the complete frame, so it reads the parsed VarInt.
+    // ///
+    // /// Third, if there is more bytes than what we read as a first frame, we put that inside
+    // /// the connection buffer.
+    // ///
+    // /// Return the frame.
+    // async fn read(&self) -> Result<Packet, NetError> {
+    //     // TODO: DROP TRIES AND ADD TIMEOUT!!
+    //     // TODO: DROP TRIES AND ADD TIMEOUT!!
+    //     // TODO: DROP TRIES AND ADD TIMEOUT!!
+    //     // TODO: DROP TRIES AND ADD TIMEOUT!!
+    //     // TODO: DROP TRIES AND ADD TIMEOUT!!
+    //
+    //     let mut buffer = BytesMut::with_capacity(Self::BUFFER_SIZE);
+    //     let mut socket = self.socket.lock().await;
+    //
+    //     for try_count in 1..=Self::MAX_PACKET_TRIES {
+    //         // 1) Try to parse the length (once).
+    //         let size_res = Self::wait_size(self, &buffer).await;
+    //         if size_res.is_err() {
+    //             let n = socket.read_buf(&mut buffer).await?;
+    //             if n == 0 { return Err(NetError::ConnectionClosed("read 0 bytes".into())); }
+    //             continue;
+    //         }
+    //         let (size, size_len) = size_res.unwrap();
+    //
+    //         // 2) Try to split the frame.
+    //         if let Ok(pkt) = Self::wait_packet(self, &buffer, size, size_len).await {
+    //             return Ok(pkt);
+    //         }
+    //
+    //         // 3) Need more bytes.
+    //         let n = socket.read_buf(&mut buffer).await?;
+    //         if n == 0 { return Err(NetError::ConnectionClosed("read 0 bytes".into())); }
+    //     }
+    //
+    //     return Err(NetError::Reading("Failed to delimit".to_string()));
+    //
+    //
+    //
+    //     // Try to read a packet, up to MAX_PACKET_TRIES tries (basically socket reads).
+    //     for try_count in 1..=Self::MAX_PACKET_TRIES {
+    //         let is_conn_buf_empty: bool = { self.buffer.lock().await.is_empty() };
+    //
+    //         if Self::wait_size(self, &buffer).await.is_err() {
+    //             let n = socket.read_buf(&mut buffer).await?;
+    //             if n == 0 { return Err(NetError::ConnectionClosed("read 0 bytes".into())); }
+    //             continue;
+    //         }
+    //
+    //         // unwrap??
+    //         let (size, size_len) = Self::wait_size(self, &buffer).await.unwrap();
+    //
+    //         // 2) If we don't yet have size_len + size bytes, read more.
+    //         if Self::wait_packet(self, &buffer, size, size_len).await.is_err() {
+    //             let n = socket.read_buf(&mut buffer).await?;
+    //             if n == 0 { return Err(NetError::ConnectionClosed("read 0 bytes".into())); }
+    //             continue;
+    //         }
+    //
+    //         // 3) Now we have a full frame.
+    //         let pkt = Self::wait_packet(self, &buffer, size, size_len).await.unwrap();
+    //         return Ok(pkt);
+    //
+    //         debug!("Try in read() to split a frame from stream");
+    //         if is_conn_buf_empty {
+    //             let read: usize = socket.read_buf(&mut buffer).await?;
+    //             if read == 0 {
+    //                 warn!("Read zero bytes; connection should be closed.");
+    //                 return Err(NetError::ConnectionClosed("read 0 bytes".to_string()));
+    //             }
+    //         }
+    //
+    //         debug!(
+    //             "TCP buffer received ({}): {}",
+    //             buffer.len(),
+    //             crate::net::packet::utils::get_dec_repr(&buffer)
+    //         );
+    //         // VarInt Value / VarInt Size
+    //         if let Ok(size_varint) = Self::wait_size(self, &buffer).await {
+    //             debug!("Got packet with size: {}", size_varint.0);
+    //             if let Ok(packet) =
+    //                 Self::wait_packet(self, &buffer, size_varint.0, size_varint.1).await
+    //             {
+    //                 debug!("Split a packet: {packet:?}");
+    //                 return Ok(packet);
+    //             } else {
+    //                 warn!(
+    //                     "Failed to delimit packet with current read bytes; try #{}/{}",
+    //                     try_count,
+    //                     Self::MAX_PACKET_TRIES
+    //                 );
+    //             }
+    //         } else {
+    //             warn!(
+    //                 "Failed to delimit packet SIZE with current read bytes; try #{}/{}",
+    //                 try_count,
+    //                 Self::MAX_PACKET_TRIES
+    //             );
+    //         }
+    //     }
+    //
+    //     Err(NetError::Reading(
+    //         "Failed to delimit packet in socket stream".to_string(),
+    //     ))
+    // }
 
     /// Tries to close the connection with the Minecraft client
     async fn close(&self) -> Result<(), std::io::Error> {
