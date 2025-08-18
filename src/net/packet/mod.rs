@@ -7,8 +7,9 @@ pub mod utils;
 
 use core::fmt;
 use std::{collections::VecDeque, fmt::Debug};
-
+use std::fmt::{write, Formatter};
 use bytes::BytesMut;
+use log::debug;
 use data_types::{CodecError, Encodable, StringProtocol, VarInt};
 use thiserror::Error;
 
@@ -21,6 +22,7 @@ use thiserror::Error;
 /// Length (VarInt): Length of Packet ID + Data
 /// Packet ID (VarInt): An ID each packet has
 /// Data (Byte Array): Actual data bytes
+#[derive(Clone, Eq, PartialEq)]
 pub struct Packet {
     /// Length of `id` + `data`
     length: usize,
@@ -28,7 +30,7 @@ pub struct Packet {
     /// An ID that each Packet has, varint-decoded.
     id: VarInt,
 
-    /// The raw bytes making the packet. (so it contains ALL of the packet, Length, Packet ID and
+    /// The raw bytes making the packet. (so it contains ALL the packet, Length, Packet ID and
     /// the data bytes)
     data: BytesMut,
 
@@ -46,7 +48,7 @@ pub struct Packet {
 // TODO: A PACKET BUILDER!!!!!!!!!!!
 
 impl Packet {
-    /// Initalizes a new `Packet` by parsing the `data` buffer.
+    /// Initializes a new `Packet` by parsing the `data` buffer.
     pub fn new<T: AsRef<[u8]>>(data: T) -> Result<Self, PacketError> {
         let parsed = Self::parse_packet(data.as_ref())?;
         Ok(Self {
@@ -62,8 +64,10 @@ impl Packet {
         &self.data
     }
 
-    /// This is the PAYLOAD. So the the bytes except the Packet Length and the Packet ID.
+    /// This is the PAYLOAD. So the bytes except the Packet Length and the Packet ID.
     pub fn get_payload(&self) -> &[u8] {
+        // TODO: del this debug
+        debug!("PACKET: payload: {}", utils::get_dec_repr(&self.payload));
         &self.payload
     }
 
@@ -130,10 +134,14 @@ impl Default for Packet {
 
 /// When printing a `Packet`, the hexadecimal representation will be shown.
 impl fmt::Display for Packet {
+    // fn fmt(&self, f: &mut Formatter<'_>) -> std::fmt::Result {
+    //     write!(f, "{:?}", &self.data)
+    // }
     fn fmt(&self, f: &mut std::fmt::Formatter<'_>) -> std::fmt::Result {
-        let hex = utils::get_hex_repr(&self.data);
+        let hex = utils::get_dec_repr(&self.data);
         write!(f, "{hex}")
     }
+
 }
 
 impl fmt::Debug for Packet {
@@ -155,9 +163,6 @@ impl AsRef<[u8]> for Packet {
 
 #[derive(Error, Debug)]
 pub enum PacketError {
-    #[error("Failed to decode the packet id")]
-    IdDecodingError,
-
     #[error("Failed to decode the packet length")]
     LengthDecodingError,
 
@@ -262,7 +267,7 @@ impl PacketBuilder {
 // TODO: I wonder if having "invalid" value, like a too short/long Length should propagate an error
 // when creating a Packet.
 
-/// Represents a reponse to the Minecraft client.
+/// Represents a response to the Minecraft client.
 pub struct Response {
     /// The packet to respond
     packet: Option<Packet>,
@@ -303,7 +308,6 @@ impl Response {
 
 #[cfg(test)]
 mod tests {
-
     use super::*;
 
     #[test]
