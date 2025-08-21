@@ -12,7 +12,7 @@ use super::{
     Packet, PacketBuilder, PacketError,
 };
 use dashmap::DashMap;
-
+use log::warn;
 // TODO: MODULES SEPARATING THE PACKET IN THEIR DIFFERENT STATES (HANSHAKE, LOGIN, PLAY,
 // CONFIGURATION, ...)
 
@@ -23,6 +23,9 @@ use dashmap::DashMap;
 pub trait GenericPacket: Sized + fmt::Debug + Clone + Eq + PartialEq + Default {
     /// Each packet has its specific ID.
     const PACKET_ID: i32;
+
+    /// An informal name such as 'Handshake (handshaking)'
+    const NAME: &'static str;
 
     /// Returns a reference to a `Packet` that had been constructed from the current packet type.
     fn get_packet(&self) -> &Packet;
@@ -69,6 +72,9 @@ pub trait EmptyPayloadPacket: GenericPacket + TryFrom<Packet> {
     /// to define the `get_packet()` function. This problem could have been fixed by just returning
     /// a `Packet` and not `&Packet` but I want to keep things as they are.
     /// Credit: partly to AI
+    ///
+    /// Huh? What's this load of crap, why are we even leaking memory here?
+    /// ?? bullshit me what did I do....
     fn get_packet(&self) -> &Packet {
         // Thread-safe static HashMap to store OnceLocks for each type
         static PACKET_MAP: OnceLock<DashMap<i32, &'static OnceLock<Packet>>> = OnceLock::new();
@@ -81,6 +87,7 @@ pub trait EmptyPayloadPacket: GenericPacket + TryFrom<Packet> {
         let once_lock = map.entry(key).or_insert_with(|| {
             // Box::leak() ensures the OnceLock has a static lifetime
             // (In actuality causes a true memory leak each time it's called)
+            warn!("Leaking memory!");
             Box::leak(Box::new(OnceLock::new()))
         });
 
@@ -180,6 +187,7 @@ pub mod handshake {
 
     impl GenericPacket for Handshake {
         const PACKET_ID: i32 = 0x00;
+        const NAME: &'static str = "Handshake (handshaking) (Serverbound)";
 
         fn get_packet(&self) -> &Packet {
             &self.packet
@@ -213,7 +221,7 @@ pub mod handshake {
                 .append_bytes(server_address.get_bytes())
                 .append_bytes(server_port.get_bytes())
                 .append_bytes(next_state.get_varint().get_bytes())
-                .build(Self::PACKET_ID)?;
+                .build(Self::PACKET_ID, Some(Self::NAME.to_string()))?;
 
             println!("Received: {}", utils::get_hex_repr(bytes.as_ref()));
             println!("Parsed: {}", utils::get_hex_repr(packet.get_payload()));
@@ -260,6 +268,7 @@ pub mod login {
 
     impl GenericPacket for LoginStart {
         const PACKET_ID: i32 = 0x00;
+        const NAME: &'static str = "Login Start (Login) (Serverbound)";
 
         fn get_packet(&self) -> &Packet {
             &self.packet
@@ -276,7 +285,7 @@ pub mod login {
             let packet: Packet = PacketBuilder::new()
                 .append_bytes(name.get_bytes())
                 .append_bytes(player_uuid.get_bytes())
-                .build(Self::PACKET_ID)?;
+                .build(Self::PACKET_ID, Some(Self::NAME.to_string()))?;
 
             Ok(Self {
                 name,
@@ -309,6 +318,7 @@ pub mod login {
 
     impl GenericPacket for LoginSuccess {
         const PACKET_ID: i32 = 0x02;
+        const NAME: &'static str = "Login Success (Login) (Clientbound)";
 
         fn get_packet(&self) -> &Packet {
             &self.packet
@@ -347,7 +357,7 @@ pub mod login {
                         .flat_map(|a| a.get_bytes().iter().copied())
                         .collect::<Vec<_>>(),
                 )
-                .build(Self::PACKET_ID)?;
+                .build(Self::PACKET_ID, Some(Self::NAME.to_string()))?;
 
             Ok(Self {
                 uuid: packet_fields.0,
@@ -368,6 +378,7 @@ pub mod login {
 
     impl GenericPacket for LoginAcknowledged {
         const PACKET_ID: i32 = 0x03;
+        const NAME: &'static str = "Login Acknowledged (Login) (Clientbound)";
 
         fn get_packet(&self) -> &Packet {
             EmptyPayloadPacket::get_packet(self)
@@ -412,6 +423,7 @@ pub mod configuration {
 
     impl GenericPacket for ClientboundKnownPacks {
         const PACKET_ID: i32 = 0x0E;
+        const NAME: &'static str = "Clientbound Known Packs (Configuration) (Clientbound)";
 
         fn get_packet(&self) -> &Packet {
             &self.packet
@@ -443,7 +455,7 @@ pub mod configuration {
             if known_pack_count.get_value() == 0 {
                 let packet: Packet = PacketBuilder::new()
                     .append_bytes(known_pack_count.get_bytes())
-                    .build(Self::PACKET_ID)?;
+                    .build(Self::PACKET_ID, Some(Self::NAME.to_string()))?;
                 return Ok(Self {
                     known_pack_count,
                     known_packs: Vec::new(),
@@ -476,7 +488,7 @@ pub mod configuration {
                         .flat_map(|a| a.get_bytes().iter().copied())
                         .collect::<Vec<_>>(),
                 )
-                .build(Self::PACKET_ID)?;
+                .build(Self::PACKET_ID, Some(Self::NAME.to_string()))?;
 
             Ok(Self {
                 known_pack_count,
@@ -502,6 +514,7 @@ pub mod configuration {
 
     impl GenericPacket for ServerboundKnownPacks {
         const PACKET_ID: i32 = 0x07;
+        const NAME: &'static str = "Serverbound Known Packs (Configuration) (Serverbound)";
 
         fn get_packet(&self) -> &Packet {
             &self.packet
@@ -542,7 +555,7 @@ pub mod configuration {
                         .flat_map(|a| a.get_bytes().iter().copied())
                         .collect::<Vec<_>>(),
                 )
-                .build(Self::PACKET_ID)?;
+                .build(Self::PACKET_ID, Some(Self::NAME.to_string()))?;
 
             Ok(Self {
                 known_pack_count,
@@ -572,6 +585,7 @@ pub mod configuration {
 
     impl GenericPacket for FinishConfiguration {
         const PACKET_ID: i32 = 0x03;
+        const NAME: &'static str = "Finish Configuration (Configuration) (Clientbound)";
 
         fn get_packet(&self) -> &Packet {
             EmptyPayloadPacket::get_packet(self)

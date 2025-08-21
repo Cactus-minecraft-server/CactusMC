@@ -5,12 +5,12 @@ pub mod data_types;
 pub mod packet_types;
 pub mod utils;
 
-use core::fmt;
-use std::{collections::VecDeque, fmt::Debug};
-use std::fmt::{write, Formatter};
 use bytes::BytesMut;
-use log::debug;
+use core::fmt;
 use data_types::{CodecError, Encodable, StringProtocol, VarInt};
+use log::debug;
+use std::fmt::{write, Formatter};
+use std::{collections::VecDeque, fmt::Debug};
 use thiserror::Error;
 
 // It is true that I could lazily evaluate the length, and Id for more performance but I chose to do it eagerly.
@@ -20,8 +20,8 @@ use thiserror::Error;
 /// Structure of a normal uncompressed Packet:
 ///
 /// Length (VarInt): Length of Packet ID + Data
-/// Packet ID (VarInt): An ID each packet has
-/// Data (Byte Array): Actual data bytes
+/// P): An ID each packet has
+/// Data (Byte Aacket ID (VarIntrray): Actual data bytes
 #[derive(Clone, Eq, PartialEq)]
 pub struct Packet {
     /// Length of `id` + `data`
@@ -37,6 +37,9 @@ pub struct Packet {
     /// The raw bytes making the PAYLOAD of the packet. (so this slice does not contain the length
     /// and acket ID)
     payload: BytesMut,
+
+    /// For debugging purposes, the type of the packet, like 'Handshake (handshaking)'.
+    name: Option<String>,
 }
 
 // TODO: Implement printing functions to see the bytes in hexadecimal in order and in the reverse
@@ -56,6 +59,7 @@ impl Packet {
             id: parsed.1,
             data: data.as_ref().into(),
             payload: parsed.2.into(),
+            name: None,
         })
     }
 
@@ -69,6 +73,16 @@ impl Packet {
         // TODO: del this debug
         debug!("PACKET: payload: {}", utils::get_dec_repr(&self.payload));
         &self.payload
+    }
+
+    /// Sets the name of the current packet.
+    pub fn set_name(&mut self, name: &str) {
+        self.name = Some(name.to_string());
+    }
+
+    /// Returns the name of the current packet.
+    pub fn get_name(&self) -> &Option<String> {
+        &self.name
     }
 
     /// Returns a reference to the packet ID `VarInt`.
@@ -128,30 +142,34 @@ impl Default for Packet {
             id: VarInt::default(),
             payload: BytesMut::new(),
             data: BytesMut::new(),
+            name: Option::default(),
         }
     }
 }
 
-/// When printing a `Packet`, the hexadecimal representation will be shown.
 impl fmt::Display for Packet {
-    // fn fmt(&self, f: &mut Formatter<'_>) -> std::fmt::Result {
-    //     write!(f, "{:?}", &self.data)
-    // }
-    fn fmt(&self, f: &mut std::fmt::Formatter<'_>) -> std::fmt::Result {
-        let hex = utils::get_dec_repr(&self.data);
-        write!(f, "{hex}")
-    }
+    fn fmt(&self, f: &mut fmt::Formatter<'_>) -> fmt::Result {
+        let name = self.get_name().clone().unwrap_or("Unknown".to_string()); // no allocation
+        let len  = self.len();
+        let id   = self.id.get_value();
 
+        write!(f, "{{ name={name:?}; len={len}; id={id} }}")
+        // {name:?} quotes/escapes odd names; drop ? if you truly want bare text.
+    }
 }
 
-impl fmt::Debug for Packet {
+
+/// For :? and :#?
+/// Debug displays the all the BYTES.
+impl Debug for Packet {
     fn fmt(&self, f: &mut std::fmt::Formatter<'_>) -> std::fmt::Result {
-        write!(
-            f,
-            "PACKET (Length: {} / ID: {})",
-            self.len(),
-            self.id.get_value(),
-        )
+        let name = self.get_name().clone().unwrap_or("Unknown".to_string()); // no allocation
+        let len  = self.len();
+        let id   = self.id.get_value();
+        let bytes: String = utils::get_dec_repr(self.get_full_packet());
+
+        write!(f, "{{ name={name:?}; len={len}; id={id}; bytes={bytes} }}")
+        // {name:?} quotes/escapes odd names; drop ? if you truly want bare text.
     }
 }
 
@@ -208,7 +226,7 @@ impl PacketBuilder {
     }
 
     /// Builds a packet
-    pub fn build(&self, packet_id: i32) -> Result<Packet, PacketError> {
+    pub fn build(&self, packet_id: i32, name: Option<String>) -> Result<Packet, PacketError> {
         let id = VarInt::from_value(packet_id)?;
 
         let mut payload = BytesMut::with_capacity(64);
@@ -240,6 +258,7 @@ impl PacketBuilder {
             id,
             data,
             payload,
+            name,
         })
     }
 

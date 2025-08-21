@@ -2,7 +2,7 @@
 
 // TODO: Encoding/Decoding of VarInts and VarLongs into a separate module, maybe the module packet
 
-// TODO: As disscussed in the main.rs file, we might want to start with running the SLP into a
+// TODO: As discussed in the main.rs file, we might want to start with running the SLP into a
 // separate thread for the sake of simplicity, for now. Then we'll need to dig into concurrency
 // rather than pure parallelism.
 
@@ -20,7 +20,7 @@ pub fn status_response() -> Result<Packet, PacketError> {
 
     PacketBuilder::new()
         .append_string(json_response)
-        .build(0x00)
+        .build(0x00, Some("Status Response (Clientbound) (Status)".to_string()))
 }
 
 /// The response for a Ping Request packet.
@@ -35,7 +35,7 @@ pub fn ping_response(ping_request_packet: Packet) -> Result<Packet, PacketError>
         // Send back the same timestamp as what we received
         PacketBuilder::new()
             .append_bytes(&payload[0..8])
-            .build(0x01)
+            .build(0x01, Some("Ping Response (Clientbound) (Status)".to_string()))
     } else {
         Err(PacketError::PayloadDecodeError(
             "failed to decode timestamp (Long) in the Ping Request packet".to_string(),

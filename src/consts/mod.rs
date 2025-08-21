@@ -28,6 +28,9 @@ pub mod messages {
     pub static SERVER_SHUTDOWN_SUCCESS: Lazy<String> =
         Lazy::new(|| "[ SERVER SHUT DOWN ]".bright_red().bold().to_string());
 
+    pub static PLAY_PACKET_NOTIFIER: Lazy<String> =
+        Lazy::new(|| "[ SEND PLAY PACKET HERE! ]".bright_red().bold().to_string());
+
     pub static SERVER_SHUTDOWN_ERROR: Lazy<String> = Lazy::new(|| {
         "[ SERVER SHUT DOWN WITH ERROR ]"
             .bright_red()
