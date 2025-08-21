@@ -8,7 +8,7 @@
 
 // TODO: Add logging.
 
-mod ip_logger;
+pub mod ip_logger;
 
 use log::debug;
 

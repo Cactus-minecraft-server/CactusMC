@@ -21,6 +21,7 @@ pub fn create_file(path: &Path, content: &str) -> io::Result<()> {
         Err(e) => Err(e),
     }
 }
+
 ///Create_file with no content...
 pub fn create_file_nn(path: &Path) -> io::Result<()> {
     // Verify if the file does not already exist.
@@ -51,6 +52,14 @@ pub fn overwrite_file(path: &Path, content: &str) -> std::io::Result<()> {
     let mut file = File::create(path)?;
     debug!("Overwrote file '{}'", path.to_string_lossy());
     file.write_all(content.as_bytes())
+}
+
+/// Appends `content` to a file located at `path`.
+pub fn append_file(path: &Path, content: &str) -> io::Result<()> {
+    OpenOptions::new()
+        .append(true)
+        .open(path)?
+        .write_all(content.as_bytes())
 }
 
 #[cfg(test)]
