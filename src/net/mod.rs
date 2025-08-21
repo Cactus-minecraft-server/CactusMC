@@ -3,14 +3,12 @@ pub mod packet;
 pub mod slp;
 
 use crate::config;
-use crate::net::packet::data_types::DataType;
 use crate::net::packet::{data_types, utils};
 use bytes::{Buf, BytesMut};
 use log::{debug, error, info, warn};
 use packet::data_types::{CodecError, Encodable};
 use packet::{Packet, PacketError, Response};
 use std::cmp::min;
-use std::fmt::{Display, Formatter};
 use std::io;
 use std::sync::Arc;
 use thiserror::Error;
@@ -90,7 +88,6 @@ struct Connection {
 impl Connection {
     /// Base buffer size and the number of bytes we're trying to read from the socket.
     const BUFFER_SIZE: usize = 512;
-    const MAX_PACKET_TRIES: usize = 100;
 
     fn new(socket: TcpStream) -> Self {
         Self {
@@ -189,7 +186,7 @@ impl Connection {
         let frame_size: usize = size + size_size;
 
         // The concatenated [CONN BUFF + SOCK READ] is smaller than the frame.
-        if (read.len() < frame_size) {
+        if read.len() < frame_size {
             buffer.extend_from_slice(bytes);
             warn!("Frame size is bigger than cached data");
             debug!("Cached data: {}", utils::get_dec_repr(&read));
@@ -212,7 +209,7 @@ impl Connection {
             debug!("Frame: {frame:?}");
             match Packet::new(frame) {
                 Ok(p) => {
-                    if (frame_size < read.len()) {
+                    if frame_size < read.len() {
                         debug!("Cached data b4 extend: {}", utils::get_dec_repr(&buffer));
                         buffer.extend_from_slice(&read[frame_size..]);
                         debug!("Cached data after extend: {}", utils::get_dec_repr(&buffer));
@@ -439,12 +436,16 @@ fn human_bytes(n: usize) -> String {
     const KB: usize = 1024;
     const MB: usize = KB * 1024;
     const GB: usize = MB * 1024;
-    if n >= GB { format!("{:.1}GiB", n as f64 / GB as f64) }
-    else if n >= MB { format!("{:.1}MiB", n as f64 / MB as f64) }
-    else if n >= KB { format!("{:.1}KiB", n as f64 / KB as f64) }
-    else { format!("{n}B") }
+    if n >= GB {
+        format!("{:.1}GiB", n as f64 / GB as f64)
+    } else if n >= MB {
+        format!("{:.1}MiB", n as f64 / MB as f64)
+    } else if n >= KB {
+        format!("{:.1}KiB", n as f64 / KB as f64)
+    } else {
+        format!("{n}B")
+    }
 }
-
 
 const IS_CRUEL: bool = true;
 

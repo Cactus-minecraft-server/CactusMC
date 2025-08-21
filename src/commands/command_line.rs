@@ -62,4 +62,3 @@ pub async fn handle_input() -> ! {
         }
     }
 }
-

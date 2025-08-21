@@ -10,7 +10,6 @@ pub mod minecraft {
 
 /// Server logging messages.
 pub mod messages {
-
     use colored::*;
     use once_cell::sync::Lazy;
 
@@ -47,15 +46,6 @@ pub mod messages {
 
     pub static GREET: Lazy<String> =
         Lazy::new(|| "Hello, world from Cactus!".green().bold().to_string());
-
-    /// Used when exiting the server with an exit code.
-    pub fn server_shutdown_code(code: i32) -> String {
-        format!("[ server shutdown with code: {code}]")
-            .to_uppercase()
-            .bright_red()
-            .bold()
-            .to_string()
-    }
 }
 
 /// Module used to store file paths relative to the server binary.
@@ -167,7 +157,6 @@ white-list=false"#;
 
 /// Strings for packets
 pub mod protocol {
-
     use base64::{engine::general_purpose, Engine};
     use image::{GenericImageView, ImageFormat};
     use log::error;

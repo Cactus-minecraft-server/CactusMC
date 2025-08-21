@@ -47,7 +47,10 @@ const DISABLE_LOGGING_COLOR_AND_SAVE_TO_FILE: bool = false;
 /// Logic that must executes as early as possibe
 async fn early_init() -> Result<(), Box<dyn std::error::Error>> {
     // This must executes as early as possible
-    logging::init(log::LevelFilter::Debug, DISABLE_LOGGING_COLOR_AND_SAVE_TO_FILE);
+    logging::init(
+        log::LevelFilter::Debug,
+        DISABLE_LOGGING_COLOR_AND_SAVE_TO_FILE,
+    );
 
     info!("{}", *messages::SERVER_STARTING);
 

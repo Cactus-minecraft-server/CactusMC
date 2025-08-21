@@ -9,7 +9,6 @@ use bytes::BytesMut;
 use core::fmt;
 use data_types::{CodecError, Encodable, StringProtocol, VarInt};
 use log::debug;
-use std::fmt::{write, Formatter};
 use std::{collections::VecDeque, fmt::Debug};
 use thiserror::Error;
 
@@ -150,22 +149,21 @@ impl Default for Packet {
 impl fmt::Display for Packet {
     fn fmt(&self, f: &mut fmt::Formatter<'_>) -> fmt::Result {
         let name = self.get_name().clone().unwrap_or("Unknown".to_string()); // no allocation
-        let len  = self.len();
-        let id   = self.id.get_value();
+        let len = self.len();
+        let id = self.id.get_value();
 
         write!(f, "{{ name={name:?}; len={len}; id={id} }}")
         // {name:?} quotes/escapes odd names; drop ? if you truly want bare text.
     }
 }
 
-
 /// For :? and :#?
 /// Debug displays the all the BYTES.
 impl Debug for Packet {
     fn fmt(&self, f: &mut std::fmt::Formatter<'_>) -> std::fmt::Result {
         let name = self.get_name().clone().unwrap_or("Unknown".to_string()); // no allocation
-        let len  = self.len();
-        let id   = self.id.get_value();
+        let len = self.len();
+        let id = self.id.get_value();
         let bytes: String = utils::get_dec_repr(self.get_full_packet());
 
         write!(f, "{{ name={name:?}; len={len}; id={id}; bytes={bytes} }}")
@@ -336,10 +334,12 @@ mod tests {
         // Data = &[1, 2, 3]
         let init_data = &[4, 4, 1, 2, 3];
 
-        let packet: Packet = Packet::new(init_data).expect("Failed to create packet");
+        let mut packet: Packet = Packet::new(init_data).expect("Failed to create packet");
+        packet.set_name("test packet");
 
         // 1 = 4
         assert_eq!(packet.get_length(), 4);
+        assert_eq!(packet.get_name().clone().unwrap(), "test_packet");
         assert_eq!(packet.len(), init_data.len());
         assert_eq!(packet.get_id().get_value(), 4);
         assert_eq!(packet.get_payload(), &[1, 2, 3]);

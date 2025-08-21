@@ -8,6 +8,8 @@
 
 // TODO: Add logging.
 
+mod ip_logger;
+
 use log::debug;
 
 use super::packet::{PacketBuilder, PacketError};
@@ -18,9 +20,10 @@ use crate::packet::Packet;
 pub fn status_response() -> Result<Packet, PacketError> {
     let json_response = consts::protocol::status_response_json();
 
-    PacketBuilder::new()
-        .append_string(json_response)
-        .build(0x00, Some("Status Response (Clientbound) (Status)".to_string()))
+    PacketBuilder::new().append_string(json_response).build(
+        0x00,
+        Some("Status Response (Clientbound) (Status)".to_string()),
+    )
 }
 
 /// The response for a Ping Request packet.
@@ -33,9 +36,10 @@ pub fn ping_response(ping_request_packet: Packet) -> Result<Packet, PacketError>
     );
     if payload.len() == 8 {
         // Send back the same timestamp as what we received
-        PacketBuilder::new()
-            .append_bytes(&payload[0..8])
-            .build(0x01, Some("Ping Response (Clientbound) (Status)".to_string()))
+        PacketBuilder::new().append_bytes(&payload[0..8]).build(
+            0x01,
+            Some("Ping Response (Clientbound) (Status)".to_string()),
+        )
     } else {
         Err(PacketError::PayloadDecodeError(
             "failed to decode timestamp (Long) in the Ping Request packet".to_string(),
