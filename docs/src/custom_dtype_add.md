@@ -19,8 +19,8 @@ Find the data type you want to include and get to know its specs. The specs for 
 here: https://minecraft.wiki/w/Java_Edition_protocol/Data_types
 
 II.
-Write a struct for the type. We will take the example of the `VarInt` type from now on.
-`struct VarInt {}` that will have to have and implement multiple things:
+Write a public struct for the type. We will take the example of the `VarInt` type from now on.
+`pub struct VarInt {}` that will have to have and implement multiple things:
 
 Struct members:
 

@@ -167,7 +167,7 @@ struct Player {
     uuid: String,
     name: String,
     level: u8,
-    bypassesPlayerLimit: bool,
+    bypasses_player_limit: bool,
 }
 
 pub fn write_ops_json(
@@ -201,7 +201,7 @@ pub fn write_ops_json(
             uuid: uuid.to_string(),
             name: name.to_string(),
             level,
-            bypassesPlayerLimit: bypasses_player_limit,
+            bypasses_player_limit: bypasses_player_limit,
         });
         info!("Made {} a server operator", name.to_string())
     } else {

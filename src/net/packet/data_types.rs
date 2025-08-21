@@ -908,7 +908,7 @@ impl Array {
         &self.bytes
     }
 
-    /// Returns all of the data_types inside the current `Array`.
+    /// Returns all the data_types inside the current `Array`.
     pub fn get_value(&self) -> &[DataTypeContent] {
         &self.types
     }
@@ -920,7 +920,7 @@ impl Array {
 }
 
 #[derive(Debug, Default, Clone, PartialEq, Eq)]
-struct Boolean {
+pub struct Boolean {
     value: bool,
     bytes: [u8; 1],
 }
@@ -995,7 +995,7 @@ impl Encodable for Boolean {
 ///
 /// Bytewise, an `Optional` is either 0x00 or the data type it contains.
 #[derive(Debug, Clone, PartialEq, Eq)]
-struct Optional {
+pub struct Optional {
     value: Option<DataTypeContent>,
     bytes: Vec<u8>,
 }
@@ -1082,7 +1082,7 @@ impl Default for Optional {
 /// Represents a signed 8-bit integer, two's complement
 /// Bounds: An integer between -128 and 127
 #[derive(Debug, Default, Clone, PartialEq, Eq)]
-struct Byte {
+pub struct Byte {
     value: i8,
     bytes: [u8; 1],
 }
@@ -1138,6 +1138,51 @@ impl Encodable for Byte {
     }
 }
 
+/// https://minecraft.wiki/w/Java_Edition_protocol/Packets#Prefixed_Array
+/// Represents a Prefixed Array of X:
+/// An array prefixed by its length. If the array is empty the length will still be encoded.
+///
+/// Size: size of VarInt + size of X * length
+///
+/// Effectively a simple wrapper around Array.
+#[derive(Debug, Default, Clone, PartialEq, Eq)]
+struct PrefixedArray {
+    value: Array,
+    bytes: Vec<u8>,
+}
+
+impl PrefixedArray {
+    fn read<T: AsRef<[u8]>>(data: T) -> Result<Self, CodecError> {
+        todo!()
+    }
+
+    fn write(arr: &Array) -> Result<Self, CodecError> {
+        todo!()
+    }
+}
+
+impl Encodable for PrefixedArray {
+    fn from_bytes<T: AsRef<[u8]>>(bytes: T) -> Result<Self, CodecError> {
+        todo!()
+    }
+
+    type ValueInput = ();
+
+    fn from_value(value: Self::ValueInput) -> Result<Self, CodecError> {
+        todo!()
+    }
+
+    fn get_bytes(&self) -> &[u8] {
+        todo!()
+    }
+
+    type ValueOutput = ();
+
+    fn get_value(&self) -> Self::ValueOutput {
+        todo!()
+    }
+}
+
 /// Tests written with AI, and not human-checked.
 /// Unfortunate, but saves a ton of time.
 #[cfg(test)]
@@ -1145,8 +1190,8 @@ mod tests {
     use super::*;
     use core::panic;
     use rand;
-    use std::collections::HashMap;
     use rand::Rng;
+    use std::collections::HashMap;
 
     #[test]
     fn test_varint_read() {

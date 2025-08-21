@@ -16,7 +16,6 @@ pub fn get_bin_repr(data: &[u8]) -> String {
         .join(" ")
 }
 
-
 pub fn get_dec_repr(data: &[u8]) -> String {
     data.iter()
         .map(|b| format!("{}", b))

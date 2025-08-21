@@ -1,7 +1,6 @@
 use crate::{fs_manager, gracefully_exit};
 use clap::Parser;
 use log::{error, info};
-use crate::shutdown::ExitCode;
 
 #[derive(Parser)]
 #[command(name = "CactusMC")]
@@ -17,7 +16,7 @@ pub fn init() {
     let args = Cli::parse();
     if args.remove_files {
         if let Err(e) = fs_manager::clean_files() {
-            error!("Error(s) when cleaning files");
+            error!("Error(s) when cleaning files: {e}");
             gracefully_exit(crate::ExitCode::Failure);
         } else {
             info!("Successfully cleaned the files");
