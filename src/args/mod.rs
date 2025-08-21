@@ -1,7 +1,7 @@
+use crate::shutdown::ExitCode;
 use crate::{fs_manager, gracefully_exit};
 use clap::Parser;
 use log::{error, info};
-use crate::shutdown::ExitCode;
 
 #[derive(Parser)]
 #[command(name = "CactusMC")]

@@ -20,5 +20,5 @@ fn get_id(all: &str) -> Result<String, Box<dyn Error>> {
             return Ok(id_str.to_string());
         }
     }
-    Err("Champ 'id' introuvable ou incorrectement formaté".into())
+    Err("Field \"id\" incorrect.".into())
 }
