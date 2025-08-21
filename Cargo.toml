@@ -20,9 +20,7 @@ bytes = "1.9.0"
 image = "0.25.5"
 base64 = "0.22.1"
 dashmap = "6.1.0"
-world = { git = "https://github.com/Cactus-minecraft-server/World.git" }
-
-
+cactus_world = { git = "https://github.com/Cactus-minecraft-server/World.git", package = "world", branch = "main" }
 [profile.release]
 opt-level = 3
 debug = false

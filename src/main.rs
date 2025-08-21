@@ -16,7 +16,6 @@ mod shutdown;
 mod time;
 use config::Gamemode;
 use consts::messages;
-
 #[tokio::main]
 async fn main() {
     args::init();
