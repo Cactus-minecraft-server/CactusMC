@@ -42,8 +42,8 @@ jobs:
       - name: Build documentation (mdBook + rustdoc)
         run: |
           cd scripts
-          chmod +x ./build-docs
-          ./build-docs
+          chmod +x ./build-docs.sh
+          ./build-docs.sh
 
       - name: Upload Pages artifact
         uses: actions/upload-pages-artifact@v3
