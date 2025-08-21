@@ -140,3 +140,5 @@ server.properties
 
 # test .env
 .test/
+
+logged_ips.txt

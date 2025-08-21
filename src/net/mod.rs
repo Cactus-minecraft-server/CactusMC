@@ -503,7 +503,7 @@ async fn handle_packet(conn: &Connection, packet: Packet) -> Result<Response, Ne
     // Dispatch packet depending on the current State.
     match conn.get_state().await {
         ConnectionState::Handshake => dispatch::handshaking(packet, conn).await,
-        ConnectionState::Status => dispatch::status(packet).await,
+        ConnectionState::Status => dispatch::status(packet, conn).await,
         ConnectionState::Login => dispatch::login(conn, packet).await,
         ConnectionState::Configuration => dispatch::configuration(conn, packet).await,
         ConnectionState::Play => dispatch::play(conn, packet).await,
@@ -524,6 +524,7 @@ async fn handle_packet(conn: &Connection, packet: Packet) -> Result<Response, Ne
 /// 3: we switch the connection state to 'Transfer'.
 mod dispatch {
     use super::*;
+    use crate::net::slp::ip_logger::ClientIpLoggerInfo;
     use packet::packet_types::configuration::*;
     use packet::packet_types::handshake::*;
     use packet::packet_types::login::*;
@@ -568,9 +569,17 @@ mod dispatch {
     }
 
     /// https://minecraft.wiki/w/Java_Edition_protocol/Packets#Status
-    pub async fn status(packet: Packet) -> Result<Response, NetError> {
+    pub async fn status(packet: Packet, conn: &Connection) -> Result<Response, NetError> {
         match packet.get_id().get_value() {
             0x00 => {
+                // Log IP if enabled.
+                if crate::consts::cactus::LOG_IPS_SLP {
+                    let info = ClientIpLoggerInfo {
+                        ip: conn.socket.lock().await.peer_addr()?.to_string(),
+                    };
+                    slp::ip_logger::log_ip(info);
+                }
+
                 // Got Status Request
                 let status_resp_packet = slp::status_response()?;
                 let response = Response::new(Some(status_resp_packet));

@@ -60,6 +60,9 @@ pub mod file_paths {
     pub const USERCACHE: &str = "usercache.json";
     pub const SESSION: &str = "session.lock";
     pub const SERVER_ICON: &str = "server-icon.png";
+
+    /// SLP IP logger file.
+    pub const LOGGED_IPS: &str = "logged_ips.txt";
 }
 
 pub mod directory_paths {
@@ -231,4 +234,9 @@ pub mod protocol {
 
         serde_json::to_string(&json_data).unwrap()
     }
+}
+
+pub mod cactus {
+    /// If set to true, client's IPs will be logged when pinging using the SLP protocol.
+    pub const LOG_IPS_SLP: bool = true;
 }

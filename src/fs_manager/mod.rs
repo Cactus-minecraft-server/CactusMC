@@ -1,7 +1,7 @@
 use std::fs::{self, File, OpenOptions};
 use std::io::{self, BufRead, Seek, SeekFrom};
 use std::path::Path;
-mod utils;
+pub mod utils;
 use crate::{consts, gracefully_exit};
 use colored::Colorize;
 use log::{error, info, warn};
