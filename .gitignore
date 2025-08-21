@@ -137,6 +137,6 @@ server.properties
 
 # Other
 .editorconfig
-.test/ #test env
 
-docs/
+# test .env
+.test/

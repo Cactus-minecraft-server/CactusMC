@@ -41,14 +41,14 @@ jobs:
 
       - name: Build documentation (mdBook + rustdoc)
         run: |
-          cd docs
+          cd scripts
           chmod +x ./build-docs
           ./build-docs
 
       - name: Upload Pages artifact
         uses: actions/upload-pages-artifact@v3
         with:
-          path: docs/docs-prod
+          path: target/custom_docs
 
   deploy:
     needs: build
