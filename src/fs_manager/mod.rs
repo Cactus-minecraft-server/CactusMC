@@ -2,7 +2,9 @@ use std::fs::{self, File, OpenOptions};
 use std::io::{self, BufRead, Seek, SeekFrom};
 use std::path::Path;
 mod utils;
-use crate::{consts, gracefully_exit};
+use crate::config::{Difficulty, Gamemode};
+use crate::{config, consts, gracefully_exit};
+use cactus_world::level::{create_nbt, LevelDat, VersionInfo};
 use colored::Colorize;
 use log::{error, info, warn};
 use serde::{Deserialize, Serialize};
@@ -68,57 +70,65 @@ fn check_eula() -> io::Result<bool> {
 
 pub fn create_other_files() {
     match utils::create_file_nn(Path::new(consts::file_paths::BANNED_IP)) {
-        Ok(_) => info!("Created file {}", consts::file_paths::BANNED_IP),
-        Err(e) => info!(
+        Ok(_) => (),
+        Err(e) => error!(
             "Failed to create the file {} as error:{}",
             consts::file_paths::BANNED_IP,
             e
         ),
     }
     match utils::create_file_nn(Path::new(consts::file_paths::BANNED_PLAYERS)) {
-        Ok(_) => info!("Created file {}", consts::file_paths::BANNED_PLAYERS),
-        Err(e) => info!(
+        Ok(_) => (),
+        Err(e) => error!(
             "Failed to create the file {} as error:{}",
             consts::file_paths::BANNED_PLAYERS,
             e
         ),
     }
     match utils::create_file_nn(Path::new(consts::file_paths::OPERATORS)) {
-        Ok(_) => info!("Created file {}", consts::file_paths::OPERATORS),
-        Err(e) => info!(
+        Ok(_) => (),
+        Err(e) => error!(
             "Failed to create the file {} as error:{}",
             consts::file_paths::OPERATORS,
             e
         ),
     }
     match utils::create_file_nn(Path::new(consts::file_paths::SESSION)) {
-        Ok(_) => info!("Created file {}", consts::file_paths::SESSION),
-        Err(e) => info!(
+        Ok(_) => (),
+        Err(e) => error!(
             "Failed to create the file {} as error:{}",
             consts::file_paths::SESSION,
             e
         ),
     }
     match utils::create_file_nn(Path::new(consts::file_paths::USERCACHE)) {
-        Ok(_) => info!("Created file {}", consts::file_paths::USERCACHE),
-        Err(e) => info!(
+        Ok(_) => (),
+        Err(e) => error!(
             "Failed to create the file {} as error:{}",
             consts::file_paths::USERCACHE,
             e
         ),
     }
     match utils::create_file_nn(Path::new(consts::file_paths::WHITELIST)) {
-        Ok(_) => info!("Created file {}", consts::file_paths::WHITELIST),
-        Err(e) => info!(
+        Ok(_) => (),
+        Err(e) => error!(
             "Failed to create the file {} as error:{}",
             consts::file_paths::WHITELIST,
+            e
+        ),
+    }
+    match create_level_file() {
+        Ok(_) => (),
+        Err(e) => error!(
+            "Failed to create the file at {} as error {}",
+            consts::file_paths::LEVEL,
             e
         ),
     }
 }
 pub fn create_dirs() {
     match utils::create_dir(Path::new(consts::directory_paths::LOGS)) {
-        Ok(_) => info!("Created dir{}", consts::directory_paths::LOGS),
+        Ok(_) => (),
         Err(e) => info!(
             "Failed to create dir{} as error: {}",
             consts::directory_paths::LOGS,
@@ -127,7 +137,7 @@ pub fn create_dirs() {
     }
 
     match utils::create_dir(Path::new(consts::directory_paths::WORLDS_DIRECTORY)) {
-        Ok(_) => info!("No existing world data, creating new world"),
+        Ok(_) => (),
         Err(e) => info!(
             "Failed to create dir{} as error: {}",
             consts::directory_paths::WORLDS_DIRECTORY,
@@ -136,7 +146,7 @@ pub fn create_dirs() {
     }
 
     match utils::create_dir(Path::new(consts::directory_paths::OVERWORLD)) {
-        Ok(_) => info!("Created dir{}", consts::directory_paths::OVERWORLD),
+        Ok(_) => (),
         Err(e) => info!(
             "Failed to create dir{} as error: {}",
             consts::directory_paths::OVERWORLD,
@@ -145,7 +155,7 @@ pub fn create_dirs() {
     }
 
     match utils::create_dir(Path::new(consts::directory_paths::THE_END)) {
-        Ok(_) => info!("Created dir{}", consts::directory_paths::THE_END),
+        Ok(_) => (),
         Err(e) => info!(
             "Failed to create dir{} as error: {}",
             consts::directory_paths::THE_END,
@@ -154,7 +164,7 @@ pub fn create_dirs() {
     }
 
     match utils::create_dir(Path::new(consts::directory_paths::NETHER)) {
-        Ok(_) => info!("Created dir{}", consts::directory_paths::NETHER),
+        Ok(_) => (),
         Err(e) => info!(
             "Failed to create dir{} as error: {}",
             consts::directory_paths::NETHER,
@@ -281,4 +291,44 @@ pub fn clean_files() -> Result<(), std::io::Error> {
 
     info!("Files cleaned successfully before starting the server.");
     gracefully_exit(crate::ExitCode::Success);
+}
+fn create_level_file() -> Result<(), std::io::Error> {
+    if Path::new(consts::file_paths::LEVEL).exists() {
+        info!("level.dat file already exist, not altering it");
+        return Ok(());
+    }
+    let server_version = VersionInfo {
+        id: 4440,
+        snapshot: false,
+        series: "main".into(),
+        name: consts::minecraft::VERSION.into(),
+    };
+    let data = LevelDat {
+        version: server_version,
+        difficulty: match config::Settings::new().difficulty {
+            Difficulty::Easy => 0,
+            Difficulty::Normal => 1,
+            Difficulty::Hard => 2,
+        },
+        game_type: match config::Settings::new().gamemode {
+            Gamemode::Survival => 0,
+            Gamemode::Creative => 1,
+            Gamemode::Spectator => 3,
+            Gamemode::Adventure => 2,
+        },
+
+        hardcore: config::Settings::new().hardcore,
+        level_name: match config::Settings::new().level_name {
+            Some(words) => words,
+            _ => "Overworld".into(),
+        },
+
+        ..Default::default()
+    };
+
+    let result = create_nbt(&data, consts::file_paths::LEVEL);
+    if result.is_ok() {
+        info!("File created at {}", consts::file_paths::LEVEL)
+    }
+    result
 }

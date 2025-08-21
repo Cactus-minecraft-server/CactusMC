@@ -67,6 +67,7 @@ pub mod file_paths {
     pub const USERCACHE: &str = "usercache.json";
     pub const SESSION: &str = "session.lock";
     pub const SERVER_ICON: &str = "server-icon.png";
+    pub const LEVEL: &str = "world/level.dat";
 }
 
 pub mod directory_paths {
