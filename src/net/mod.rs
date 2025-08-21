@@ -187,7 +187,6 @@ impl Connection {
         // Size of ALL the frame.
         let frame_size: usize = size + size_size;
 
-
         // The concatenated [CONN BUFF + SOCK READ] is smaller than the frame.
         if (read.len() < frame_size) {
             buffer.extend_from_slice(bytes);
@@ -205,7 +204,10 @@ impl Connection {
             let frame = &read[..frame_size];
             debug!("Cached data b4 advance: {}", utils::get_dec_repr(&buffer));
             buffer.advance(min(frame_size, buffer_size));
-            debug!("Cached data after advance: {}", utils::get_dec_repr(&buffer));
+            debug!(
+                "Cached data after advance: {}",
+                utils::get_dec_repr(&buffer)
+            );
             debug!("Frame: {frame:?}");
             match Packet::new(frame) {
                 Ok(p) => {
@@ -249,7 +251,7 @@ impl Connection {
                             })?;
                             (Some(len_usize), Some(v.len()))
                         }
-                        Err(_) => (None, None) // need more bytes for the length
+                        Err(_) => (None, None), // need more bytes for the length
                     }
                 }
             };

@@ -15,7 +15,7 @@ pub fn init() -> std::io::Result<()> {
     create_server_properties()
 }
 
-/// Checks if the eula is agreed, if not creates it.
+/// Checks if the eula is agreed, if not shutdown the server with failure code.
 fn eula() -> io::Result<()> {
     let path = Path::new(consts::file_paths::EULA);
     if !path.exists() {

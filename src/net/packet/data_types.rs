@@ -1145,8 +1145,8 @@ mod tests {
     use super::*;
     use core::panic;
     use rand;
-    use std::collections::HashMap;
     use rand::Rng;
+    use std::collections::HashMap;
 
     #[test]
     fn test_varint_read() {
