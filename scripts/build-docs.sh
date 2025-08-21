@@ -11,16 +11,23 @@
 
 ### INIT
 
+# NOTICE: do not move this script elsewhere than inside /scripts
+# / being the root of the project.
+SK_DIR=$(temp=$( realpath "$0"  ) && dirname "$temp") || {
+  printf 'realpath failed\n' >&2; exit 1;
+}
+readonly SK_DIR
+
 # Shown in the super-HTML.
 # THE SAME AS CARGO! AS INSIDE THE CARGO.TOML
 readonly PROJECT_NAME='Cactus'
 
 # The directory where all the docs will be put, ready to be served.
 # Add this into your .gitignore!!
-readonly DOCS_OUT='./docs-prod'
+readonly DOCS_OUT="${SK_DIR}/../target/custom_docs"
 
 # Where the mdbook directory is.
-readonly MDBOOK_DIR='./project-book'
+readonly MDBOOK_DIR="${SK_DIR}/../docs"
 
 
 # mkdbook output dir
@@ -32,7 +39,7 @@ readonly CARGODOC_OUT_DIR="${DOCS_OUT}/cargo-doc"
 # Create the output directory if not already.
 mkdir -p "$DOCS_OUT"
 if [[ -d "$DOCS_OUT" ]]; then
-  rm -rf "$DOCS_OUT"/*
+  rm -rf "${DOCS_OUT:?}"/*
 else
   echo 'Error: DOCS_OUT does not exist' >&2
   exit 1
@@ -46,20 +53,26 @@ mv "${MDBOOK_DIR}/book" "$MDBOOK_OUT_DIR"
 
 
 echo 'Building Cargo doc...'
-cargo doc --no-deps --all-features --release --jobs $(nproc) --target-dir "$CARGODOC_OUT_DIR"
+cargo doc --no-deps --all-features --release --jobs "$(nproc)" --target-dir "$CARGODOC_OUT_DIR"
 
 ### OUTPUT LAYOUT
 
+HTML_PATH=$(realpath "${DOCS_OUT}/index.html") || {
+  printf 'realpath failed to make super HTML path\n' >&2
+  exit 1
+}
+readonly HTML_PATH
+
 
 # A 'super-HTML' webpage to link to both docs.
-cat > "${DOCS_OUT}/index.html" <<EOF
+cat > "${HTML_PATH}" <<EOF
 <!doctype html>
 <html lang="en">
 <head>
   <meta charset="utf-8" />
   <meta name="viewport" content="width=device-width, initial-scale=1" />
   <title>Project Documentation – ${PROJECT_NAME}</title>
-  <!-- Change the two href values below to match your actual directory names if needed. 
+  <!-- Change the two href values below to match your actual directory names if needed.
        Each target directory should contain its own index.html. -->
   <style>
     :root {
@@ -191,12 +204,10 @@ cat > "${DOCS_OUT}/index.html" <<EOF
         </a>
       </div>
 
-      <footer>
-        <span>Tip: keep this <code>index.html</code> next to <code>mdbook/</code> and <code>cargo-doc/</code> (or your chosen names).</span>
-      </footer>
     </section>
   </main>
 </body>
 </html>
 EOF
 
+printf '\n\nDocs built! Visit them at %s\n' "${HTML_PATH}"
