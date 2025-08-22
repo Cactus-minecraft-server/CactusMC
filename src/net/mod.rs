@@ -142,7 +142,7 @@ impl Connection {
         let read: Vec<u8> = buffer.iter().chain(bytes).copied().collect();
         debug!("wait_size() buffer: {}", utils::get_dec_repr(&read));
 
-        match data_types::VarInt::from_bytes(read) {
+        match data_types::VarInt::from_bytes(read, ()) {
             Ok(size) => {
                 debug!("Read VarInt from wait_size(): {}", size.get_value());
                 let s = usize::try_from(size.get_value()).map_err(|e| {
@@ -242,7 +242,7 @@ impl Connection {
                 } else {
                     // Parse at most 5 bytes for the VarInt prefix.
                     let to_parse = recv.len().min(5);
-                    match data_types::VarInt::from_bytes(recv[..to_parse].to_vec()) {
+                    match data_types::VarInt::from_bytes(recv[..to_parse].to_vec(), ()) {
                         Ok(v) => {
                             let len_usize = usize::try_from(v.get_value()).map_err(|_| {
                                 NetError::Reading("Frame length does not fit in usize".to_string())
