@@ -8,15 +8,18 @@ pub trait Encodable: Sized + Default + fmt::Debug + Clone + PartialEq + Eq {
     // For the case of `Array`, its `from_bytes` takes TWO arguments.
     // And passing in a tuple if not sexy.
 
+    /// Context for Template types like `Array`.
+    type Ctx;
+
     /// Creates an instance from the first data type from a byte slice.
     /// The input slice remains unmodified.
-    fn from_bytes<T: AsRef<[u8]>>(bytes: T) -> Result<Self, CodecError>;
+    fn from_bytes<T: AsRef<[u8]>>(bytes: T, ctx: Self::Ctx) -> Result<Self, CodecError>;
 
     /// Creates an instance from the first data type from a byte slice.
     /// Read bytes are consumed. For instance, if you were to read an UnsignedByte on [1, 5, 4, 8],
     /// the buffer would then be [4, 8] after the function call.
-    fn consume_from_bytes(bytes: &mut &[u8]) -> Result<Self, CodecError> {
-        let instance = Self::from_bytes(*bytes)?;
+    fn consume_from_bytes(bytes: &mut &[u8], ctx: Self::Ctx) -> Result<Self, CodecError> {
+        let instance = Self::from_bytes(*bytes, ctx)?;
         *bytes = &bytes[instance.len()..];
         Ok(instance)
     }
@@ -228,7 +231,9 @@ impl VarInt {
 }
 
 impl Encodable for VarInt {
-    fn from_bytes<T: AsRef<[u8]>>(bytes: T) -> Result<Self, CodecError> {
+    type Ctx = ();
+
+    fn from_bytes<T: AsRef<[u8]>>(bytes: T, ctx: Self::Ctx) -> Result<Self, CodecError> {
         let data: &[u8] = bytes.as_ref();
         let value: (i32, usize) = Self::read(data)?;
         Ok(Self {
@@ -351,7 +356,9 @@ impl VarLong {
 }
 
 impl Encodable for VarLong {
-    fn from_bytes<T: AsRef<[u8]>>(bytes: T) -> Result<Self, CodecError> {
+    type Ctx = ();
+
+    fn from_bytes<T: AsRef<[u8]>>(bytes: T, ctx: Self::Ctx) -> Result<Self, CodecError> {
         let data: &[u8] = bytes.as_ref();
         let value: (i64, usize) = Self::read(data)?;
         Ok(Self {
@@ -409,7 +416,7 @@ impl StringProtocol {
     /// an UTF-8 string, then convert it to UTF-16 to count the number of code points (also, code
     /// points above U+FFFF count as 2) to check if the String is following or not the rules.
     fn read<T: AsRef<[u8]>>(data: T) -> Result<(String, usize), CodecError> {
-        let varint = VarInt::from_bytes(&data)?;
+        let varint = VarInt::from_bytes(&data, ())?;
 
         // The VarInt-decoded length in bytes of the String.
         let string_bytes_length: usize = varint.get_value() as usize;
@@ -511,7 +518,9 @@ impl StringProtocol {
 }
 
 impl Encodable for StringProtocol {
-    fn from_bytes<T: AsRef<[u8]>>(bytes: T) -> Result<Self, CodecError> {
+    type Ctx = ();
+
+    fn from_bytes<T: AsRef<[u8]>>(bytes: T, ctx: Self::Ctx) -> Result<Self, CodecError> {
         let data: &[u8] = bytes.as_ref();
         let string: (String, usize) = Self::read(data)?;
         Ok(Self {
@@ -569,7 +578,9 @@ impl UnsignedShort {
 }
 
 impl Encodable for UnsignedShort {
-    fn from_bytes<T: AsRef<[u8]>>(bytes: T) -> Result<Self, CodecError> {
+    type Ctx = ();
+
+    fn from_bytes<T: AsRef<[u8]>>(bytes: T, ctx: Self::Ctx) -> Result<Self, CodecError> {
         let data: &[u8] = bytes.as_ref();
         let value: u16 = Self::read(data)?;
         Ok(Self {
@@ -637,7 +648,9 @@ impl Uuid {
 }
 
 impl Encodable for Uuid {
-    fn from_bytes<T: AsRef<[u8]>>(bytes: T) -> Result<Self, CodecError> {
+    type Ctx = ();
+
+    fn from_bytes<T: AsRef<[u8]>>(bytes: T, ctx: Self::Ctx) -> Result<Self, CodecError> {
         let data: &[u8] = bytes.as_ref();
 
         let value: u128 = Self::read(data)?;
@@ -725,23 +738,23 @@ impl DataTypeContent {
 
         match data_type {
             DataType::VarInt => {
-                let varint = VarInt::consume_from_bytes(&mut data)?;
+                let varint = VarInt::consume_from_bytes(&mut data, ())?;
                 Ok(DataTypeContent::VarInt(varint))
             }
             DataType::VarLong => {
-                let varlong = VarLong::consume_from_bytes(&mut data)?;
+                let varlong = VarLong::consume_from_bytes(&mut data, ())?;
                 Ok(DataTypeContent::VarLong(varlong))
             }
             DataType::StringProtocol => {
-                let string_protocol = StringProtocol::consume_from_bytes(&mut data)?;
+                let string_protocol = StringProtocol::consume_from_bytes(&mut data, ())?;
                 Ok(DataTypeContent::StringProtocol(string_protocol))
             }
             DataType::UnsignedShort => {
-                let unsigned_short = UnsignedShort::consume_from_bytes(&mut data)?;
+                let unsigned_short = UnsignedShort::consume_from_bytes(&mut data, ())?;
                 Ok(DataTypeContent::UnsignedShort(unsigned_short))
             }
             DataType::Uuid => {
-                let uuid = Uuid::consume_from_bytes(&mut data)?;
+                let uuid = Uuid::consume_from_bytes(&mut data, ())?;
                 Ok(DataTypeContent::Uuid(uuid))
             }
             DataType::Array(inner_types) => {
@@ -752,7 +765,7 @@ impl DataTypeContent {
                 Ok(DataTypeContent::Array(array))
             }
             DataType::Boolean => {
-                let boolean = Boolean::consume_from_bytes(&mut data)?;
+                let boolean = Boolean::consume_from_bytes(&mut data, ())?;
                 Ok(DataTypeContent::Boolean(boolean))
             }
             DataType::Optional(inner_type) => {
@@ -760,7 +773,7 @@ impl DataTypeContent {
                 Ok(DataTypeContent::Optional(Box::new(optional)))
             }
             DataType::Byte => {
-                let byte = Byte::consume_from_bytes(&mut data)?;
+                let byte = Byte::consume_from_bytes(&mut data, ())?;
                 Ok(DataTypeContent::Byte(byte))
             }
             DataType::Other(value) => Err(CodecError::Decoding(
@@ -931,11 +944,13 @@ impl Boolean {
 }
 
 impl Encodable for Boolean {
+    type Ctx = ();
+
     /// Converts a byte slice into a `Boolean` struct.
     ///
     /// # Errors
     /// Returns a `CodecError` if the slice is empty or the first byte is not 0 or 1.
-    fn from_bytes<T: AsRef<[u8]>>(bytes: T) -> Result<Self, CodecError> {
+    fn from_bytes<T: AsRef<[u8]>>(bytes: T, ctx: Self::Ctx) -> Result<Self, CodecError> {
         let data: &[u8] = bytes.as_ref();
 
         if data.is_empty() {
@@ -1109,7 +1124,9 @@ impl Byte {
 }
 
 impl Encodable for Byte {
-    fn from_bytes<T: AsRef<[u8]>>(bytes: T) -> Result<Self, CodecError> {
+    type Ctx = ();
+
+    fn from_bytes<T: AsRef<[u8]>>(bytes: T, ctx: Self::Ctx) -> Result<Self, CodecError> {
         let data: &[u8] = bytes.as_ref();
         let value: i8 = Self::read(data)?;
         Ok(Self {
@@ -1150,39 +1167,6 @@ struct PrefixedArray {
     value: Array,
     bytes: Vec<u8>,
 }
-
-impl PrefixedArray {
-    fn read<T: AsRef<[u8]>>(data: T) -> Result<Self, CodecError> {
-        todo!()
-    }
-
-    fn write(arr: &Array) -> Result<Self, CodecError> {
-        todo!()
-    }
-}
-
-impl Encodable for PrefixedArray {
-    fn from_bytes<T: AsRef<[u8]>>(bytes: T) -> Result<Self, CodecError> {
-        todo!()
-    }
-
-    type ValueInput = ();
-
-    fn from_value(value: Self::ValueInput) -> Result<Self, CodecError> {
-        todo!()
-    }
-
-    fn get_bytes(&self) -> &[u8] {
-        todo!()
-    }
-
-    type ValueOutput = ();
-
-    fn get_value(&self) -> Self::ValueOutput {
-        todo!()
-    }
-}
-
 /// Tests written with AI, and not human-checked.
 /// Unfortunate, but saves a ton of time.
 #[cfg(test)]
@@ -1212,7 +1196,7 @@ mod tests {
         .collect();
 
         for (expected_value, encoded) in values.iter() {
-            let varint = VarInt::from_bytes(encoded).unwrap();
+            let varint = VarInt::from_bytes(encoded, ()).unwrap();
             let decoded_value = varint.get_value();
             let decoded_length = varint.get_bytes().len();
             assert_eq!(decoded_value, *expected_value);
@@ -1261,7 +1245,7 @@ mod tests {
         for &value in &test_values {
             let varint = VarInt::from_value(value).unwrap();
             let encoded = varint.get_bytes();
-            let decoded_varint = VarInt::from_bytes(encoded).unwrap();
+            let decoded_varint = VarInt::from_bytes(encoded, ()).unwrap();
             let decoded = decoded_varint.get_value();
             assert_eq!(value, decoded, "Roundtrip failed for value: {}", value);
         }
@@ -1271,7 +1255,7 @@ mod tests {
             let value = rng.gen();
             let varint = VarInt::from_value(value).unwrap();
             let encoded = varint.get_bytes();
-            let decoded_varint = VarInt::from_bytes(encoded).unwrap();
+            let decoded_varint = VarInt::from_bytes(encoded, ()).unwrap();
             let decoded = decoded_varint.get_value();
             assert_eq!(
                 value, decoded,
@@ -1285,7 +1269,7 @@ mod tests {
     fn test_varint_invalid_input() {
         let too_long = vec![0x80, 0x80, 0x80, 0x80, 0x80, 0x01];
         assert!(matches!(
-            VarInt::from_bytes(&too_long),
+            VarInt::from_bytes(&too_long, ()),
             Err(CodecError::Decoding(
                 DataType::VarInt,
                 ErrorReason::ValueTooLarge
@@ -1321,7 +1305,7 @@ mod tests {
         .collect();
 
         for (expected_value, encoded) in values.iter() {
-            let varlong = VarLong::from_bytes(encoded).unwrap();
+            let varlong = VarLong::from_bytes(encoded, ()).unwrap();
             let decoded_value = varlong.get_value();
             let decoded_length = varlong.get_bytes().len();
             assert_eq!(decoded_value, *expected_value);
@@ -1380,7 +1364,7 @@ mod tests {
         for &value in &test_values {
             let varlong = VarLong::from_value(value).unwrap();
             let encoded = varlong.get_bytes();
-            let decoded_varlong = VarLong::from_bytes(encoded).unwrap();
+            let decoded_varlong = VarLong::from_bytes(encoded,()).unwrap();
             let decoded = decoded_varlong.get_value();
             assert_eq!(value, decoded, "Roundtrip failed for value: {}", value);
         }
@@ -1390,7 +1374,7 @@ mod tests {
             let value = rng.gen();
             let varlong = VarLong::from_value(value).unwrap();
             let encoded = varlong.get_bytes();
-            let decoded_varlong = VarLong::from_bytes(encoded).unwrap();
+            let decoded_varlong = VarLong::from_bytes(encoded, ()).unwrap();
             let decoded = decoded_varlong.get_value();
             assert_eq!(
                 value, decoded,
@@ -1406,7 +1390,7 @@ mod tests {
             0x80, 0x80, 0x80, 0x80, 0x80, 0x80, 0x80, 0x80, 0x80, 0x80, 0x01,
         ];
         assert!(matches!(
-            VarLong::from_bytes(&too_long),
+            VarLong::from_bytes(&too_long, ()),
             Err(CodecError::Decoding(
                 DataType::VarLong,
                 ErrorReason::ValueTooLarge
@@ -1427,7 +1411,7 @@ mod tests {
         let mut data = length_varint;
         data.extend_from_slice(string_bytes);
 
-        let sp = StringProtocol::from_bytes(&data).unwrap();
+        let sp = StringProtocol::from_bytes(&data, ()).unwrap();
         assert_eq!(sp.get_value(), s);
     }
 
@@ -1444,7 +1428,7 @@ mod tests {
         let mut data = length_varint;
         data.extend_from_slice(string_bytes);
 
-        let sp = StringProtocol::from_bytes(&data).unwrap();
+        let sp = StringProtocol::from_bytes(&data, ()).unwrap();
         assert_eq!(sp.get_value(), s);
     }
 
@@ -1461,7 +1445,7 @@ mod tests {
         let mut data = length_varint;
         data.extend_from_slice(string_bytes);
 
-        let sp = StringProtocol::from_bytes(&data).unwrap();
+        let sp = StringProtocol::from_bytes(&data, ()).unwrap();
         assert!(sp.get_value().is_empty());
     }
 
@@ -1479,7 +1463,7 @@ mod tests {
         let mut data = length_varint;
         data.extend_from_slice(string_bytes);
 
-        let string = StringProtocol::from_bytes(&data);
+        let string = StringProtocol::from_bytes(&data, ());
         assert!(matches!(string, Err(_)));
     }
 
@@ -1491,7 +1475,7 @@ mod tests {
         let mut data = invalid_varint;
         data.extend_from_slice(string_bytes);
 
-        match StringProtocol::from_bytes(&data) {
+        match StringProtocol::from_bytes(&data, ()) {
             Ok(_) => panic!("Expected error, but got Ok"),
             Err(e) => {
                 assert!(matches!(e, CodecError::Decoding(DataType::VarInt, _)));
@@ -1511,7 +1495,7 @@ mod tests {
         let mut data = length_varint;
         data.extend_from_slice(&invalid_utf8);
 
-        match StringProtocol::from_bytes(&data) {
+        match StringProtocol::from_bytes(&data, ()) {
             Ok(_) => panic!("Expected error, but got Ok"),
             Err(e) => {
                 assert!(matches!(
@@ -1534,7 +1518,7 @@ mod tests {
         let mut data = length_varint;
         data.extend_from_slice(string_bytes);
 
-        match StringProtocol::from_bytes(&data) {
+        match StringProtocol::from_bytes(&data,()) {
             Ok(_) => panic!("Expected error, but got Ok"),
             Err(e) => {
                 assert!(matches!(
@@ -1553,7 +1537,7 @@ mod tests {
             .get_bytes()
             .to_vec();
 
-        match StringProtocol::from_bytes(&data) {
+        match StringProtocol::from_bytes(&data, ()) {
             Ok(_) => panic!("Expected error, but got Ok"),
             Err(e) => {
                 assert!(matches!(
@@ -1568,7 +1552,7 @@ mod tests {
     fn test_string_read_empty_data() {
         let data: Vec<u8> = Vec::new();
 
-        match StringProtocol::from_bytes(&data) {
+        match StringProtocol::from_bytes(&data, ()) {
             Ok(_) => panic!("Expected error, but got Ok"),
             Err(e) => {
                 assert!(matches!(
@@ -1593,7 +1577,7 @@ mod tests {
             let mut data = length_varint;
             data.extend_from_slice(string_bytes);
 
-            let sp = StringProtocol::from_bytes(&data).unwrap();
+            let sp = StringProtocol::from_bytes(&data, ()).unwrap();
             assert_eq!(sp.get_value(), s);
         }
     }
@@ -1674,7 +1658,7 @@ mod tests {
     fn test_write_to_read_loop() {
         let input = "こんにちは、世界! 🌍";
         let sp = StringProtocol::from_value(input.to_string()).unwrap();
-        let decoded = StringProtocol::from_bytes(&sp.get_bytes()).unwrap();
+        let decoded = StringProtocol::from_bytes(&sp.get_bytes(), ()).unwrap();
         assert_eq!(decoded.get_value(), input);
     }
 
@@ -1699,7 +1683,7 @@ mod tests {
         ];
 
         for (bytes, expected) in test_cases {
-            let us = UnsignedShort::from_bytes(&bytes).unwrap();
+            let us = UnsignedShort::from_bytes(&bytes, ()).unwrap();
             assert_eq!(
                 us.get_value(),
                 expected,
@@ -1718,7 +1702,7 @@ mod tests {
     #[test]
     fn test_unsigned_short_from_bytes_with_extra_data() {
         let bytes = vec![0x12, 0x34, 0xAB, 0xCD];
-        let us = UnsignedShort::from_bytes(&bytes).unwrap();
+        let us = UnsignedShort::from_bytes(&bytes, ()).unwrap();
         assert_eq!(us.get_value(), 0x1234);
         assert_eq!(us.get_bytes(), &0x1234_u16.to_be_bytes());
     }
@@ -1726,7 +1710,7 @@ mod tests {
     #[test]
     fn test_unsigned_short_invalid_input() {
         let bytes = vec![0x12];
-        let err = UnsignedShort::from_bytes(&bytes).unwrap_err();
+        let err = UnsignedShort::from_bytes(&bytes, ()).unwrap_err();
         assert!(matches!(
             err,
             CodecError::Decoding(DataType::UnsignedShort, ErrorReason::ValueTooSmall)
@@ -1739,7 +1723,7 @@ mod tests {
         for _ in 0..1000 {
             let value = rng.gen::<u16>();
             let us = UnsignedShort::from_value(value).unwrap();
-            let decoded = UnsignedShort::from_bytes(us.get_bytes()).unwrap();
+            let decoded = UnsignedShort::from_bytes(us.get_bytes(), ()).unwrap();
             assert_eq!(
                 decoded.get_value(),
                 value,
@@ -1780,7 +1764,7 @@ mod tests {
     #[test]
     fn test_uuid_from_bytes() {
         let (value, bytes) = sample_uuid();
-        let uuid = Uuid::from_bytes(bytes).unwrap();
+        let uuid = Uuid::from_bytes(bytes, ()).unwrap();
         assert_eq!(uuid.value, value);
         assert_eq!(uuid.bytes, bytes);
     }
@@ -1788,7 +1772,7 @@ mod tests {
     #[test]
     fn test_uuid_from_bytes_invalid_length() {
         let bytes = [0x34u8; 8]; // Not enough bytes
-        let result = Uuid::from_bytes(bytes);
+        let result = Uuid::from_bytes(bytes, ());
         assert!(result.is_err());
     }
 
@@ -1825,7 +1809,7 @@ mod tests {
     fn test_uuid_consume_from_bytes() {
         let (value, bytes) = sample_uuid();
         let mut slice: &[u8] = &bytes;
-        let uuid = Uuid::consume_from_bytes(&mut slice).unwrap();
+        let uuid = Uuid::consume_from_bytes(&mut slice, ()).unwrap();
         assert_eq!(uuid.value, value);
         assert_eq!(slice.len(), 0);
     }
@@ -1837,7 +1821,7 @@ mod tests {
         input[..16].copy_from_slice(&bytes);
         input[16..].copy_from_slice(&bytes);
         let mut slice: &[u8] = &input;
-        let uuid = Uuid::consume_from_bytes(&mut slice).unwrap();
+        let uuid = Uuid::consume_from_bytes(&mut slice, ()).unwrap();
         assert_eq!(uuid.value, value);
         assert_eq!(slice.len(), 16); // 16 bytes consumed
     }
@@ -1846,7 +1830,7 @@ mod tests {
     fn test_uuid_consume_from_bytes_invalid() {
         let bytes = [0x12u8; 15]; // Not enough
         let mut slice: &[u8] = &bytes;
-        let result = Uuid::consume_from_bytes(&mut slice);
+        let result = Uuid::consume_from_bytes(&mut slice, ());
         assert!(result.is_err());
     }
 
@@ -1872,7 +1856,7 @@ mod tests {
     fn test_uuid_round_trip() {
         let (value, _) = sample_uuid();
         let uuid = Uuid::from_value(value).unwrap();
-        let round_trip = Uuid::from_bytes(uuid.get_bytes()).unwrap();
+        let round_trip = Uuid::from_bytes(uuid.get_bytes(), ()).unwrap();
         assert_eq!(round_trip.get_value(), value);
         assert_eq!(round_trip.get_bytes(), uuid.get_bytes());
     }
@@ -1889,7 +1873,7 @@ mod tests {
             let uuid = Uuid::from_value(val).unwrap();
             assert_eq!(uuid.get_value(), val);
             assert_eq!(uuid.get_bytes(), &val.to_be_bytes());
-            let from_bytes = Uuid::from_bytes(uuid.get_bytes()).unwrap();
+            let from_bytes = Uuid::from_bytes(uuid.get_bytes(), ()).unwrap();
             assert_eq!(from_bytes.get_value(), val);
         }
     }
@@ -1899,11 +1883,11 @@ mod tests {
         let (value, bytes) = sample_uuid();
         let mut long_slice = Vec::from(bytes);
         long_slice.extend_from_slice(&[0xFF; 10]); // extra data
-        let uuid = Uuid::from_bytes(&long_slice).unwrap();
+        let uuid = Uuid::from_bytes(&long_slice, ()).unwrap();
         assert_eq!(uuid.get_value(), value);
 
         let mut slice_ref: &[u8] = &long_slice;
-        let consumed_uuid = Uuid::consume_from_bytes(&mut slice_ref).unwrap();
+        let consumed_uuid = Uuid::consume_from_bytes(&mut slice_ref, ()).unwrap();
         assert_eq!(consumed_uuid.get_value(), value);
         // Ensure extra bytes remain unconsumed
         assert_eq!(slice_ref.len(), 10);
@@ -2182,7 +2166,7 @@ mod tests {
     #[test]
     fn test_from_bytes_false() {
         let bytes = [Boolean::FALSE_BYTE];
-        let boolean = Boolean::from_bytes(&bytes).expect("Failed to parse false byte");
+        let boolean = Boolean::from_bytes(&bytes, ()).expect("Failed to parse false byte");
         assert_eq!(boolean.get_value(), false, "Parsed value should be false");
         assert_eq!(
             boolean.get_bytes(),
@@ -2194,7 +2178,7 @@ mod tests {
     #[test]
     fn test_from_bytes_true() {
         let bytes = [Boolean::TRUE_BYTE];
-        let boolean = Boolean::from_bytes(&bytes).expect("Failed to parse true byte");
+        let boolean = Boolean::from_bytes(&bytes, ()).expect("Failed to parse true byte");
         assert_eq!(boolean.get_value(), true, "Parsed value should be true");
         assert_eq!(
             boolean.get_bytes(),
@@ -2206,7 +2190,7 @@ mod tests {
     #[test]
     fn test_from_bytes_empty_slice() {
         let bytes: [u8; 0] = [];
-        let result = Boolean::from_bytes(&bytes);
+        let result = Boolean::from_bytes(&bytes, ());
         assert!(result.is_err(), "Empty slice should result in an error");
         if let Err(CodecError::Decoding(_, reason)) = result {
             match reason {
@@ -2221,7 +2205,7 @@ mod tests {
     #[test]
     fn test_from_bytes_invalid_value() {
         let bytes = [0x05];
-        let result = Boolean::from_bytes(&bytes);
+        let result = Boolean::from_bytes(&bytes, ());
         assert!(result.is_err(), "Invalid byte should result in an error");
         if let Err(CodecError::Decoding(_, reason)) = result {
             match reason {
@@ -2239,7 +2223,7 @@ mod tests {
     #[test]
     fn test_consume_from_bytes_true() {
         let mut data: &[u8] = &[Boolean::TRUE_BYTE, 0xFF];
-        let boolean = Boolean::consume_from_bytes(&mut data).expect("Failed to consume bytes");
+        let boolean = Boolean::consume_from_bytes(&mut data, ()).expect("Failed to consume bytes");
         assert_eq!(boolean.get_value(), true, "Parsed value should be true");
         assert_eq!(data, &[0xFF], "Remaining data should skip the Boolean byte");
     }
@@ -2247,7 +2231,7 @@ mod tests {
     #[test]
     fn test_consume_from_bytes_false() {
         let mut data: &[u8] = &[Boolean::FALSE_BYTE, 0xFF];
-        let boolean = Boolean::consume_from_bytes(&mut data).expect("Failed to consume bytes");
+        let boolean = Boolean::consume_from_bytes(&mut data, ()).expect("Failed to consume bytes");
         assert_eq!(boolean.get_value(), false, "Parsed value should be false");
         assert_eq!(data, &[0xFF], "Remaining data should skip the Boolean byte");
     }
@@ -2262,7 +2246,7 @@ mod tests {
     fn test_roundtrip_false() {
         let original = Boolean::from_value(false).expect("Failed to create Boolean from false");
         let bytes = original.get_bytes();
-        let decoded = Boolean::from_bytes(bytes).expect("Failed to decode bytes back into Boolean");
+        let decoded = Boolean::from_bytes(bytes, ()).expect("Failed to decode bytes back into Boolean");
         assert_eq!(
             original, decoded,
             "Roundtrip for false should produce the same object"
@@ -2273,7 +2257,7 @@ mod tests {
     fn test_roundtrip_true() {
         let original = Boolean::from_value(true).expect("Failed to create Boolean from true");
         let bytes = original.get_bytes();
-        let decoded = Boolean::from_bytes(bytes).expect("Failed to decode bytes back into Boolean");
+        let decoded = Boolean::from_bytes(bytes, ()).expect("Failed to decode bytes back into Boolean");
         assert_eq!(
             original, decoded,
             "Roundtrip for true should produce the same object"
@@ -2487,7 +2471,7 @@ mod tests {
             assert_eq!(b_val.len(), 1);
 
             // Test from bytes
-            let b_bytes = Byte::from_bytes(v.to_be_bytes()).unwrap();
+            let b_bytes = Byte::from_bytes(v.to_be_bytes(), ()).unwrap();
             assert_eq!(b_bytes.get_value(), v);
             assert_eq!(b_bytes.get_bytes(), v.to_be_bytes());
             assert_eq!(b_bytes.len(), 1);
@@ -2495,14 +2479,14 @@ mod tests {
 
         for v in i8::MIN..=i8::MAX {
             let b = Byte::from_value(v).unwrap();
-            assert_eq!(Byte::from_bytes(b.get_bytes()).unwrap(), b);
+            assert_eq!(Byte::from_bytes(b.get_bytes(), ()).unwrap(), b);
         }
     }
 
     #[test]
     fn test_byte_all_binary_values() {
         for v in u8::MIN..=u8::MAX {
-            let b = Byte::from_bytes(v.to_be_bytes()).unwrap();
+            let b = Byte::from_bytes(v.to_be_bytes(),()).unwrap();
 
             assert_eq!(b.get_value(), v.cast_signed());
             assert_eq!(b.get_bytes(), v.to_be_bytes());
@@ -2512,7 +2496,7 @@ mod tests {
 
     #[test]
     fn byte_from_bytes_rejects_wrong_lengths() {
-        assert!(Byte::from_bytes([]).is_err());
-        assert!(Byte::from_bytes([0, 1]).is_ok());
+        assert!(Byte::from_bytes([], ()).is_err());
+        assert!(Byte::from_bytes([0, 1], ()).is_ok());
     }
 }

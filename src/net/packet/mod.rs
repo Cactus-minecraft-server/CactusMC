@@ -108,7 +108,7 @@ impl Packet {
     /// Tries to parse raw bytes and return in order:
     /// (Packet Length, Packet ID, Packet payload bytes)
     fn parse_packet(data: &[u8]) -> Result<(usize, VarInt, &[u8]), PacketError> {
-        let packet_len_varint = VarInt::from_bytes(data)?;
+        let packet_len_varint = VarInt::from_bytes(data, ())?;
         let packet_len_len: usize = packet_len_varint.get_bytes().len();
 
         // We don't add + 1 because we're dealing with 0-indexing.
@@ -116,7 +116,7 @@ impl Packet {
         // ID and Payload.
         let except_length = &data[packet_len_len..];
 
-        let packet_id_varint = VarInt::from_bytes(except_length)?;
+        let packet_id_varint = VarInt::from_bytes(except_length, ())?;
 
         // So this is essentially "except_length_and_id", the continuation of `except_length`
         let payload = &except_length[packet_id_varint.get_bytes().len()..];

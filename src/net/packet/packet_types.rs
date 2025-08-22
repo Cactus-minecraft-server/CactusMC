@@ -211,10 +211,10 @@ pub mod handshake {
         fn from_bytes<T: AsRef<[u8]>>(bytes: T) -> Result<Self, PacketError> {
             let mut data: &[u8] = bytes.as_ref();
 
-            let protocol_version: VarInt = VarInt::consume_from_bytes(&mut data)?;
-            let server_address: StringProtocol = StringProtocol::consume_from_bytes(&mut data)?;
-            let server_port: UnsignedShort = UnsignedShort::consume_from_bytes(&mut data)?;
-            let next_state: NextState = NextState::new(VarInt::consume_from_bytes(&mut data)?)?;
+            let protocol_version: VarInt = VarInt::consume_from_bytes(&mut data, ())?;
+            let server_address: StringProtocol = StringProtocol::consume_from_bytes(&mut data, ())?;
+            let server_port: UnsignedShort = UnsignedShort::consume_from_bytes(&mut data, ())?;
+            let next_state: NextState = NextState::new(VarInt::consume_from_bytes(&mut data,())?)?;
 
             let packet: Packet = PacketBuilder::new()
                 .append_bytes(protocol_version.get_bytes())
@@ -279,8 +279,8 @@ pub mod login {
         fn from_bytes<T: AsRef<[u8]>>(bytes: T) -> Result<Self, PacketError> {
             let mut data: &[u8] = bytes.as_ref();
 
-            let name: StringProtocol = StringProtocol::consume_from_bytes(&mut data)?;
-            let player_uuid: Uuid = Uuid::consume_from_bytes(&mut data)?;
+            let name: StringProtocol = StringProtocol::consume_from_bytes(&mut data, ())?;
+            let player_uuid: Uuid = Uuid::consume_from_bytes(&mut data, ())?;
 
             let packet: Packet = PacketBuilder::new()
                 .append_bytes(name.get_bytes())
@@ -525,7 +525,7 @@ pub mod configuration {
         fn from_bytes<T: AsRef<[u8]>>(bytes: T) -> Result<Self, PacketError> {
             let mut data: &[u8] = bytes.as_ref();
 
-            let known_pack_count: VarInt = VarInt::consume_from_bytes(&mut data)?;
+            let known_pack_count: VarInt = VarInt::consume_from_bytes(&mut data, ())?;
             let pack_count: usize = known_pack_count.get_value() as usize;
 
             // Define the structure of each known pack once.
