@@ -832,24 +832,51 @@ impl DataType {
     }
 }
 
-// TODO: Find a way to implement Array.
-// TODO: It seems we cannot implement the Encodable trait because the from_bytes() function needs
-// more than just bytes to deduce what type of information the function has to parse, that is, if I
-// properly understood how Array works.
-//
+
+#[derive(Debug, Default, Clone, PartialEq, Eq)]
+pub struct Array {}
+impl<A: AsRef<[DataTypeContent]>> Encodable for Array {
+
+    // TODO rewrite this shitty DataType vs DataTypeContent to be one.
+    //type Ctx = &'a[DataTypeContent];
+    //type Ctx = dyn AsRef<[DataTypeContent]>;
+    //
+    type Ctx = A;
+
+    fn from_bytes<T: AsRef<[u8]>>(bytes: T, ctx: Self::Ctx) -> Result<Self, CodecError> {
+        todo!()
+    }
+
+    type ValueInput = ();
+
+    fn from_value(value: Self::ValueInput) -> Result<Self, CodecError> {
+        todo!()
+    }
+
+    fn get_bytes(&self) -> &[u8] {
+        todo!()
+    }
+
+    type ValueOutput = ();
+
+    fn get_value(&self) -> Self::ValueOutput {
+        todo!()
+    }
+}
+
 // Here is the example where Array has multiple types of data:
 // https://minecraft.wiki/w/Minecraft_Wiki:Projects/wiki.vg_merge/Protocol#Login_Success
 //
 // This structure is non-standard because it is not implementing Encodable because of the dynamic
 // nature of the `Array`, it needs to know what are the data types for parsing and creating itself.
 #[derive(Debug, Default, Clone, PartialEq, Eq)]
-pub struct Array {
+pub struct ArrayOld {
     /// There can be 0 or more types in an Array.
     types: Vec<DataTypeContent>,
     bytes: Vec<u8>,
 }
 
-impl Array {
+impl ArrayOld {
     /// Creates a new `Array` from bytes and what types to parse.
     pub fn from_bytes<T: AsRef<[u8]>>(
         bytes: T,

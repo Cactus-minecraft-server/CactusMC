@@ -99,7 +99,7 @@ impl Packet {
         self.data.len()
     }
 
-    /// Returns the number of bytes bytes in the packet.
+    /// Returns the number of bytes in the packet.
     /// To be clear, this is the length of the received TCP packet.
     pub fn len(&self) -> usize {
         self.data.len()
