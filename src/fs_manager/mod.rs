@@ -1,4 +1,4 @@
-use std::fs::{self, File, OpenOptions};
+use std::fs::{self, remove_dir_all, File, OpenOptions};
 use std::io::{self, BufRead, Seek, SeekFrom};
 use std::path::Path;
 mod utils;
@@ -268,6 +268,7 @@ pub fn clean_files() -> Result<(), std::io::Error> {
         consts::file_paths::SESSION,
         consts::file_paths::USERCACHE,
         consts::file_paths::WHITELIST,
+        consts::file_paths::LEVEL,
     ];
 
     // Delete files using the `remove_file` helper function
@@ -286,7 +287,7 @@ pub fn clean_files() -> Result<(), std::io::Error> {
 
     // Delete directories using the `remove_dir` helper function
     for dir in &directories {
-        remove_dir(dir)?;
+        remove_dir_all(dir)?;
     }
 
     info!("Files cleaned successfully before starting the server.");

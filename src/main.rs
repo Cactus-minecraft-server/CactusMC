@@ -37,8 +37,11 @@ async fn main() {
 
     info!("{}", *messages::SERVER_SHUTDOWN_SUCCESS);
 }
-
+#[cfg(debug_assertions)]
 const DISABLE_LOGGING_COLOR_AND_SAVE_TO_FILE: bool = false;
+
+#[cfg(not(debug_assertions))]
+const DISABLE_LOGGING_COLOR_AND_SAVE_TO_FILE: bool = true;
 
 /// Logic that must executes as early as possibe
 async fn early_init() -> Result<(), Box<dyn std::error::Error>> {
