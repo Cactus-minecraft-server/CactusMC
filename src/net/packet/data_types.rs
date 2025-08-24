@@ -836,11 +836,19 @@ impl DataType {
 //
 /// This represents an Array that can contain multiple types.
 pub struct Array<I, D> {
-    value: I,
+    /// We don't need to resize or do shenanigans with it, an owned slice is what we need.
+    values: Box<[DataTypeContent]>,
     /// Array dumped to bytes. Basically
     bytes: Vec<u8>,
     /// Binds T and D to the lifetime of our Array.
     phantom_data: PhantomData<(I, D)>,
+}
+
+impl<I, D> Array<I, D> {
+    /// Return the number of elements inside the Array.
+    pub fn len(&self) -> usize {
+        self.values.len()
+    }
 }
 
 impl<I, D> Encodable for Array<I, D>
