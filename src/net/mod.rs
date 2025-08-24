@@ -149,8 +149,8 @@ impl Connection {
                     error!("Error while converting packet size into usize: {e}");
                 })?;
                 // Left-shift the buffers' items to account for this VarInt.
-                buffer.advance(min(buffer_size, size.len()));
-                Ok((s, size.len()))
+                buffer.advance(min(buffer_size, size.size()));
+                Ok((s, size.size()))
             }
             Err(_) => {
                 //buffer.extend_from_slice(bytes);
@@ -247,7 +247,7 @@ impl Connection {
                             let len_usize = usize::try_from(v.get_value()).map_err(|_| {
                                 NetError::Reading("Frame length does not fit in usize".to_string())
                             })?;
-                            (Some(len_usize), Some(v.len()))
+                            (Some(len_usize), Some(v.size()))
                         }
                         Err(_) => (None, None), // need more bytes for the length
                     }

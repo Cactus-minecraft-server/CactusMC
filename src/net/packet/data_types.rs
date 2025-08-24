@@ -1,6 +1,7 @@
 use core::{fmt, str};
-
 use log::debug;
+use std::fmt::{Debug, Formatter};
+use std::marker::PhantomData;
 use thiserror::Error;
 
 pub trait Encodable: Sized + Default + fmt::Debug + Clone + PartialEq + Eq {
@@ -20,7 +21,7 @@ pub trait Encodable: Sized + Default + fmt::Debug + Clone + PartialEq + Eq {
     /// the buffer would then be [4, 8] after the function call.
     fn consume_from_bytes(bytes: &mut &[u8], ctx: Self::Ctx) -> Result<Self, CodecError> {
         let instance = Self::from_bytes(*bytes, ctx)?;
-        *bytes = &bytes[instance.len()..];
+        *bytes = &bytes[instance.size()..];
         Ok(instance)
     }
 
@@ -35,8 +36,8 @@ pub trait Encodable: Sized + Default + fmt::Debug + Clone + PartialEq + Eq {
     /// Returns the value represented by this instance
     fn get_value(&self) -> Self::ValueOutput;
 
-    // Returns the length of the encoded data in bytes.
-    fn len(&self) -> usize {
+    /// Returns the number of bytes taken by the data type.
+    fn size(&self) -> usize {
         self.get_bytes().len()
     }
 }
@@ -261,10 +262,6 @@ impl Encodable for VarInt {
     /// Returns the value of the VarInt (i32)
     fn get_value(&self) -> Self::ValueOutput {
         self.value
-    }
-
-    fn len(&self) -> usize {
-        self.get_bytes().len()
     }
 }
 
@@ -700,15 +697,15 @@ impl DataTypeContent {
     /// Returns the length in bytes of the ArrayType.
     pub fn len(&self) -> usize {
         match self {
-            DataTypeContent::VarInt(varint) => varint.len(),
-            DataTypeContent::VarLong(varlong) => varlong.len(),
-            DataTypeContent::StringProtocol(string_protocol) => string_protocol.len(),
-            DataTypeContent::UnsignedShort(unsigned_short) => unsigned_short.len(),
-            DataTypeContent::Uuid(uuid) => uuid.len(),
-            DataTypeContent::Array(array) => array.len(),
-            DataTypeContent::Boolean(boolean) => boolean.len(),
+            DataTypeContent::VarInt(varint) => varint.size(),
+            DataTypeContent::VarLong(varlong) => varlong.size(),
+            DataTypeContent::StringProtocol(string_protocol) => string_protocol.size(),
+            DataTypeContent::UnsignedShort(unsigned_short) => unsigned_short.size(),
+            DataTypeContent::Uuid(uuid) => uuid.size(),
+            DataTypeContent::Array(array) => array.size(),
+            DataTypeContent::Boolean(boolean) => boolean.size(),
             DataTypeContent::Optional(optional) => (*optional).len(),
-            DataTypeContent::Byte(v) => v.len(),
+            DataTypeContent::Byte(v) => v.size(),
             DataTypeContent::Other(_) => 0, // Assuming `Other` doesn't have a meaningful length
         }
     }
@@ -832,22 +829,37 @@ impl DataType {
     }
 }
 
+// Here is the example where Array has multiple types of data:
+// https://minecraft.wiki/w/Minecraft_Wiki:Projects/wiki.vg_merge/Protocol#Login_Success
+//
+// Docs: https://minecraft.wiki/w/Java_Edition_protocol/Packets#Type:Array
+//
+/// This represents an Array that can contain multiple types.
+pub struct Array<I, D> {
+    value: I,
+    /// Array dumped to bytes. Basically
+    bytes: Vec<u8>,
+    /// Binds T and D to the lifetime of our Array.
+    phantom_data: PhantomData<(I, D)>,
+}
 
-#[derive(Debug, Default, Clone, PartialEq, Eq)]
-pub struct Array {}
-impl<A: AsRef<[DataTypeContent]>> Encodable for Array {
-
+impl<I, D> Encodable for Array<I, D>
+where
+    I: IntoIterator<Item = D>,
+    D: Into<DataTypeContent>,
+{
     // TODO rewrite this shitty DataType vs DataTypeContent to be one.
     //type Ctx = &'a[DataTypeContent];
     //type Ctx = dyn AsRef<[DataTypeContent]>;
     //
-    type Ctx = A;
+    type Ctx = I;
 
     fn from_bytes<T: AsRef<[u8]>>(bytes: T, ctx: Self::Ctx) -> Result<Self, CodecError> {
+        let data: &[u8] = bytes.as_ref();
         todo!()
     }
 
-    type ValueInput = ();
+    type ValueInput = I;
 
     fn from_value(value: Self::ValueInput) -> Result<Self, CodecError> {
         todo!()
@@ -857,12 +869,34 @@ impl<A: AsRef<[DataTypeContent]>> Encodable for Array {
         todo!()
     }
 
-    type ValueOutput = ();
+    type ValueOutput = I;
 
     fn get_value(&self) -> Self::ValueOutput {
         todo!()
     }
 }
+
+impl<I, D> Default for Array<I, D> {
+    fn default() -> Self {
+        todo!()
+    }
+}
+impl<I, D> Debug for Array<I, D> {
+    fn fmt(&self, f: &mut Formatter<'_>) -> std::fmt::Result {
+        todo!()
+    }
+}
+impl<I, D> Clone for Array<I, D> {
+    fn clone(&self) -> Self {
+        todo!()
+    }
+}
+impl<I, D> PartialEq for Array<I, D> {
+    fn eq(&self, other: &Self) -> bool {
+        todo!()
+    }
+}
+impl<I, D> Eq for Array<I, D> {}
 
 // Here is the example where Array has multiple types of data:
 // https://minecraft.wiki/w/Minecraft_Wiki:Projects/wiki.vg_merge/Protocol#Login_Success
@@ -1391,7 +1425,7 @@ mod tests {
         for &value in &test_values {
             let varlong = VarLong::from_value(value).unwrap();
             let encoded = varlong.get_bytes();
-            let decoded_varlong = VarLong::from_bytes(encoded,()).unwrap();
+            let decoded_varlong = VarLong::from_bytes(encoded, ()).unwrap();
             let decoded = decoded_varlong.get_value();
             assert_eq!(value, decoded, "Roundtrip failed for value: {}", value);
         }
@@ -1545,7 +1579,7 @@ mod tests {
         let mut data = length_varint;
         data.extend_from_slice(string_bytes);
 
-        match StringProtocol::from_bytes(&data,()) {
+        match StringProtocol::from_bytes(&data, ()) {
             Ok(_) => panic!("Expected error, but got Ok"),
             Err(e) => {
                 assert!(matches!(
@@ -1829,7 +1863,7 @@ mod tests {
     fn test_uuid_len() {
         let (value, _) = sample_uuid();
         let uuid = Uuid::from_value(value).unwrap();
-        assert_eq!(uuid.len(), 16);
+        assert_eq!(uuid.size(), 16);
     }
 
     #[test]
@@ -1934,7 +1968,7 @@ mod tests {
 
         // Check length and bytes.
         assert_eq!(
-            array.len(),
+            array.size(),
             encoded.len(),
             "Array length should match encoded VarInt length."
         );
@@ -1988,7 +2022,7 @@ mod tests {
         let array = Array::from_bytes(&encoded, &data_types).unwrap();
 
         // Confirm length and internal bytes.
-        assert_eq!(array.len(), encoded.len());
+        assert_eq!(array.size(), encoded.len());
         assert_eq!(array.get_bytes(), &encoded);
 
         // Check each parsed element in order.
@@ -2069,7 +2103,7 @@ mod tests {
         let empty_data_types = vec![];
 
         let array = Array::from_bytes(&empty_encoded, &empty_data_types).unwrap();
-        assert_eq!(array.len(), 0, "Empty array should have length zero.");
+        assert_eq!(array.size(), 0, "Empty array should have length zero.");
         assert!(array.get_bytes().is_empty());
         assert!(array.get_value().is_empty(), "Should have no elements.");
     }
@@ -2099,7 +2133,7 @@ mod tests {
         assert_eq!(buffer_slice, &[0x01, 0x02]);
 
         // Check that array is correct.
-        assert_eq!(array.len(), encoded_varint.len());
+        assert_eq!(array.size(), encoded_varint.len());
         assert_eq!(array.get_bytes(), &encoded_varint);
         match &array.get_value()[0] {
             DataTypeContent::VarInt(val) => assert_eq!(val.get_value(), 777),
@@ -2266,14 +2300,15 @@ mod tests {
     #[test]
     fn test_len() {
         let boolean = Boolean::from_value(true).expect("Failed to create Boolean from true");
-        assert_eq!(boolean.len(), 1, "Boolean length should be 1 byte");
+        assert_eq!(boolean.size(), 1, "Boolean length should be 1 byte");
     }
 
     #[test]
     fn test_roundtrip_false() {
         let original = Boolean::from_value(false).expect("Failed to create Boolean from false");
         let bytes = original.get_bytes();
-        let decoded = Boolean::from_bytes(bytes, ()).expect("Failed to decode bytes back into Boolean");
+        let decoded =
+            Boolean::from_bytes(bytes, ()).expect("Failed to decode bytes back into Boolean");
         assert_eq!(
             original, decoded,
             "Roundtrip for false should produce the same object"
@@ -2284,7 +2319,8 @@ mod tests {
     fn test_roundtrip_true() {
         let original = Boolean::from_value(true).expect("Failed to create Boolean from true");
         let bytes = original.get_bytes();
-        let decoded = Boolean::from_bytes(bytes, ()).expect("Failed to decode bytes back into Boolean");
+        let decoded =
+            Boolean::from_bytes(bytes, ()).expect("Failed to decode bytes back into Boolean");
         assert_eq!(
             original, decoded,
             "Roundtrip for true should produce the same object"
@@ -2495,13 +2531,13 @@ mod tests {
             let b_val = Byte::from_value(v).unwrap();
             assert_eq!(b_val.get_value(), v);
             assert_eq!(b_val.get_bytes(), v.to_be_bytes());
-            assert_eq!(b_val.len(), 1);
+            assert_eq!(b_val.size(), 1);
 
             // Test from bytes
             let b_bytes = Byte::from_bytes(v.to_be_bytes(), ()).unwrap();
             assert_eq!(b_bytes.get_value(), v);
             assert_eq!(b_bytes.get_bytes(), v.to_be_bytes());
-            assert_eq!(b_bytes.len(), 1);
+            assert_eq!(b_bytes.size(), 1);
         }
 
         for v in i8::MIN..=i8::MAX {
@@ -2513,11 +2549,11 @@ mod tests {
     #[test]
     fn test_byte_all_binary_values() {
         for v in u8::MIN..=u8::MAX {
-            let b = Byte::from_bytes(v.to_be_bytes(),()).unwrap();
+            let b = Byte::from_bytes(v.to_be_bytes(), ()).unwrap();
 
             assert_eq!(b.get_value(), v.cast_signed());
             assert_eq!(b.get_bytes(), v.to_be_bytes());
-            assert_eq!(b.len(), 1);
+            assert_eq!(b.size(), 1);
         }
     }
 

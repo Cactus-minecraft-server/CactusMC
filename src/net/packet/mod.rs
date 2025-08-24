@@ -242,7 +242,7 @@ impl PacketBuilder {
             }
         }
 
-        let length = id.len() + payload.len();
+        let length = id.size() + payload.len();
         let length_varint = VarInt::from_value(length as i32)?;
 
         // Future self: Why "+ 10"?
