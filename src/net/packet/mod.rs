@@ -5,12 +5,12 @@ pub mod data_types;
 pub mod packet_types;
 pub mod utils;
 
-use core::fmt;
-use std::{collections::VecDeque, fmt::Debug};
-use std::fmt::{write, Formatter};
 use bytes::BytesMut;
-use log::debug;
+use core::fmt;
 use data_types::{CodecError, Encodable, StringProtocol, VarInt};
+use log::debug;
+use std::fmt::{write, Formatter};
+use std::{collections::VecDeque, fmt::Debug};
 use thiserror::Error;
 
 // It is true that I could lazily evaluate the length, and Id for more performance but I chose to do it eagerly.
@@ -141,7 +141,6 @@ impl fmt::Display for Packet {
         let hex = utils::get_dec_repr(&self.data);
         write!(f, "{hex}")
     }
-
 }
 
 impl fmt::Debug for Packet {

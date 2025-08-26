@@ -1,5 +1,4 @@
-use log::{debug, info};
-use std::fs::metadata;
+use log::info;
 use std::{
     fs::{self, File, OpenOptions},
     io::{self, Write},
@@ -8,49 +7,43 @@ use std::{
 
 /// Creates a file if it does not already exist.
 /// If the file already exists, it doesn't modify its content.
-pub fn create_file(path: &Path, content: &str) -> io::Result<()> {
+pub fn create_file(path: &Path, content: Option<&str>) -> io::Result<()> {
     match OpenOptions::new().write(true).create_new(true).open(path) {
-        Ok(mut file) => file.write_all(content.as_bytes()),
+        Ok(mut file) => content.map_or_else(
+            || {
+                info!("Created an empty file: '{}'", path.display());
+                Ok(())
+            },
+            |s| {
+                file.write_all(s.as_bytes())
+                    .inspect(|_| info!("File '{}' created.", path.display()))
+            },
+        ),
         Err(e) if e.kind() == io::ErrorKind::AlreadyExists => {
-            debug!(
-                "File '{}' already exists. Not altering it.",
-                path.to_string_lossy()
-            );
+            info!("File '{}' already exists. Not altering it.", path.display());
             Ok(())
         }
         Err(e) => Err(e),
     }
 }
-///Create_file with no content...
-pub fn create_file_nn(path: &Path) -> io::Result<()> {
-    // Verify if the file does not already exist.
-    if metadata(path).is_ok() {
-        println!(
-            "File '{}' already exists. Not altering it.",
-            path.to_string_lossy()
+
+/// Creates a directory given its path.
+pub fn create_dir(path: &Path) -> io::Result<()> {
+    if path.exists() {
+        info!(
+            "Directory '{}' already exists. Not altering it.",
+            path.display()
         );
         return Ok(());
     }
-
-    // Create the file.
-    match std::fs::File::create(path) {
-        Ok(_) => Ok(()),
-        Err(e) => Err(e),
-    }
-}
-
-/// Creates a file given its path.
-pub fn create_dir(path: &Path) -> io::Result<()> {
-    fs::create_dir(path)?;
-    info!("Created directory: '{}'", path.to_string_lossy());
-    Ok(())
+    fs::create_dir(path).inspect(|_| info!("Created directory: '{}'", path.display()))
 }
 
 /// Opens an already existing file and overwrites all content with `content`.
 pub fn overwrite_file(path: &Path, content: &str) -> std::io::Result<()> {
     let mut file = File::create(path)?;
-    debug!("Overwrote file '{}'", path.to_string_lossy());
     file.write_all(content.as_bytes())
+        .inspect(|_| info!("Overwrote file: '{}'", path.display()))
 }
 
 #[cfg(test)]
@@ -93,18 +86,18 @@ mod tests {
         // Test 1: Create a new file
         let file_path = temp_dir.path().join("test1.txt");
         let content = "Hello, World!";
-        create_file(&file_path, content)?;
+        create_file(&file_path, Some(content))?;
         assert!(file_path.exists());
         assert_eq!(fs::read_to_string(&file_path)?, content);
 
         // Test 2: Attempt to create an existing file (should not modify)
         let existing_content = fs::read_to_string(&file_path)?;
-        create_file(&file_path, "New content")?;
+        create_file(&file_path, Some("New content"))?;
         assert_eq!(fs::read_to_string(&file_path)?, existing_content);
 
         // Test 3: Create file with empty content
         let empty_file_path = temp_dir.path().join("empty.txt");
-        create_file(&empty_file_path, "")?;
+        create_file(&empty_file_path, Some(""))?;
         assert!(empty_file_path.exists());
         assert_eq!(fs::read_to_string(&empty_file_path)?, "");
 

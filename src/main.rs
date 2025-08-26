@@ -3,23 +3,19 @@ mod args;
 mod commands;
 mod config;
 mod consts;
-mod file_folder_parser;
 mod fs_manager;
 mod logging;
 mod net;
 use log::{error, info, warn};
 use net::packet;
 use std::net::Ipv4Addr;
-mod generate_overworld;
 mod greetings;
 mod handlers;
 mod player;
-mod seed_hasher;
 mod shutdown;
 mod time;
 use config::Gamemode;
 use consts::messages;
-
 #[tokio::main]
 async fn main() {
     args::init();
@@ -41,13 +37,19 @@ async fn main() {
 
     info!("{}", *messages::SERVER_SHUTDOWN_SUCCESS);
 }
-
+#[cfg(debug_assertions)]
 const DISABLE_LOGGING_COLOR_AND_SAVE_TO_FILE: bool = false;
+
+#[cfg(not(debug_assertions))]
+const DISABLE_LOGGING_COLOR_AND_SAVE_TO_FILE: bool = true;
 
 /// Logic that must executes as early as possibe
 async fn early_init() -> Result<(), Box<dyn std::error::Error>> {
     // This must executes as early as possible
-    logging::init(log::LevelFilter::Debug, DISABLE_LOGGING_COLOR_AND_SAVE_TO_FILE);
+    logging::init(
+        log::LevelFilter::Debug,
+        DISABLE_LOGGING_COLOR_AND_SAVE_TO_FILE,
+    );
 
     info!("{}", *messages::SERVER_STARTING);
 
