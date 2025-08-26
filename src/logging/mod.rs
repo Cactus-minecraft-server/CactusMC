@@ -2,6 +2,8 @@ use env_logger::{Builder, Env, Target};
 use log::LevelFilter;
 use std::fs::File;
 use std::io::{self, Write};
+
+use crate::fs_manager;
 struct Tee<W1: Write, W2: Write> {
     a: W1,
     b: W2,
@@ -22,6 +24,7 @@ impl<W1: Write, W2: Write> Write for Tee<W1, W2> {
 pub fn init(log_level: LevelFilter, to_file: bool) {
     // TODO fix the colors when saving to file
     if to_file {
+        fs_manager::create_dirs();
         let file = File::create("logs/latest.log").unwrap();
         let stderr = io::stderr();
         let tee = Tee { a: file, b: stderr };
