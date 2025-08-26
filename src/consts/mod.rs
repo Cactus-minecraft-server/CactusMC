@@ -28,6 +28,9 @@ pub mod messages {
     pub static SERVER_SHUTDOWN_SUCCESS: Lazy<String> =
         Lazy::new(|| "[ SERVER SHUT DOWN ]".bright_red().bold().to_string());
 
+    pub static PLAY_PACKET_NOTIFIER: Lazy<String> =
+        Lazy::new(|| "[ SEND PLAY PACKET HERE! ]".bright_red().bold().to_string());
+
     pub static SERVER_SHUTDOWN_ERROR: Lazy<String> = Lazy::new(|| {
         "[ SERVER SHUT DOWN WITH ERROR ]"
             .bright_red()
@@ -44,15 +47,6 @@ pub mod messages {
 
     pub static GREET: Lazy<String> =
         Lazy::new(|| "Hello, world from Cactus!".green().bold().to_string());
-
-    /// Used when exiting the server with an exit code.
-    pub fn server_shutdown_code(code: i32) -> String {
-        format!("[ server shutdown with code: {code}]")
-            .to_uppercase()
-            .bright_red()
-            .bold()
-            .to_string()
-    }
 }
 
 /// Module used to store file paths relative to the server binary.
@@ -67,6 +61,9 @@ pub mod file_paths {
     pub const USERCACHE: &str = "usercache.json";
     pub const SESSION: &str = "session.lock";
     pub const SERVER_ICON: &str = "server-icon.png";
+
+    /// SLP IP logger file.
+    pub const LOGGED_IPS: &str = "logged_ips.txt";
     pub const LEVEL: &str = "world/level.dat";
 }
 

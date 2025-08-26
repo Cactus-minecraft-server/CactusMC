@@ -3,7 +3,6 @@ pub mod packet;
 pub mod slp;
 
 use crate::config;
-use crate::net::packet::data_types::DataType;
 use crate::net::packet::{data_types, utils};
 use bytes::{Buf, BytesMut};
 use log::{debug, error, info, warn};
@@ -89,7 +88,6 @@ struct Connection {
 impl Connection {
     /// Base buffer size and the number of bytes we're trying to read from the socket.
     const BUFFER_SIZE: usize = 512;
-    const MAX_PACKET_TRIES: usize = 100;
 
     fn new(socket: TcpStream) -> Self {
         Self {
@@ -144,15 +142,15 @@ impl Connection {
         let read: Vec<u8> = buffer.iter().chain(bytes).copied().collect();
         debug!("wait_size() buffer: {}", utils::get_dec_repr(&read));
 
-        match data_types::VarInt::from_bytes(read) {
+        match data_types::VarInt::from_bytes(read, ()) {
             Ok(size) => {
                 debug!("Read VarInt from wait_size(): {}", size.get_value());
                 let s = usize::try_from(size.get_value()).map_err(|e| {
                     error!("Error while converting packet size into usize: {e}");
                 })?;
                 // Left-shift the buffers' items to account for this VarInt.
-                buffer.advance(min(buffer_size, size.len()));
-                Ok((s, size.len()))
+                buffer.advance(min(buffer_size, size.size()));
+                Ok((s, size.size()))
             }
             Err(_) => {
                 //buffer.extend_from_slice(bytes);
@@ -188,7 +186,7 @@ impl Connection {
         let frame_size: usize = size + size_size;
 
         // The concatenated [CONN BUFF + SOCK READ] is smaller than the frame.
-        if (read.len() < frame_size) {
+        if read.len() < frame_size {
             buffer.extend_from_slice(bytes);
             warn!("Frame size is bigger than cached data");
             debug!("Cached data: {}", utils::get_dec_repr(&read));
@@ -211,7 +209,7 @@ impl Connection {
             debug!("Frame: {frame:?}");
             match Packet::new(frame) {
                 Ok(p) => {
-                    if (frame_size < read.len()) {
+                    if frame_size < read.len() {
                         debug!("Cached data b4 extend: {}", utils::get_dec_repr(&buffer));
                         buffer.extend_from_slice(&read[frame_size..]);
                         debug!("Cached data after extend: {}", utils::get_dec_repr(&buffer));
@@ -244,12 +242,12 @@ impl Connection {
                 } else {
                     // Parse at most 5 bytes for the VarInt prefix.
                     let to_parse = recv.len().min(5);
-                    match data_types::VarInt::from_bytes(recv[..to_parse].to_vec()) {
+                    match data_types::VarInt::from_bytes(recv[..to_parse].to_vec(), ()) {
                         Ok(v) => {
                             let len_usize = usize::try_from(v.get_value()).map_err(|_| {
                                 NetError::Reading("Frame length does not fit in usize".to_string())
                             })?;
-                            (Some(len_usize), Some(v.len()))
+                            (Some(len_usize), Some(v.size()))
                         }
                         Err(_) => (None, None), // need more bytes for the length
                     }
@@ -403,8 +401,49 @@ impl Connection {
 
     /// Tries to close the connection with the Minecraft client
     async fn close(&self) -> Result<(), std::io::Error> {
-        info!("Connection closed: {:?}", self.socket);
+        info!("Connection closed: {}", self);
         self.socket.lock().await.shutdown().await
+    }
+}
+
+use std::fmt;
+
+impl fmt::Display for Connection {
+    fn fmt(&self, f: &mut fmt::Formatter<'_>) -> fmt::Result {
+        // Snapshot addresses without awaiting
+        let (local, peer) = match self.socket.try_lock() {
+            Ok(sock) => (sock.local_addr().ok(), sock.peer_addr().ok()),
+            Err(_) => (None, None), // couldn't lock right now
+        };
+
+        // Snapshot buffer length without awaiting
+        let buf_str = match self.buffer.try_lock() {
+            Ok(buf) => human_bytes(buf.len()),
+            Err(_) => "<locked>".to_string(),
+        };
+
+        write!(
+            f,
+            "conn({} -> {}, buf={})",
+            local.map(|a| a.to_string()).unwrap_or_else(|| "?".into()),
+            peer.map(|a| a.to_string()).unwrap_or_else(|| "?".into()),
+            buf_str
+        )
+    }
+}
+
+fn human_bytes(n: usize) -> String {
+    const KB: usize = 1024;
+    const MB: usize = KB * 1024;
+    const GB: usize = MB * 1024;
+    if n >= GB {
+        format!("{:.1}GiB", n as f64 / GB as f64)
+    } else if n >= MB {
+        format!("{:.1}MiB", n as f64 / MB as f64)
+    } else if n >= KB {
+        format!("{:.1}KiB", n as f64 / KB as f64)
+    } else {
+        format!("{n}B")
     }
 }
 
@@ -431,7 +470,7 @@ async fn handle_connection(socket: TcpStream) -> Result<(), NetError> {
         #[cfg(debug_assertions)]
         {
             packet_count += 1;
-            debug!("Got packet #{}: {}", packet_count, packet);
+            debug!("Got packet #{}: {:?}", packet_count, packet);
         }
 
         let response: Response = handle_packet(&connection, packet).await?;
@@ -439,7 +478,7 @@ async fn handle_connection(socket: TcpStream) -> Result<(), NetError> {
         if let Some(packet) = response.get_packet() {
             // TODO: Make sure that sent packets are big endians (data types).
             connection.write(packet).await?;
-            debug!("Sent a packet with ID={:02X}", packet.get_id().get_value());
+            debug!("Sent a packet: {packet}");
 
             if response.does_close_conn() {
                 info!("Connection closed.");
@@ -463,8 +502,8 @@ async fn handle_packet(conn: &Connection, packet: Packet) -> Result<Response, Ne
 
     // Dispatch packet depending on the current State.
     match conn.get_state().await {
-        ConnectionState::Handshake => dispatch::handshake(packet, conn).await,
-        ConnectionState::Status => dispatch::status(packet).await,
+        ConnectionState::Handshake => dispatch::handshaking(packet, conn).await,
+        ConnectionState::Status => dispatch::status(packet, conn).await,
         ConnectionState::Login => dispatch::login(conn, packet).await,
         ConnectionState::Configuration => dispatch::configuration(conn, packet).await,
         ConnectionState::Play => dispatch::play(conn, packet).await,
@@ -472,8 +511,20 @@ async fn handle_packet(conn: &Connection, packet: Packet) -> Result<Response, Ne
     }
 }
 
+/// The `dispatch` module contains functions that will change the state of the active `Connection`.
+/// Each function in `dispatch` corresponds not to a specific packet, but to a whole state.
+/// Each state has different packets, and a packet can be named the name but have different intent
+/// based on state.
+///
+/// # Example of state switch
+/// (Initial state: 'Handshake')
+/// We receive a Handshake packet, ID=0x00 with next_state(VarInt Enum) set to:
+/// 1: we switch the connection state to 'Status'.
+/// 2: we switch the connection state to 'Login'.
+/// 3: we switch the connection state to 'Transfer'.
 mod dispatch {
     use super::*;
+    use crate::net::slp::ip_logger::ClientIpLoggerInfo;
     use packet::packet_types::configuration::*;
     use packet::packet_types::handshake::*;
     use packet::packet_types::login::*;
@@ -485,7 +536,8 @@ mod dispatch {
         Response,
     };
 
-    pub async fn handshake(packet: Packet, conn: &Connection) -> Result<Response, NetError> {
+    /// https://minecraft.wiki/w/Java_Edition_protocol/Packets#Handshaking
+    pub async fn handshaking(packet: Packet, conn: &Connection) -> Result<Response, NetError> {
         // Set state to Status
         debug!("Handshake packet: {:?}", packet.get_full_packet());
         conn.set_state(ConnectionState::Status).await;
@@ -516,9 +568,18 @@ mod dispatch {
         Ok(Response::new(None))
     }
 
-    pub async fn status(packet: Packet) -> Result<Response, NetError> {
+    /// https://minecraft.wiki/w/Java_Edition_protocol/Packets#Status
+    pub async fn status(packet: Packet, conn: &Connection) -> Result<Response, NetError> {
         match packet.get_id().get_value() {
             0x00 => {
+                // Log IP if enabled.
+                if crate::consts::cactus::LOG_IPS_SLP {
+                    let info = ClientIpLoggerInfo {
+                        ip: conn.socket.lock().await.peer_addr()?.to_string(),
+                    };
+                    slp::ip_logger::log_ip(info);
+                }
+
                 // Got Status Request
                 let status_resp_packet = slp::status_response()?;
                 let response = Response::new(Some(status_resp_packet));
@@ -546,6 +607,7 @@ mod dispatch {
         }
     }
 
+    /// https://minecraft.wiki/w/Java_Edition_protocol/Packets#Login
     pub async fn login(conn: &Connection, packet: Packet) -> Result<Response, NetError> {
         match packet.get_id().get_value() {
             0x00 => {
@@ -591,10 +653,13 @@ mod dispatch {
         }
     }
 
+    /// https://minecraft.wiki/w/Java_Edition_protocol/Packets#Transfer
+    /// I don't really know which packets should be handled here.
     pub async fn transfer(conn: &Connection, packet: Packet) -> Result<Response, NetError> {
         todo!()
     }
 
+    /// https://minecraft.wiki/w/Java_Edition_protocol/Packets#Configuration
     pub async fn configuration(conn: &Connection, packet: Packet) -> Result<Response, NetError> {
         match packet.get_id().get_value() {
             0x00 => {
@@ -615,22 +680,10 @@ mod dispatch {
                     "Got Acknowledge Finish Configuration: {acknowledge_finish_configuration:?}"
                 );
 
+                info!("{}", *crate::consts::messages::PLAY_PACKET_NOTIFIER);
+
                 conn.set_state(ConnectionState::Play).await;
 
-                // TODO: Send a 'Login (play)' packet
-                // TODO: Send a 'Login (play)' packet
-                // TODO: Send a 'Login (play)' packet
-                // TODO: Send a 'Login (play)' packet
-                // TODO: Send a 'Login (play)' packet
-                // TODO: Send a 'Login (play)' packet
-                // TODO: Send a 'Login (play)' packet
-                // TODO: Send a 'Login (play)' packet
-                // TODO: Send a 'Login (play)' packet
-                // TODO: Send a 'Login (play)' packet
-                // TODO: Send a 'Login (play)' packet
-                // TODO: Send a 'Login (play)' packet
-                // TODO: Send a 'Login (play)' packet
-                // TODO: Send a 'Login (play)' packet
                 // TODO: Send a 'Login (play)' packet
                 // TODO: Send a 'Login (play)' packet
                 // TODO: Send a 'Login (play)' packet
@@ -647,17 +700,24 @@ mod dispatch {
                 // TODO: Send a 'Login (play)' packet
                 //
                 // TO IMPLEMENT (for the 'Login (play)' packet):
-                //
+
                 // https://minecraft.wiki/w/Minecraft_Wiki:Projects/wiki.vg_merge/Protocol#Type:Identifier
+
                 // https://minecraft.wiki/w/Minecraft_Wiki:Projects/wiki.vg_merge/Protocol#Type:Long
+
                 // https://minecraft.wiki/w/Minecraft_Wiki:Projects/wiki.vg_merge/Protocol#Type:Unsigned_Byte
-                // https://minecraft.wiki/w/Minecraft_Wiki:Projects/wiki.vg_merge/Protocol#Type:Byte
+
+                // OK - https://minecraft.wiki/w/Minecraft_Wiki:Projects/wiki.vg_merge/Protocol#Type:Byte
+
                 // https://minecraft.wiki/w/Minecraft_Wiki:Projects/wiki.vg_merge/Protocol#Type:Position
+
                 // https://minecraft.wiki/w/Minecraft_Wiki:Projects/wiki.vg_merge/Protocol#Type:Int
 
                 Ok(Response::new(None))
             }
             0x04 => {
+                // TODO: Clientbound Keep Alive packet
+                // TODO: Clientbound Keep Alive packet
                 // TODO: Clientbound Keep Alive packet
                 Ok(Response::new(None))
             }
@@ -670,7 +730,8 @@ mod dispatch {
                 debug!("Got Serverbound Known Packs packet: {serverbound_known_packs:?}");
 
                 // Switch connection state to Play.
-                conn.set_state(ConnectionState::Play).await;
+                // NO! Why? We wait for the client to send an Ack first, fool!
+                //conn.set_state(ConnectionState::Play).await;
 
                 let finish_configuration = FinishConfiguration::new();
                 let finish_config_packet =
@@ -694,7 +755,11 @@ mod dispatch {
         }
     }
 
+    /// https://minecraft.wiki/w/Java_Edition_protocol/Packets#Play
+    /// The largest state with over 60 different types of packets, the last one being 0x41 (65).
     pub async fn play(conn: &Connection, packet: Packet) -> Result<Response, NetError> {
+        debug!("Inside play state");
+
         match packet.get_id().get_value() {
             _ => {
                 warn!("Unknown packet ID, State: Play");

@@ -20,5 +20,5 @@ fn get_id(all: &str) -> Result<String, Box<dyn Error>> {
             return Ok(id_str.to_string());
         }
     }
-    Err("Field \"id\" incorrect.".into())
+    Err("Cannot find 'id', or wrong formatting".into())
 }
