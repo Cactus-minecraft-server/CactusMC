@@ -1,13 +1,20 @@
-use core::{fmt, str};
+use crate::net;
+use core::str;
 use log::debug;
-use std::fmt::{Debug, Formatter};
+use std::fmt;
+use std::fmt::{Debug, Display, Formatter, Write};
 use std::marker::PhantomData;
+use std::sync::Arc;
 use thiserror::Error;
+// Remark: dynamic dispatch is what we need in this file, but it would mean (relative to this file)
+// heavy refactors for the Encodable trait and maybe the creation of a Parser struct or something.
 
-pub trait Encodable: Sized + Default + fmt::Debug + Clone + PartialEq + Eq {
-    // Note to future-self: we can't make a custom type for `from_bytes`.
-    // For the case of `Array`, its `from_bytes` takes TWO arguments.
-    // And passing in a tuple if not sexy.
+// TODO: Convert all Vec<u8> into boxed slices of bytes (Box<[u8]>) for performance.
+// TODO: Is this TODO foolish, or clever? I mean we don't need to mutate, so a Vec<u8> is useless.
+
+pub trait Encodable: Sized + Default + Debug + Clone + PartialEq + Eq {
+    // Note to future-self: we can't make a custom type for `from_bytes` because it contains
+    // the parsing logic for each type.
 
     /// Context for Template types like `Array`.
     type Ctx;
@@ -695,7 +702,7 @@ pub enum DataTypeContent {
 
 impl DataTypeContent {
     /// Returns the length in bytes of the ArrayType.
-    pub fn len(&self) -> usize {
+    pub fn size(&self) -> usize {
         match self {
             DataTypeContent::VarInt(varint) => varint.size(),
             DataTypeContent::VarLong(varlong) => varlong.size(),
@@ -729,7 +736,7 @@ impl DataTypeContent {
     /// Parses a `DataType` from bytes and context, which is a `data_type`.
     pub fn from_bytes<T: AsRef<[u8]>>(
         bytes: T,
-        data_type: DataType,
+        data_type: &DataType,
     ) -> Result<DataTypeContent, CodecError> {
         let mut data = bytes.as_ref();
 
@@ -766,7 +773,7 @@ impl DataTypeContent {
                 Ok(DataTypeContent::Boolean(boolean))
             }
             DataType::Optional(inner_type) => {
-                let optional = Optional::consume_from_bytes(&mut data, *inner_type)?;
+                let optional = Optional::consume_from_bytes(&mut data, **inner_type)?;
                 Ok(DataTypeContent::Optional(Box::new(optional)))
             }
             DataType::Byte => {
@@ -774,7 +781,7 @@ impl DataTypeContent {
                 Ok(DataTypeContent::Byte(byte))
             }
             DataType::Other(value) => Err(CodecError::Decoding(
-                data_type,
+                (*data_type).clone(),
                 ErrorReason::UnknownValue(format!(
                     "Unexpected 'Other' data type with value: {}",
                     value
@@ -784,9 +791,9 @@ impl DataTypeContent {
     }
 
     /// Parses a data_type from bytes and context, here `data_type` and consumes the bytes buffer.
-    pub fn consume_from_bytes(bytes: &mut &[u8], data_type: DataType) -> Result<Self, CodecError> {
+    pub fn consume_from_bytes(bytes: &mut &[u8], data_type: &DataType) -> Result<Self, CodecError> {
         let instance = Self::from_bytes(&bytes, data_type)?;
-        *bytes = &bytes[instance.len()..];
+        *bytes = &bytes[instance.size()..];
         Ok(instance)
     }
 }
@@ -835,76 +842,192 @@ impl DataType {
 // Docs: https://minecraft.wiki/w/Java_Edition_protocol/Packets#Type:Array
 //
 /// This represents an Array that can contain multiple types.
-pub struct Array<I, D> {
-    /// We don't need to resize or do shenanigans with it, an owned slice is what we need.
-    values: Box<[DataTypeContent]>,
+pub struct Array<'a> {
+    /// We don't need to resize or do shenanigans with it, a shared slice is what we need.
+    /// Not a Box<T> because with the get_values() method we would have to return an owned value.
+    values: Arc<[DataTypeContent]>,
     /// Array dumped to bytes. Basically
-    bytes: Vec<u8>,
-    /// Binds T and D to the lifetime of our Array.
-    phantom_data: PhantomData<(I, D)>,
+    bytes: Box<[u8]>,
 }
 
-impl<I, D> Array<I, D> {
+impl<'a> Array<'a> {
+    /// Takes an arbitrary-long number of bytes and tries to sequentially parse the `data_types`.
+    /// If Ok, returns a tuple: (values, bytes)
+    fn read<T>(
+        bytes: T,
+        data_types: &[DataType],
+    ) -> Result<(Arc<[DataTypeContent]>, Box<[u8]>), CodecError>
+    where
+        T: AsRef<[u8]>,
+    {
+        // Mutable to consume it later.
+        let mut data: &[u8] = bytes.as_ref();
+
+        // Parse all types into a sliced Arc.
+        // Remark: I think this uses an underlying Vec, making the whole process take
+        // multiple allocations and maybe a realloc from the Vec to the Arc;
+        // not maximally efficient.
+        let arr_values: Arc<[DataTypeContent]> = data_types
+            .iter()
+            .map(|dt| DataTypeContent::consume_from_bytes(&mut data, dt))
+            .collect::<Result<_, _>>()?;
+
+        // Number of bytes of the array.
+        let total_bytes: usize = arr_values.iter().map(|dt| dt.size()).sum();
+
+        // Put bytes into arr_bytes
+        let mut arr_bytes: Vec<u8> = Vec::with_capacity(total_bytes);
+        arr_values
+            .iter()
+            .for_each(|dt| arr_bytes.extend_from_slice(dt.get_bytes()));
+
+        Ok((arr_values, arr_bytes.into_boxed_slice()))
+    }
+
+    /// Takes multiple data types and adds all their bytes, sequentially, into an array.
+    fn write<DT>(data_types: DT) -> Box<[u8]>
+    where
+        DT: AsRef<[DataTypeContent]>,
+    {
+        let dts: &[DataTypeContent] = data_types.as_ref();
+
+        // Total size of the array -> sum of the size of all its elements.
+        let array_size: usize = dts.iter().map(|x| x.size()).sum();
+
+        // Compound byte array comprised of all data types, sequentially appended to this buffer;
+        let mut arr_bytes: Vec<u8> = Vec::with_capacity(array_size);
+
+        // Populate arr_bytes with the bytes of all our dts
+        dts.iter()
+            .for_each(|dt| arr_bytes.extend_from_slice(dt.get_bytes()));
+
+        arr_bytes.into_boxed_slice()
+    }
+
     /// Return the number of elements inside the Array.
+    /// NOT THE NUMBER OF BYTES; refer to `.size()` to do so.
     pub fn len(&self) -> usize {
         self.values.len()
     }
 }
 
-impl<I, D> Encodable for Array<I, D>
-where
-    I: IntoIterator<Item = D>,
-    D: Into<DataTypeContent>,
-{
-    // TODO rewrite this shitty DataType vs DataTypeContent to be one.
-    //type Ctx = &'a[DataTypeContent];
-    //type Ctx = dyn AsRef<[DataTypeContent]>;
-    //
-    type Ctx = I;
+impl<'a> Encodable for Array<'a> {
+    // TODO rewrite this shitty DataType vs DataTypeContent to be one and only.
+    type Ctx = &'a [DataType];
 
     fn from_bytes<T: AsRef<[u8]>>(bytes: T, ctx: Self::Ctx) -> Result<Self, CodecError> {
-        let data: &[u8] = bytes.as_ref();
-        todo!()
+        let (v, b) = Self::read(bytes, ctx)?;
+        Ok(Self {
+            values: v,
+            bytes: b,
+        })
     }
-
-    type ValueInput = I;
+    type ValueInput = &'a [DataTypeContent];
 
     fn from_value(value: Self::ValueInput) -> Result<Self, CodecError> {
-        todo!()
+        let values: Arc<[DataTypeContent]> = value.iter().cloned().collect();
+
+        // pre-size buffer, then append
+        // Single allocation here, no growth.
+        // I'm having faith that I correctly implemented .size() for all dts.
+        let total: usize = values.iter().map(|dt| dt.size()).sum();
+        let mut buf = Vec::with_capacity(total);
+        for dt in &(*values) {
+            buf.extend_from_slice(dt.get_bytes());
+        }
+        let bytes = buf.into_boxed_slice();
+
+        Ok(Self { values, bytes })
     }
 
     fn get_bytes(&self) -> &[u8] {
-        todo!()
+        &self.bytes
     }
 
-    type ValueOutput = I;
+    type ValueOutput = Arc<[DataTypeContent]>;
 
     fn get_value(&self) -> Self::ValueOutput {
-        todo!()
+        self.values.clone()
     }
 }
 
-impl<I, D> Default for Array<I, D> {
+impl<'a> Default for Array<'a> {
+    /// Returns an empty Array with no items in it. 0 bytes of length.
     fn default() -> Self {
-        todo!()
+        Self {
+            values: Arc::default(),
+            bytes: Box::default(),
+        }
     }
 }
-impl<I, D> Debug for Array<I, D> {
+
+/// Names of the data types inside INCLUDING their values.
+/// E.g., [VarInt(value), Byte(value)]
+/// Pretty mode indents and adds newlines. Making it multiline.
+impl<'a> Debug for Array<'a> {
     fn fmt(&self, f: &mut Formatter<'_>) -> std::fmt::Result {
-        todo!()
+        if f.alternate() {
+            todo!("Pretty Debug not yet implemented, please use normal Display for now")
+        }
+        todo!("Debug not yet implemented, please use normal Display for now")
     }
 }
-impl<I, D> Clone for Array<I, D> {
+
+/// Names of the data types inside WITHOUT the values.
+/// E.g., [VarInt, Byte]
+/// Pretty mode indents and adds newlines. Making it multiline.
+impl<'a> Display for Array<'a> {
+    fn fmt(&self, f: &mut Formatter<'_>) -> fmt::Result {
+        fn make_arr_str(
+            f: &mut Formatter<'_>,
+            dts: &[DataTypeContent],
+            is_multiline: bool,
+        ) -> fmt::Result {
+            let sep: &str = if is_multiline { ",\n" } else { ", " };
+            f.write_str("[")?;
+
+            if is_multiline {
+                f.write_str("\n")?;
+            }
+
+            for (idx, dt) in dts.iter().enumerate() {
+                // multiline AND non-last: indent.
+                if is_multiline && idx + 1 < dts.len() {
+                    f.write_str("\t")?;
+                }
+                f.write_str(net::utils::name_of(Some(dt)))?;
+                // Except last dt.
+                if idx + 1 < dts.len() {
+                    f.write_str(sep)?;
+                }
+            }
+            f.write_str("]")
+        }
+
+        if f.alternate() {
+            // println!("{arr:#}");
+            make_arr_str(f, self.values.as_ref(), true)
+        } else {
+            // println!("{arr}");
+            make_arr_str(f, self.values.as_ref(), false)
+        }
+    }
+}
+
+impl<'a> Clone for Array<'a> {
     fn clone(&self) -> Self {
-        todo!()
+        Self {
+            values: self.values.clone(),
+            bytes: self.bytes.clone(),
+        }
     }
 }
-impl<I, D> PartialEq for Array<I, D> {
+impl<'a> PartialEq for Array<'a> {
     fn eq(&self, other: &Self) -> bool {
-        todo!()
+        self.values == other.values && self.bytes == other.bytes
     }
 }
-impl<I, D> Eq for Array<I, D> {}
+impl<'a> Eq for Array<'a> {}
 
 // Here is the example where Array has multiple types of data:
 // https://minecraft.wiki/w/Minecraft_Wiki:Projects/wiki.vg_merge/Protocol#Login_Success
@@ -934,7 +1057,7 @@ impl ArrayOld {
         for data_type in data_types {
             let parsed: DataTypeContent =
                 DataTypeContent::consume_from_bytes(&mut data, (*data_type).clone())?;
-            array_length += parsed.len();
+            array_length += parsed.size();
             array_types.push(parsed);
         }
 
@@ -968,7 +1091,7 @@ impl ArrayOld {
 
     /// Tries to return an `Array` from a slice of `ArrayType`s.
     pub fn from_value(data_types: &[DataTypeContent]) -> Result<Self, CodecError> {
-        let total_size: usize = data_types.iter().map(|t| t.len()).sum();
+        let total_size: usize = data_types.iter().map(|t| t.size()).sum();
         let mut bytes: Vec<u8> = Vec::with_capacity(total_size);
 
         for t in data_types {
