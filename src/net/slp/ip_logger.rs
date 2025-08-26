@@ -20,7 +20,7 @@ fn make_line(info: &ClientIpLoggerInfo) -> String {
 pub fn log_ip(info: ClientIpLoggerInfo) {
     let path: &Path = Path::new(crate::consts::file_paths::LOGGED_IPS);
     if !path.is_file() {
-        if let Err(e) = crate::fs_manager::utils::create_file(path, "") {
+        if let Err(e) = crate::fs_manager::utils::create_file(path, None) {
             error!("Failed to log IP: failed to create {path:#?}: {e}");
             return;
         }

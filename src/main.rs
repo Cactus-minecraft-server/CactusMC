@@ -73,8 +73,8 @@ fn init() -> Result<(), Box<dyn std::error::Error>> {
         || Ok(fs_manager::create_dirs()),
         || Ok(fs_manager::create_other_files()),
     ]
-    .iter()
-    .try_for_each(|task| task())?;
+        .iter()
+        .try_for_each(|task| task())?;
 
     let gamemode1 = match config::Settings::new().gamemode {
         Gamemode::Survival => "Survival",

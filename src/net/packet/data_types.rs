@@ -1325,9 +1325,9 @@ mod tests {
             (-1, vec![0xff, 0xff, 0xff, 0xff, 0x0f]),
             (i32::MIN, vec![0x80, 0x80, 0x80, 0x80, 0x08]),
         ]
-        .iter()
-        .cloned()
-        .collect();
+            .iter()
+            .cloned()
+            .collect();
 
         for (expected_value, encoded) in values.iter() {
             let varint = VarInt::from_bytes(encoded, ()).unwrap();
@@ -1352,9 +1352,9 @@ mod tests {
             (-1, vec![0xff, 0xff, 0xff, 0xff, 0x0f]),
             (i32::MIN, vec![0x80, 0x80, 0x80, 0x80, 0x08]),
         ]
-        .iter()
-        .cloned()
-        .collect();
+            .iter()
+            .cloned()
+            .collect();
 
         for (value, expected_encoded) in values.iter() {
             let varint = VarInt::from_value(*value).unwrap();
@@ -1434,9 +1434,9 @@ mod tests {
                 vec![0x80, 0x80, 0x80, 0x80, 0x80, 0x80, 0x80, 0x80, 0x80, 0x01],
             ),
         ]
-        .iter()
-        .cloned()
-        .collect();
+            .iter()
+            .cloned()
+            .collect();
 
         for (expected_value, encoded) in values.iter() {
             let varlong = VarLong::from_bytes(encoded, ()).unwrap();
@@ -1470,9 +1470,9 @@ mod tests {
                 vec![0x80, 0x80, 0x80, 0x80, 0x80, 0x80, 0x80, 0x80, 0x80, 0x01],
             ),
         ]
-        .iter()
-        .cloned()
-        .collect();
+            .iter()
+            .cloned()
+            .collect();
 
         for (value, expected_encoded) in values.iter() {
             let varlong = VarLong::from_value(*value).unwrap();
@@ -2131,7 +2131,7 @@ mod tests {
         let nested_array =
             Array::from_bytes(&nested_encoded, nested_data_types.clone().into()).unwrap();
         // This is our final ArrayType::Array(...) that will be inside the top-level array.
-        let array_type_nested = DataTypeContent::Array(nested_array);
+        let _ = DataTypeContent::Array(nested_array);
 
         // Build the top-level array from just that single "Array" item.
         // We'll do it with manual byte assembly to show how a nested array might appear in practice.
@@ -2196,7 +2196,7 @@ mod tests {
         // We'll parse using consume_from_bytes.
         let mut buffer_slice: &[u8] = &combined;
         let array = Array::consume_from_bytes(&mut buffer_slice, data_types.into()).unwrap();
-        let t = (&*array.get_value());
+        let _ = &*array.get_value();
 
         // The leftover buffer should have 2 bytes (0x01, 0x02).
         assert_eq!(buffer_slice, &[0x01, 0x02]);

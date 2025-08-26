@@ -7,10 +7,10 @@
 * [ ] Create a root Cargo workspace
 * [ ] Split into child crates:
 
-  * [ ] `server-core`
-  * [ ] `protocol`
-  * [ ] `slp-parser`
-  * [ ] `player-management`
+    * [ ] `server-core`
+    * [ ] `protocol`
+    * [ ] `slp-parser`
+    * [ ] `player-management`
 * [ ] Update each crate's `Cargo.toml` with clear dependencies
 * [ ] Add an installation/bootstrap script (e.g., `make init`)
 
@@ -27,20 +27,20 @@
 * [ ] Write unit tests for each module (`#[cfg(test)]`)
 * [ ] Create integration tests for:
 
-  * [ ] Handshake and minimal login
-  * [ ] Sending/receiving SLP packets
+    * [ ] Handshake and minimal login
+    * [ ] Sending/receiving SLP packets
 * [ ] Set up benchmarks with `criterion.rs`:
 
-  * [ ] Chunk encoding
-  * [ ] Seed hashing
+    * [ ] Chunk encoding
+    * [ ] Seed hashing
 * [ ] Extend GitHub Actions:
 
-  * [ ] Tests on Linux, macOS, and Windows
-    * [x] Linux
-    * [ ] Windows
-    * [ ] macOS
-  * [ ] Builds on Stable, Beta, and Nightly
-  * [ ] Coverage report (using `tarpaulin` or `grcov`)
+    * [ ] Tests on Linux, macOS, and Windows
+        * [x] Linux
+        * [ ] Windows
+        * [ ] macOS
+    * [ ] Builds on Stable, Beta, and Nightly
+    * [ ] Coverage report (using `tarpaulin` or `grcov`)
 * [ ] Automatically publish documentation to `docs.rs`
 
 ## 4. Networking & Protocol Features
@@ -128,15 +128,15 @@
 
 * [ ] Decide whether `worldgen` should be a workspace crate or a separate repo
 
-  * Crate advantage: simpler integration, shared types and dependencies
-  * Separate repo advantage: independent release cycle, strong decoupling
+    * Crate advantage: simpler integration, shared types and dependencies
+    * Separate repo advantage: independent release cycle, strong decoupling
 * [ ] Create a `worldgen` module/crate in the workspace (or initialize the repo)
 * [ ] Implement noise functions (Perlin, Simplex)
 * [ ] Generate chunks:
 
-  * [ ] Raw terrain generation (heightmap)
-  * [ ] Biomes and sub-biomes
-  * [ ] Structures (village, cave, fortress)
+    * [ ] Raw terrain generation (heightmap)
+    * [ ] Biomes and sub-biomes
+    * [ ] Structures (village, cave, fortress)
 * [ ] WorldGen configuration (seed, advanced options)
 * [ ] Unit and integration tests for terrain consistency
 * [ ] Chunk generation benchmarks (via `criterion`)

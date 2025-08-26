@@ -214,7 +214,7 @@ pub mod handshake {
             let protocol_version: VarInt = VarInt::consume_from_bytes(&mut data, ())?;
             let server_address: StringProtocol = StringProtocol::consume_from_bytes(&mut data, ())?;
             let server_port: UnsignedShort = UnsignedShort::consume_from_bytes(&mut data, ())?;
-            let next_state: NextState = NextState::new(VarInt::consume_from_bytes(&mut data,())?)?;
+            let next_state: NextState = NextState::new(VarInt::consume_from_bytes(&mut data, ())?)?;
 
             let packet: Packet = PacketBuilder::new()
                 .append_bytes(protocol_version.get_bytes())
@@ -465,16 +465,16 @@ pub mod configuration {
 
             // If the layout of the Array is not three StringProtocol.
             for pack in &known_packs {
-                for inner_type in &(*pack.get_value()){
+                for inner_type in &(*pack.get_value()) {
                     let cast_type: DataType = (*inner_type).clone().into();
                     if cast_type != DataType::StringProtocol {
                         return Err(
                             PacketError::Codec(
-                        CodecError::Encoding(DataType::Other("ClientboundKnownPacks"), ErrorReason::InvalidFormat(
-                            format!("The pack array data types must be three consecutive StringProtocol. Pack: {pack:?}")
-                        ))
+                                CodecError::Encoding(DataType::Other("ClientboundKnownPacks"), ErrorReason::InvalidFormat(
+                                    format!("The pack array data types must be three consecutive StringProtocol. Pack: {pack:?}")
+                                ))
                             )
-                    );
+                        );
                     }
                 }
             }
@@ -534,7 +534,10 @@ pub mod configuration {
             let known_packs: Vec<Array> = (0..pack_count)
                 .map(|i| {
                     // Explicit coercion from [T; N] to &[T] with &T[..].
-                    Array::consume_from_bytes(&mut data, (&ClientboundKnownPacks::PACK_DATA_TYPES[..]).into())
+                    Array::consume_from_bytes(
+                        &mut data,
+                        (&ClientboundKnownPacks::PACK_DATA_TYPES[..]).into(),
+                    )
                         .map_err(|e| {
                             CodecError::Decoding(
                                 DataType::Array(ClientboundKnownPacks::PACK_DATA_TYPES.to_vec()),

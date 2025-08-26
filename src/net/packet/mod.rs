@@ -339,7 +339,10 @@ mod tests {
 
         // 1 = 4
         assert_eq!(packet.get_length(), 4);
-        assert_eq!(packet.get_name().clone().unwrap(), "test packet".to_string());
+        assert_eq!(
+            packet.get_name().clone().unwrap(),
+            "test packet".to_string()
+        );
         assert_eq!(packet.len(), init_data.len());
         assert_eq!(packet.get_id().get_value(), 4);
         assert_eq!(packet.get_payload(), &[1, 2, 3]);

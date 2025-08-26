@@ -21,6 +21,7 @@ image = "0.25.5"
 base64 = "0.22.1"
 dashmap = "6.1.0"
 cactus_world = { git = "https://github.com/Cactus-minecraft-server/World.git", package = "world", branch = "main" }
+time = { version = "0.3.41", features = ["local-offset", "formatting"] }
 [profile.release]
 opt-level = 3
 debug = false

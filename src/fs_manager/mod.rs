@@ -1,7 +1,7 @@
 use std::fs::{self, remove_dir_all, File, OpenOptions};
 use std::io::{self, BufRead, Seek, SeekFrom};
 use std::path::Path;
-mod utils;
+pub(crate) mod utils;
 use crate::config::{Difficulty, Gamemode};
 use crate::{config, consts, gracefully_exit};
 use cactus_world::level::{create_nbt, LevelDat, VersionInfo};

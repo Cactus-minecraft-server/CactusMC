@@ -10,7 +10,6 @@ pub mod minecraft {
 
 /// Server logging messages.
 pub mod messages {
-
     use colored::*;
     use once_cell::sync::Lazy;
 
@@ -65,6 +64,10 @@ pub mod file_paths {
     /// SLP IP logger file.
     pub const LOGGED_IPS: &str = "logged_ips.txt";
     pub const LEVEL: &str = "world/level.dat";
+}
+
+pub mod cactus {
+    pub const DO_LOG_IPS_SLP: bool = true;
 }
 
 pub mod directory_paths {
@@ -162,7 +165,6 @@ white-list=false"#;
 
 /// Strings for packets
 pub mod protocol {
-
     use base64::{engine::general_purpose, Engine};
     use image::{GenericImageView, ImageFormat};
     use log::error;

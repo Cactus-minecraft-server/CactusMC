@@ -1,7 +1,7 @@
 name: Build & Publish Docs
 
 on:
-  push:  # remove branches - main. to allow any push to trigger the deployment.
+  push: # remove branches - main. to allow any push to trigger the deployment.
     branches:
       - main
   workflow_dispatch:

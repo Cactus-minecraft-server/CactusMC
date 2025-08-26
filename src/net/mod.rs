@@ -573,7 +573,7 @@ mod dispatch {
         match packet.get_id().get_value() {
             0x00 => {
                 // Log IP if enabled.
-                if crate::consts::cactus::LOG_IPS_SLP {
+                if crate::consts::cactus::DO_LOG_IPS_SLP {
                     let info = ClientIpLoggerInfo {
                         ip: conn.socket.lock().await.peer_addr()?.to_string(),
                     };
