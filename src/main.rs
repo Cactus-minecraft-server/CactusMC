@@ -18,8 +18,6 @@ use config::Gamemode;
 use consts::messages;
 #[tokio::main]
 async fn main() {
-    args::init();
-
     if let Err(e) = early_init().await {
         error!("Failed to start the server, error in early initialization: {e}. \nExiting...");
         gracefully_exit(ExitCode::Failure);
@@ -42,7 +40,6 @@ const DISABLE_LOGGING_COLOR_AND_SAVE_TO_FILE: bool = false;
 
 #[cfg(not(debug_assertions))]
 const DISABLE_LOGGING_COLOR_AND_SAVE_TO_FILE: bool = true;
-
 /// Logic that must executes as early as possibe
 async fn early_init() -> Result<(), Box<dyn std::error::Error>> {
     // This must executes as early as possible
@@ -50,6 +47,8 @@ async fn early_init() -> Result<(), Box<dyn std::error::Error>> {
         log::LevelFilter::Debug,
         DISABLE_LOGGING_COLOR_AND_SAVE_TO_FILE,
     );
+
+    args::init();
 
     info!("{}", *messages::SERVER_STARTING);
 
