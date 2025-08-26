@@ -289,8 +289,11 @@ pub fn clean_files() -> Result<(), std::io::Error> {
     for dir in &directories {
         remove_dir_all(dir)?;
     }
-
-    info!("Files cleaned successfully before starting the server.");
+    let info = "[Info]".green();
+    println!(
+        "{} Files cleaned successfully before starting the server.",
+        info
+    );
     gracefully_exit(crate::ExitCode::Success);
 }
 fn create_level_file() -> Result<(), std::io::Error> {
