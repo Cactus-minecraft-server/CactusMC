@@ -337,7 +337,7 @@ pub mod login {
             ];
 
             for array in &packet_fields.3 {
-                if array.get_value() != property_types {
+                if *array.get_value() != property_types {
                     return Err(PacketError::BuildPacket(format!(
                         "Incorrect types inside LoginSuccess 'property'. Expected {:?}, got {:?}",
                         property_types,
@@ -465,7 +465,7 @@ pub mod configuration {
 
             // If the layout of the Array is not three StringProtocol.
             for pack in &known_packs {
-                for inner_type in pack.get_value() {
+                for inner_type in &(*pack.get_value()){
                     let cast_type: DataType = (*inner_type).clone().into();
                     if cast_type != DataType::StringProtocol {
                         return Err(
@@ -533,7 +533,8 @@ pub mod configuration {
             // Parse known packs
             let known_packs: Vec<Array> = (0..pack_count)
                 .map(|i| {
-                    Array::consume_from_bytes(&mut data, &ClientboundKnownPacks::PACK_DATA_TYPES)
+                    // Explicit coercion from [T; N] to &[T] with &T[..].
+                    Array::consume_from_bytes(&mut data, (&ClientboundKnownPacks::PACK_DATA_TYPES[..]).into())
                         .map_err(|e| {
                             CodecError::Decoding(
                                 DataType::Array(ClientboundKnownPacks::PACK_DATA_TYPES.to_vec()),

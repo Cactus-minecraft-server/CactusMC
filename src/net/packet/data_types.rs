@@ -1,9 +1,8 @@
 use crate::net;
 use core::str;
-use log::debug;
+use log::{debug, warn};
 use std::fmt;
-use std::fmt::{Debug, Display, Formatter, Write};
-use std::marker::PhantomData;
+use std::fmt::{Debug, Display, Formatter};
 use std::sync::Arc;
 use thiserror::Error;
 // Remark: dynamic dispatch is what we need in this file, but it would mean (relative to this file)
@@ -64,8 +63,8 @@ pub enum DataType {
     Other(&'static str),
 }
 
-impl std::fmt::Display for DataType {
-    fn fmt(&self, f: &mut std::fmt::Formatter<'_>) -> std::fmt::Result {
+impl Display for DataType {
+    fn fmt(&self, f: &mut Formatter<'_>) -> fmt::Result {
         match self {
             DataType::VarInt => write!(f, "VarInt"),
             DataType::VarLong => write!(f, "VarLong"),
@@ -130,8 +129,8 @@ pub enum ErrorReason {
     UnknownValue(String),
 }
 
-impl std::fmt::Display for ErrorReason {
-    fn fmt(&self, f: &mut std::fmt::Formatter<'_>) -> std::fmt::Result {
+impl Display for ErrorReason {
+    fn fmt(&self, f: &mut Formatter<'_>) -> fmt::Result {
         match self {
             ErrorReason::ValueTooLarge => write!(f, "Value too large"),
             ErrorReason::ValueTooSmall => write!(f, "Value too small"),
@@ -214,7 +213,7 @@ impl VarInt {
             // Moves the sign bit too by doing bitwise operation on the u32.
             value = ((value as u32) >> 7) as i32;
 
-            // Value == 0 means that it's a positive value and it's been shifted enough.
+            // Value == 0 means that it's a positive value, and it's been shifted enough.
             // Value == -1 means that it's a negative number.
             //
             // If value == 0, we've encoded all significant bits of a positive number
@@ -241,7 +240,7 @@ impl VarInt {
 impl Encodable for VarInt {
     type Ctx = ();
 
-    fn from_bytes<T: AsRef<[u8]>>(bytes: T, ctx: Self::Ctx) -> Result<Self, CodecError> {
+    fn from_bytes<T: AsRef<[u8]>>(bytes: T, _: Self::Ctx) -> Result<Self, CodecError> {
         let data: &[u8] = bytes.as_ref();
         let value: (i32, usize) = Self::read(data)?;
         Ok(Self {
@@ -324,7 +323,7 @@ impl VarLong {
         }
     }
 
-    /// This function encodes a i64 to a Vec<u8>.
+    /// This function encodes an i64 to a Vec<u8>.
     /// The returned Vec<u8> may not be longer than 10 elements.
     fn write(mut value: i64) -> Result<Vec<u8>, CodecError> {
         let mut result = Vec::<u8>::with_capacity(10);
@@ -335,7 +334,7 @@ impl VarLong {
             // Moves the sign bit too by doing bitwise operation on the u32.
             value = ((value as u64) >> 7) as i64;
 
-            // Value == 0 means that it's a positive value and it's been shifted enough.
+            // Value == 0 means that it's a positive value, and it's been shifted enough.
             // Value == -1 means that it's a negative number.
             //
             // If value == 0, we've encoded all significant bits of a positive number
@@ -362,7 +361,7 @@ impl VarLong {
 impl Encodable for VarLong {
     type Ctx = ();
 
-    fn from_bytes<T: AsRef<[u8]>>(bytes: T, ctx: Self::Ctx) -> Result<Self, CodecError> {
+    fn from_bytes<T: AsRef<[u8]>>(bytes: T, _: Self::Ctx) -> Result<Self, CodecError> {
         let data: &[u8] = bytes.as_ref();
         let value: (i64, usize) = Self::read(data)?;
         Ok(Self {
@@ -417,7 +416,7 @@ impl StringProtocol {
     ///
     /// If I understood, the VarInt at the beginning of the String is specifying the number of
     /// bytes the actual UTF-8 string takes in the packet. Then, we have to convert the bytes into
-    /// an UTF-8 string, then convert it to UTF-16 to count the number of code points (also, code
+    /// a UTF-8 string, then convert it to UTF-16 to count the number of code points (also, code
     /// points above U+FFFF count as 2) to check if the String is following or not the rules.
     fn read<T: AsRef<[u8]>>(data: T) -> Result<(String, usize), CodecError> {
         let varint = VarInt::from_bytes(&data, ())?;
@@ -524,7 +523,7 @@ impl StringProtocol {
 impl Encodable for StringProtocol {
     type Ctx = ();
 
-    fn from_bytes<T: AsRef<[u8]>>(bytes: T, ctx: Self::Ctx) -> Result<Self, CodecError> {
+    fn from_bytes<T: AsRef<[u8]>>(bytes: T, _: Self::Ctx) -> Result<Self, CodecError> {
         let data: &[u8] = bytes.as_ref();
         let string: (String, usize) = Self::read(data)?;
         Ok(Self {
@@ -584,7 +583,7 @@ impl UnsignedShort {
 impl Encodable for UnsignedShort {
     type Ctx = ();
 
-    fn from_bytes<T: AsRef<[u8]>>(bytes: T, ctx: Self::Ctx) -> Result<Self, CodecError> {
+    fn from_bytes<T: AsRef<[u8]>>(bytes: T, _: Self::Ctx) -> Result<Self, CodecError> {
         let data: &[u8] = bytes.as_ref();
         let value: u16 = Self::read(data)?;
         Ok(Self {
@@ -645,7 +644,7 @@ impl Uuid {
 
     /// Returns the Big Endian representation of an u16.
     ///
-    /// There are 16 bytes in a u128.
+    /// There are 16 bytes in an u128.
     fn write(value: u128) -> [u8; 16] {
         value.to_be_bytes()
     }
@@ -654,7 +653,7 @@ impl Uuid {
 impl Encodable for Uuid {
     type Ctx = ();
 
-    fn from_bytes<T: AsRef<[u8]>>(bytes: T, ctx: Self::Ctx) -> Result<Self, CodecError> {
+    fn from_bytes<T: AsRef<[u8]>>(bytes: T, _: Self::Ctx) -> Result<Self, CodecError> {
         let data: &[u8] = bytes.as_ref();
 
         let value: u128 = Self::read(data)?;
@@ -697,7 +696,7 @@ pub enum DataTypeContent {
     Boolean(Boolean),
     Optional(Box<Optional>),
     Byte(Byte),
-    Other(&'static str),
+    Other(String),
 }
 
 impl DataTypeContent {
@@ -765,7 +764,7 @@ impl DataTypeContent {
                 // Recursive call under the hood.
                 //
                 // Absolute banger of a line of code (originally)
-                let array = Array::consume_from_bytes(&mut data, &inner_types)?;
+                let array = Array::consume_from_bytes(&mut data, inner_types.into())?;
                 Ok(DataTypeContent::Array(array))
             }
             DataType::Boolean => {
@@ -773,7 +772,7 @@ impl DataTypeContent {
                 Ok(DataTypeContent::Boolean(boolean))
             }
             DataType::Optional(inner_type) => {
-                let optional = Optional::consume_from_bytes(&mut data, **inner_type)?;
+                let optional = Optional::consume_from_bytes(&mut data, (**inner_type).clone())?;
                 Ok(DataTypeContent::Optional(Box::new(optional)))
             }
             DataType::Byte => {
@@ -831,10 +830,58 @@ impl DataType {
             DataType::Boolean => DataTypeContent::Boolean(Boolean::default()),
             DataType::Optional(_) => DataTypeContent::Optional(Box::new(Optional::default())),
             DataType::Byte => DataTypeContent::Byte(Byte::default()),
-            DataType::Other(_) => DataTypeContent::Other(""),
+            DataType::Other(_) => DataTypeContent::Other(String::new()),
         }
     }
 }
+
+/// Quality of Life macro to allow .into() on call sites of the Array and possibly the Optional
+/// data types.
+/// Macros are white magic, this is awesome
+macro_rules! define_array_ctx {
+    ($name:ident, $ty:ty) => {
+        pub struct $name {
+            types: Box<[$ty]>,
+        }
+
+        impl $name {
+            /// Canonical constructor.
+            pub fn new(types: Box<[$ty]>) -> Self {
+                Self { types }
+            }
+        }
+
+        // Our QoL impls
+        impl FromIterator<$ty> for $name {
+            fn from_iter<T: IntoIterator<Item = $ty>>(iter: T) -> Self {
+                Self {
+                    types: iter.into_iter().collect(),
+                }
+            }
+        }
+
+        impl From<Vec<$ty>> for $name {
+            fn from(value: Vec<$ty>) -> Self {
+                Self::new(value.into_boxed_slice())
+            }
+        }
+
+        impl From<&[$ty]> for $name {
+            fn from(slice: &[$ty]) -> Self {
+                Self::new(slice.to_vec().into_boxed_slice())
+            }
+        }
+
+        impl From<&Vec<$ty>> for $name {
+            fn from(v: &Vec<$ty>) -> Self {
+                Self::new(v.clone().into_boxed_slice())
+            }
+        }
+    };
+}
+
+define_array_ctx!(CtxBytes, DataType);
+define_array_ctx!(CtxValues, DataTypeContent);
 
 // Here is the example where Array has multiple types of data:
 // https://minecraft.wiki/w/Minecraft_Wiki:Projects/wiki.vg_merge/Protocol#Login_Success
@@ -842,21 +889,21 @@ impl DataType {
 // Docs: https://minecraft.wiki/w/Java_Edition_protocol/Packets#Type:Array
 //
 /// This represents an Array that can contain multiple types.
-pub struct Array<'a> {
+pub struct Array {
     /// We don't need to resize or do shenanigans with it, a shared slice is what we need.
     /// Not a Box<T> because with the get_values() method we would have to return an owned value.
     values: Arc<[DataTypeContent]>,
     /// Array dumped to bytes. Basically
-    bytes: Box<[u8]>,
+    bytes: Arc<[u8]>,
 }
 
-impl<'a> Array<'a> {
+impl Array {
     /// Takes an arbitrary-long number of bytes and tries to sequentially parse the `data_types`.
     /// If Ok, returns a tuple: (values, bytes)
     fn read<T>(
         bytes: T,
         data_types: &[DataType],
-    ) -> Result<(Arc<[DataTypeContent]>, Box<[u8]>), CodecError>
+    ) -> Result<(Arc<[DataTypeContent]>, Arc<[u8]>), CodecError>
     where
         T: AsRef<[u8]>,
     {
@@ -874,34 +921,31 @@ impl<'a> Array<'a> {
 
         // Number of bytes of the array.
         let total_bytes: usize = arr_values.iter().map(|dt| dt.size()).sum();
+        if total_bytes > bytes.as_ref().len() {
+            return Err(CodecError::Decoding(
+                DataType::Array(data_types.into()),
+                ErrorReason::ValueTooLarge,
+            ));
+        }
 
         // Put bytes into arr_bytes
-        let mut arr_bytes: Vec<u8> = Vec::with_capacity(total_bytes);
-        arr_values
-            .iter()
-            .for_each(|dt| arr_bytes.extend_from_slice(dt.get_bytes()));
+        let arr_bytes: &[u8] = &bytes.as_ref()[..total_bytes];
 
-        Ok((arr_values, arr_bytes.into_boxed_slice()))
+        Ok((arr_values, Arc::from(arr_bytes)))
     }
 
+    // TODO: do passes done. to compute the len and make the bytes and all. Perf issue.
     /// Takes multiple data types and adds all their bytes, sequentially, into an array.
-    fn write<DT>(data_types: DT) -> Box<[u8]>
-    where
-        DT: AsRef<[DataTypeContent]>,
-    {
-        let dts: &[DataTypeContent] = data_types.as_ref();
-
-        // Total size of the array -> sum of the size of all its elements.
-        let array_size: usize = dts.iter().map(|x| x.size()).sum();
-
-        // Compound byte array comprised of all data types, sequentially appended to this buffer;
-        let mut arr_bytes: Vec<u8> = Vec::with_capacity(array_size);
-
-        // Populate arr_bytes with the bytes of all our dts
-        dts.iter()
-            .for_each(|dt| arr_bytes.extend_from_slice(dt.get_bytes()));
-
-        arr_bytes.into_boxed_slice()
+    fn write(values: &[DataTypeContent]) -> Arc<[u8]> {
+        // pre-size buffer, then append
+        // Single allocation here, no growth.
+        // I'm having faith that I correctly implemented .size() for all dts.
+        let total: usize = values.iter().map(|dt| dt.size()).sum();
+        let mut buf: Vec<u8> = Vec::with_capacity(total);
+        for dt in values {
+            buf.extend_from_slice(dt.get_bytes());
+        }
+        buf.into()
     }
 
     /// Return the number of elements inside the Array.
@@ -911,32 +955,23 @@ impl<'a> Array<'a> {
     }
 }
 
-impl<'a> Encodable for Array<'a> {
+impl Encodable for Array {
     // TODO rewrite this shitty DataType vs DataTypeContent to be one and only.
-    type Ctx = &'a [DataType];
+    //type Ctx = Box<[DataType]>;
+    type Ctx = CtxBytes;
 
     fn from_bytes<T: AsRef<[u8]>>(bytes: T, ctx: Self::Ctx) -> Result<Self, CodecError> {
-        let (v, b) = Self::read(bytes, ctx)?;
+        let (v, b) = Self::read(bytes, &ctx.types)?;
         Ok(Self {
             values: v,
             bytes: b,
         })
     }
-    type ValueInput = &'a [DataTypeContent];
+    type ValueInput = CtxValues;
 
     fn from_value(value: Self::ValueInput) -> Result<Self, CodecError> {
-        let values: Arc<[DataTypeContent]> = value.iter().cloned().collect();
-
-        // pre-size buffer, then append
-        // Single allocation here, no growth.
-        // I'm having faith that I correctly implemented .size() for all dts.
-        let total: usize = values.iter().map(|dt| dt.size()).sum();
-        let mut buf = Vec::with_capacity(total);
-        for dt in &(*values) {
-            buf.extend_from_slice(dt.get_bytes());
-        }
-        let bytes = buf.into_boxed_slice();
-
+        let values: Arc<[DataTypeContent]> = value.types.iter().cloned().collect();
+        let bytes: Arc<[u8]> = Self::write(&values);
         Ok(Self { values, bytes })
     }
 
@@ -946,17 +981,18 @@ impl<'a> Encodable for Array<'a> {
 
     type ValueOutput = Arc<[DataTypeContent]>;
 
+    /// Returns: `Arc<[DataTypeContent]>`
     fn get_value(&self) -> Self::ValueOutput {
         self.values.clone()
     }
 }
 
-impl<'a> Default for Array<'a> {
+impl Default for Array {
     /// Returns an empty Array with no items in it. 0 bytes of length.
     fn default() -> Self {
         Self {
             values: Arc::default(),
-            bytes: Box::default(),
+            bytes: Arc::default(),
         }
     }
 }
@@ -964,19 +1000,20 @@ impl<'a> Default for Array<'a> {
 /// Names of the data types inside INCLUDING their values.
 /// E.g., [VarInt(value), Byte(value)]
 /// Pretty mode indents and adds newlines. Making it multiline.
-impl<'a> Debug for Array<'a> {
-    fn fmt(&self, f: &mut Formatter<'_>) -> std::fmt::Result {
+impl Debug for Array {
+    fn fmt(&self, f: &mut Formatter<'_>) -> fmt::Result {
+        warn!("Debug for Array called; not yet implemented");
         if f.alternate() {
-            todo!("Pretty Debug not yet implemented, please use normal Display for now")
+            return write!(f, "NOT YET IMPLEMENTED; USE Display");
         }
-        todo!("Debug not yet implemented, please use normal Display for now")
+        write!(f, "NOT YET IMPLEMENTED; USE Display")
     }
 }
 
 /// Names of the data types inside WITHOUT the values.
 /// E.g., [VarInt, Byte]
 /// Pretty mode indents and adds newlines. Making it multiline.
-impl<'a> Display for Array<'a> {
+impl Display for Array {
     fn fmt(&self, f: &mut Formatter<'_>) -> fmt::Result {
         fn make_arr_str(
             f: &mut Formatter<'_>,
@@ -1014,7 +1051,7 @@ impl<'a> Display for Array<'a> {
     }
 }
 
-impl<'a> Clone for Array<'a> {
+impl Clone for Array {
     fn clone(&self) -> Self {
         Self {
             values: self.values.clone(),
@@ -1022,107 +1059,12 @@ impl<'a> Clone for Array<'a> {
         }
     }
 }
-impl<'a> PartialEq for Array<'a> {
+impl PartialEq for Array {
     fn eq(&self, other: &Self) -> bool {
         self.values == other.values && self.bytes == other.bytes
     }
 }
-impl<'a> Eq for Array<'a> {}
-
-// Here is the example where Array has multiple types of data:
-// https://minecraft.wiki/w/Minecraft_Wiki:Projects/wiki.vg_merge/Protocol#Login_Success
-//
-// This structure is non-standard because it is not implementing Encodable because of the dynamic
-// nature of the `Array`, it needs to know what are the data types for parsing and creating itself.
-#[derive(Debug, Default, Clone, PartialEq, Eq)]
-pub struct ArrayOld {
-    /// There can be 0 or more types in an Array.
-    types: Vec<DataTypeContent>,
-    bytes: Vec<u8>,
-}
-
-impl ArrayOld {
-    /// Creates a new `Array` from bytes and what types to parse.
-    pub fn from_bytes<T: AsRef<[u8]>>(
-        bytes: T,
-        data_types: &[DataType],
-    ) -> Result<Self, CodecError> {
-        let mut data: &[u8] = bytes.as_ref();
-
-        let mut array_types: Vec<DataTypeContent> = Vec::new();
-
-        // All the Array's types lengths.
-        let mut array_length: usize = 0;
-
-        for data_type in data_types {
-            let parsed: DataTypeContent =
-                DataTypeContent::consume_from_bytes(&mut data, (*data_type).clone())?;
-            array_length += parsed.size();
-            array_types.push(parsed);
-        }
-
-        // Use as_ref() again because `data` has been consumed.
-        let array_bytes: &[u8] = &bytes.as_ref()[..array_length];
-
-        Ok(Self {
-            types: array_types,
-            bytes: array_bytes.to_vec(),
-        })
-    }
-
-    /// Creates an instance of `Array` from the data_types inputted.
-    /// Consumes the bytes buffer.
-    pub fn consume_from_bytes(
-        bytes: &mut &[u8],
-        data_types: &[DataType],
-    ) -> Result<Self, CodecError> {
-        let instance = Self::from_bytes(&bytes, data_types)?;
-        *bytes = &bytes[instance.len()..];
-        Ok(instance)
-    }
-
-    /// This is because Array takes a Vec<DataType>, but data_types is a
-    /// &[ArrayType], so we use the .into() (From<ArrayType> is implemented for
-    /// DataType) to convert, but because of the borrowing rule we need to
-    /// dereference the &ArrayType and clone it before use .into().
-    pub fn convert_array_types(data_types: &[DataTypeContent]) -> Vec<DataType> {
-        data_types.iter().map(|i| (*i).clone().into()).collect()
-    }
-
-    /// Tries to return an `Array` from a slice of `ArrayType`s.
-    pub fn from_value(data_types: &[DataTypeContent]) -> Result<Self, CodecError> {
-        let total_size: usize = data_types.iter().map(|t| t.size()).sum();
-        let mut bytes: Vec<u8> = Vec::with_capacity(total_size);
-
-        for t in data_types {
-            bytes.extend_from_slice(t.get_bytes());
-        }
-
-        Ok(Self {
-            types: data_types.to_vec(),
-            bytes,
-        })
-    }
-
-    /// Returns an immutable reference to the bytes of the array.
-    ///
-    /// The bytes of the array are the contatenation of every data type bytes the array contains.
-    ///
-    /// The bytes of the array can then be directly concatenated into a `Packet`.
-    pub fn get_bytes(&self) -> &[u8] {
-        &self.bytes
-    }
-
-    /// Returns all the data_types inside the current `Array`.
-    pub fn get_value(&self) -> &[DataTypeContent] {
-        &self.types
-    }
-
-    /// Returns the length of all types in the Array.
-    pub fn len(&self) -> usize {
-        self.bytes.len()
-    }
-}
+impl Eq for Array {}
 
 #[derive(Debug, Default, Clone, PartialEq, Eq)]
 pub struct Boolean {
@@ -1142,7 +1084,7 @@ impl Encodable for Boolean {
     ///
     /// # Errors
     /// Returns a `CodecError` if the slice is empty or the first byte is not 0 or 1.
-    fn from_bytes<T: AsRef<[u8]>>(bytes: T, ctx: Self::Ctx) -> Result<Self, CodecError> {
+    fn from_bytes<T: AsRef<[u8]>>(bytes: T, _: Self::Ctx) -> Result<Self, CodecError> {
         let data: &[u8] = bytes.as_ref();
 
         if data.is_empty() {
@@ -1228,7 +1170,7 @@ impl Optional {
             });
         }
 
-        let value: DataTypeContent = DataTypeContent::from_bytes(data, data_type)?;
+        let value: DataTypeContent = DataTypeContent::from_bytes(data, &data_type)?;
         Ok(Self {
             bytes: data[..value.get_bytes().len()].to_vec(),
             value: Some(value),
@@ -1318,7 +1260,7 @@ impl Byte {
 impl Encodable for Byte {
     type Ctx = ();
 
-    fn from_bytes<T: AsRef<[u8]>>(bytes: T, ctx: Self::Ctx) -> Result<Self, CodecError> {
+    fn from_bytes<T: AsRef<[u8]>>(bytes: T, _: Self::Ctx) -> Result<Self, CodecError> {
         let data: &[u8] = bytes.as_ref();
         let value: i8 = Self::read(data)?;
         Ok(Self {
@@ -1442,9 +1384,9 @@ mod tests {
             assert_eq!(value, decoded, "Roundtrip failed for value: {}", value);
         }
 
-        let mut rng = rand::thread_rng();
+        let mut rng = rand::rng();
         for _ in 0..10_000 {
-            let value = rng.gen();
+            let value = rng.random();
             let varint = VarInt::from_value(value).unwrap();
             let encoded = varint.get_bytes();
             let decoded_varint = VarInt::from_bytes(encoded, ()).unwrap();
@@ -1561,9 +1503,9 @@ mod tests {
             assert_eq!(value, decoded, "Roundtrip failed for value: {}", value);
         }
 
-        let mut rng = rand::thread_rng();
+        let mut rng = rand::rng();
         for _ in 0..10_000 {
-            let value = rng.gen();
+            let value = rng.random();
             let varlong = VarLong::from_value(value).unwrap();
             let encoded = varlong.get_bytes();
             let decoded_varlong = VarLong::from_bytes(encoded, ()).unwrap();
@@ -1678,10 +1620,7 @@ mod tests {
     #[test]
     fn test_string_read_invalid_utf8() {
         let length = 3;
-        let length_varint = VarInt::from_value(length as i32)
-            .unwrap()
-            .get_bytes()
-            .to_vec();
+        let length_varint = VarInt::from_value(length).unwrap().get_bytes().to_vec();
         let invalid_utf8 = vec![0xFF, 0xFF, 0xFF];
 
         let mut data = length_varint;
@@ -1701,10 +1640,7 @@ mod tests {
     #[test]
     fn test_string_read_incomplete_data() {
         let length = 10;
-        let length_varint = VarInt::from_value(length as i32)
-            .unwrap()
-            .get_bytes()
-            .to_vec();
+        let length_varint = VarInt::from_value(length).unwrap().get_bytes().to_vec();
         let string_bytes = b"HELLO";
 
         let mut data = length_varint;
@@ -1724,10 +1660,7 @@ mod tests {
     #[test]
     fn test_string_read_no_data() {
         let length = 5;
-        let data = VarInt::from_value(length as i32)
-            .unwrap()
-            .get_bytes()
-            .to_vec();
+        let data = VarInt::from_value(length).unwrap().get_bytes().to_vec();
 
         match StringProtocol::from_bytes(&data, ()) {
             Ok(_) => panic!("Expected error, but got Ok"),
@@ -1757,9 +1690,9 @@ mod tests {
 
     #[test]
     fn test_string_read_random_strings() {
-        let mut rng = rand::thread_rng();
+        let mut rng = rand::rng();
         for _ in 0..1000 {
-            let s: String = (0..10).map(|_| rng.gen::<u8>() as char).collect();
+            let s: String = (0..10).map(|_| rng.random::<u8>() as char).collect();
             let string_bytes = s.as_bytes();
 
             let length_varint = VarInt::from_value(string_bytes.len() as i32)
@@ -1911,9 +1844,9 @@ mod tests {
 
     #[test]
     fn test_unsigned_short_roundtrip() {
-        let mut rng = rand::thread_rng();
+        let mut rng = rand::rng();
         for _ in 0..1000 {
-            let value = rng.gen::<u16>();
+            let value = rng.random::<u16>();
             let us = UnsignedShort::from_value(value).unwrap();
             let decoded = UnsignedShort::from_bytes(us.get_bytes(), ()).unwrap();
             assert_eq!(
@@ -2095,7 +2028,9 @@ mod tests {
         let data_types = vec![DataType::VarInt];
 
         // Build the array from bytes.
-        let array = Array::from_bytes(&encoded, &data_types).unwrap();
+        let array = Array::from_bytes(&encoded, data_types.into()).unwrap();
+
+        assert_eq!(array.len(), 1);
 
         // Check length and bytes.
         assert_eq!(
@@ -2150,11 +2085,12 @@ mod tests {
         ];
 
         // Parse the array from bytes.
-        let array = Array::from_bytes(&encoded, &data_types).unwrap();
+        let array = Array::from_bytes(&encoded, (&data_types).into()).unwrap();
 
         // Confirm length and internal bytes.
         assert_eq!(array.size(), encoded.len());
         assert_eq!(array.get_bytes(), &encoded);
+        assert_eq!(array.len(), data_types.len());
 
         // Check each parsed element in order.
         let parsed = array.get_value();
@@ -2192,7 +2128,8 @@ mod tests {
 
         // Outer array has DataType::Array with subtypes [VarInt]
         let nested_data_types = vec![DataType::VarInt];
-        let nested_array = Array::from_bytes(&nested_encoded, &nested_data_types).unwrap();
+        let nested_array =
+            Array::from_bytes(&nested_encoded, nested_data_types.clone().into()).unwrap();
         // This is our final ArrayType::Array(...) that will be inside the top-level array.
         let array_type_nested = DataTypeContent::Array(nested_array);
 
@@ -2208,7 +2145,7 @@ mod tests {
         let top_data_types = vec![DataType::Array(nested_data_types)];
 
         // Parse the top-level array.
-        let top_array = Array::from_bytes(&top_encoded, &top_data_types).unwrap();
+        let top_array = Array::from_bytes(&top_encoded, top_data_types.into()).unwrap();
 
         // Confirm we have exactly one element, which is ArrayType::Array(...).
         assert_eq!(top_array.get_value().len(), 1);
@@ -2233,7 +2170,7 @@ mod tests {
         let empty_encoded = Vec::new();
         let empty_data_types = vec![];
 
-        let array = Array::from_bytes(&empty_encoded, &empty_data_types).unwrap();
+        let array = Array::from_bytes(&empty_encoded, empty_data_types.into()).unwrap();
         assert_eq!(array.size(), 0, "Empty array should have length zero.");
         assert!(array.get_bytes().is_empty());
         assert!(array.get_value().is_empty(), "Should have no elements.");
@@ -2258,7 +2195,8 @@ mod tests {
 
         // We'll parse using consume_from_bytes.
         let mut buffer_slice: &[u8] = &combined;
-        let array = Array::consume_from_bytes(&mut buffer_slice, &data_types).unwrap();
+        let array = Array::consume_from_bytes(&mut buffer_slice, data_types.into()).unwrap();
+        let t = (&*array.get_value());
 
         // The leftover buffer should have 2 bytes (0x01, 0x02).
         assert_eq!(buffer_slice, &[0x01, 0x02]);
@@ -2278,7 +2216,7 @@ mod tests {
         let empty_bytes = Vec::new();
         let data_types = vec![DataType::VarInt];
 
-        let result = Array::from_bytes(&empty_bytes, &data_types);
+        let result = Array::from_bytes(&empty_bytes, data_types.into());
         assert!(
             result.is_err(),
             "Should fail with truncated input for VarInt."
@@ -2302,7 +2240,7 @@ mod tests {
         let data_types = vec![DataType::Other("test")];
         let some_bytes = vec![0x01, 0x02, 0x03];
 
-        let result = Array::from_bytes(&some_bytes, &data_types);
+        let result = Array::from_bytes(&some_bytes, data_types.into());
         assert!(result.is_err());
     }
 
@@ -2314,7 +2252,7 @@ mod tests {
             DataTypeContent::StringProtocol(StringProtocol::from_value("Hello".into()).unwrap());
         let my_array_types = vec![varint_10.clone(), str_hello.clone()];
 
-        let array = Array::from_value(&my_array_types).unwrap();
+        let array = Array::from_value(my_array_types.into()).unwrap();
         assert_eq!(array.get_value().len(), 2);
 
         match &array.get_value()[0] {
