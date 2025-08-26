@@ -5,6 +5,8 @@ use std::fmt;
 use std::fmt::{Debug, Display, Formatter};
 use std::sync::Arc;
 use thiserror::Error;
+
+
 // Remark: dynamic dispatch is what we need in this file, but it would mean (relative to this file)
 // heavy refactors for the Encodable trait and maybe the creation of a Parser struct or something.
 
