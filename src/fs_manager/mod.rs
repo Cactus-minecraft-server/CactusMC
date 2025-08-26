@@ -41,7 +41,7 @@ fn create_server_properties() -> io::Result<()> {
     let path = Path::new(consts::file_paths::PROPERTIES);
     let content = consts::file_contents::server_properties();
 
-    utils::create_file(path, &content)
+    utils::create_file(path, Some(&content))
 }
 
 /// Creates the 'eula.txt' file if it does not already exist.
@@ -49,7 +49,7 @@ fn create_eula() -> io::Result<()> {
     let path = Path::new(consts::file_paths::EULA);
     let content = consts::file_contents::eula();
 
-    utils::create_file(path, &content)
+    utils::create_file(path, Some(&content))
 }
 
 /// Check if the 'eula.txt' has been agreed to.
@@ -69,7 +69,7 @@ fn check_eula() -> io::Result<bool> {
 }
 
 pub fn create_other_files() {
-    match utils::create_file_nn(Path::new(consts::file_paths::BANNED_IP)) {
+    match utils::create_file(Path::new(consts::file_paths::BANNED_IP), None) {
         Ok(_) => (),
         Err(e) => error!(
             "Failed to create the file {} as error:{}",
@@ -77,7 +77,7 @@ pub fn create_other_files() {
             e
         ),
     }
-    match utils::create_file_nn(Path::new(consts::file_paths::BANNED_PLAYERS)) {
+    match utils::create_file(Path::new(consts::file_paths::BANNED_PLAYERS), None) {
         Ok(_) => (),
         Err(e) => error!(
             "Failed to create the file {} as error:{}",
@@ -85,7 +85,7 @@ pub fn create_other_files() {
             e
         ),
     }
-    match utils::create_file_nn(Path::new(consts::file_paths::OPERATORS)) {
+    match utils::create_file(Path::new(consts::file_paths::OPERATORS), None) {
         Ok(_) => (),
         Err(e) => error!(
             "Failed to create the file {} as error:{}",
@@ -93,7 +93,7 @@ pub fn create_other_files() {
             e
         ),
     }
-    match utils::create_file_nn(Path::new(consts::file_paths::SESSION)) {
+    match utils::create_file(Path::new(consts::file_paths::SESSION), None) {
         Ok(_) => (),
         Err(e) => error!(
             "Failed to create the file {} as error:{}",
@@ -101,7 +101,7 @@ pub fn create_other_files() {
             e
         ),
     }
-    match utils::create_file_nn(Path::new(consts::file_paths::USERCACHE)) {
+    match utils::create_file(Path::new(consts::file_paths::USERCACHE), None) {
         Ok(_) => (),
         Err(e) => error!(
             "Failed to create the file {} as error:{}",
@@ -109,7 +109,7 @@ pub fn create_other_files() {
             e
         ),
     }
-    match utils::create_file_nn(Path::new(consts::file_paths::WHITELIST)) {
+    match utils::create_file(Path::new(consts::file_paths::WHITELIST), None) {
         Ok(_) => (),
         Err(e) => error!(
             "Failed to create the file {} as error:{}",
