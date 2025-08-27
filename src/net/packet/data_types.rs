@@ -6,7 +6,6 @@ use std::fmt::{Debug, Display, Formatter};
 use std::sync::Arc;
 use thiserror::Error;
 
-
 // Remark: dynamic dispatch is what we need in this file, but it would mean (relative to this file)
 // heavy refactors for the Encodable trait and maybe the creation of a Parser struct or something.
 
@@ -101,7 +100,7 @@ impl From<DataTypeContent> for DataType {
             DataTypeContent::Boolean(_) => DataType::Boolean,
             DataTypeContent::Optional(optional) => {
                 if let Some(data_type) = optional.get_value() {
-                    DataType::Optional(Box::new((*data_type).clone().into()))
+                    DataType::Optional(Box::new(data_type.into()))
                 } else {
                     // NOT FINE!
                     // We lose some information here, even though not really.
@@ -712,7 +711,7 @@ impl DataTypeContent {
             DataTypeContent::Uuid(uuid) => uuid.size(),
             DataTypeContent::Array(array) => array.size(),
             DataTypeContent::Boolean(boolean) => boolean.size(),
-            DataTypeContent::Optional(optional) => (*optional).len(),
+            DataTypeContent::Optional(optional) => (*optional).size(),
             DataTypeContent::Byte(v) => v.size(),
             DataTypeContent::Other(_) => 0, // Assuming `Other` doesn't have a meaningful length
         }
@@ -830,7 +829,7 @@ impl DataType {
             DataType::Uuid => DataTypeContent::Uuid(Uuid::default()),
             DataType::Array(_) => DataTypeContent::Array(Array::default()),
             DataType::Boolean => DataTypeContent::Boolean(Boolean::default()),
-            DataType::Optional(_) => DataTypeContent::Optional(Box::new(Optional::default())),
+            DataType::Optional(_) => DataTypeContent::Optional(Box::default()),
             DataType::Byte => DataTypeContent::Byte(Byte::default()),
             DataType::Other(_) => DataTypeContent::Other(String::new()),
         }
@@ -1145,88 +1144,82 @@ impl Encodable for Boolean {
 /// parse and creates it.
 ///
 /// Bytewise, an `Optional` is either 0x00 or the data type it contains.
-#[derive(Debug, Clone, PartialEq, Eq)]
+#[derive(Debug, Default, Clone, PartialEq, Eq)]
 pub struct Optional {
     value: Option<DataTypeContent>,
-    bytes: Vec<u8>,
+    bytes: Box<[u8]>,
 }
 
 impl Optional {
-    /// Creates an instance from the first data type from a byte slice.
-    /// The input slice remains unmodified.
-    fn from_bytes<T: AsRef<[u8]>>(bytes: T, data_type: DataType) -> Result<Self, CodecError> {
+    /// Creates an instance from parsing bytes.
+    /// Parses the first data type from a buffer of bytes.
+    fn read<T: AsRef<[u8]>>(bytes: T, data_type: &DataType) -> Result<Self, CodecError> {
         let data: &[u8] = bytes.as_ref();
 
         if data.is_empty() {
-            return Err(CodecError::Encoding(
-                DataType::Optional(Box::new(data_type)),
-                ErrorReason::ValueTooSmall,
-            ));
+            return Ok(Self::default());
+            // return Err(CodecError::Encoding(
+            //     DataType::Optional(Box::new(data_type.clone())),
+            //     ErrorReason::EmptyBuffer,
+            // ));
         }
 
-        // No data type.
-        if data[0] == 0x00 {
-            return Ok(Self {
-                value: None,
-                bytes: vec![0x00],
-            });
-        }
-
-        let value: DataTypeContent = DataTypeContent::from_bytes(data, &data_type)?;
+        let dt: DataTypeContent = DataTypeContent::from_bytes(data, data_type)?;
         Ok(Self {
-            bytes: data[..value.get_bytes().len()].to_vec(),
-            value: Some(value),
+            bytes: data[..dt.get_bytes().len()].to_vec().into_boxed_slice(),
+            value: Some(dt),
         })
     }
 
-    /// Creates an instance from the first data type from a byte slice.
-    /// Read bytes are consumed. For instance, if you were to read an UnsignedByte (did I mean an u16?) on [1, 5, 4, 8],
-    /// the buffer would then be [4, 8] after the function call.
-    ///
-    /// TODO: IS THIS CORRECT? SHOULD AN OPTIONAL CONSUME? IF THERE IS NO DATA, THERE SHOULD BE NO CONSUMPTION?
-    fn consume_from_bytes(bytes: &mut &[u8], data_type: DataType) -> Result<Self, CodecError> {
-        let instance = Self::from_bytes(*bytes, data_type)?;
-        *bytes = &bytes[instance.len()..];
-        Ok(instance)
-    }
-
     /// Creates an instance from a value.
-    fn from_value(value: Option<DataTypeContent>) -> Result<Self, CodecError> {
-        if let Some(data_type) = value {
-            Ok(Self {
-                bytes: data_type.get_bytes().to_vec(),
-                value: Some(data_type),
-            })
-        } else {
-            Ok(Self {
+    fn write(value: Option<DataTypeContent>) -> Result<Self, CodecError> {
+        match value {
+            None => Ok(Self {
+                bytes: Box::default(),
                 value: None,
-                bytes: vec![0x00],
-            })
+            }),
+            Some(val) => Ok(Self {
+                bytes: val.get_bytes().to_vec().into_boxed_slice(),
+                value: Some(val),
+            }),
         }
     }
+}
 
-    /// Serializes the instance into bytes
+impl Encodable for Optional {
+    type Ctx = DataType;
+
+    /// ctx is a `DataType`
+    /// Creates an instance from parsing a buffer of bytes.
+    ///
+    /// Behavior:
+    ///     - Parses the first data type from the buffer.
+    ///     - No buffer mutation.
+    ///     - If the buffer is empty, returns an Optional::default();
+    fn from_bytes<T: AsRef<[u8]>>(bytes: T, ctx: Self::Ctx) -> Result<Self, CodecError> {
+        Self::read(bytes, &ctx)
+    }
+
+    type ValueInput = Option<DataTypeContent>;
+
+    /// value is an `Option<DataTypeContent>`
+    /// Creates an instance from an existing value.
+    fn from_value(value: Self::ValueInput) -> Result<Self, CodecError> {
+        Self::write(value)
+    }
+
+    /// Returns a reference to the slice of bytes corresponding to the type's bytes.
     fn get_bytes(&self) -> &[u8] {
         &self.bytes
     }
 
-    /// Returns an Option of a reference to the value represented by this instance.
-    fn get_value(&self) -> Option<&DataTypeContent> {
-        self.value.as_ref()
-    }
+    type ValueOutput = Option<DataTypeContent>;
 
-    // Returns the length of the encoded data in bytes.
-    fn len(&self) -> usize {
-        self.bytes.len()
-    }
-}
-
-impl Default for Optional {
-    fn default() -> Self {
-        Self {
-            value: None,
-            bytes: vec![0x00],
-        }
+    /// Returns an owned `Option<DataTypeContent>`
+    /// Returns the inner value.
+    /// Cloning each time, not borrowing.
+    fn get_value(&self) -> Self::ValueOutput {
+        self.value.clone()
     }
 }
 
@@ -1303,6 +1296,7 @@ struct PrefixedArray {
     value: Array,
     bytes: Vec<u8>,
 }
+
 /// Tests written with AI, and not human-checked.
 /// Unfortunate, but saves a ton of time.
 #[cfg(test)]
@@ -2406,20 +2400,22 @@ mod tests {
             None,
             "Default Optional should have None value"
         );
-        assert_eq!(opt.get_bytes(), &[0x00], "Default bytes should be [0x00]");
-        assert_eq!(opt.len(), 1, "Length should be 1 for the default Optional");
+        let empty: &[u8] = &[];
+        assert_eq!(opt.get_bytes(), empty, "Default bytes should be [0x00]");
+        assert_eq!(opt.size(), 0, "Length should be 1 for the default Optional");
     }
 
     #[test]
     fn test_optional_from_value_none() {
         let opt = Optional::from_value(None).expect("Failed to create Optional from None");
         assert_eq!(opt.get_value(), None, "Optional should store None");
+        let nothing: &[u8] = &[];
         assert_eq!(
             opt.get_bytes(),
-            &[0x00],
+            nothing,
             "Optional(None) should serialize to [0x00]"
         );
-        assert_eq!(opt.len(), 1, "Optional(None) has length 1");
+        assert_eq!(opt.size(), 0, "Optional(None) has length 1");
     }
 
     #[test]
@@ -2434,7 +2430,7 @@ mod tests {
 
         assert_eq!(
             opt.get_value(),
-            Some(&boolean_true),
+            Some(boolean_true),
             "Optional should store Boolean(true)"
         );
         assert_eq!(
@@ -2442,7 +2438,7 @@ mod tests {
             &[0x01],
             "Bytes should be [0x01] for Boolean(true)"
         );
-        assert_eq!(opt.len(), 1, "Boolean(true) is 1 byte in length");
+        assert_eq!(opt.size(), 1, "Boolean(true) is 1 byte in length");
     }
 
     #[test]
@@ -2459,7 +2455,7 @@ mod tests {
 
         assert_eq!(
             opt.get_value(),
-            Some(&boolean_false),
+            Some(boolean_false),
             "Optional should store Boolean(false)"
         );
         assert_eq!(
@@ -2467,23 +2463,15 @@ mod tests {
             &[0x00],
             "Bytes [0x00] also indicates None, watch for collisions"
         );
-        assert_eq!(opt.len(), 1, "Boolean(false) is 1 byte in length");
+        assert_eq!(opt.size(), 1, "Boolean(false) is 1 byte in length");
     }
 
     #[test]
     fn test_optional_from_bytes_empty_slice() {
         let data: [u8; 0] = [];
         let result = Optional::from_bytes(&data, DataType::Boolean);
-        assert!(result.is_err(), "Empty slice should yield an error");
-        if let Err(CodecError::Encoding(dt, reason)) = result {
-            assert_eq!(dt, DataType::Optional(Box::new(DataType::Boolean)));
-            match reason {
-                ErrorReason::ValueTooSmall => {} // expected
-                _ => panic!("Expected ErrorReason::ValueTooSmall, got {:?}", reason),
-            }
-        } else {
-            panic!("Expected Encoding error due to ValueTooSmall");
-        }
+        assert!(result.is_ok(), "Empty slice should NOT yield an error");
+        assert_eq!(result.clone().unwrap(), Optional::default());
     }
 
     #[test]
@@ -2491,9 +2479,12 @@ mod tests {
         let data = [0x00];
         let opt =
             Optional::from_bytes(&data, DataType::Boolean).expect("Failed to parse None variant");
-        assert_eq!(opt.get_value(), None, "Should parse None from [0x00]");
-        assert_eq!(opt.get_bytes(), &[0x00], "Bytes should be [0x00]");
-        assert_eq!(opt.len(), 1, "Length should be 1 for None");
+
+        let bool = Boolean::from_value(false).unwrap();
+        let good = Some(DataTypeContent::Boolean(bool.clone()));
+        assert_eq!(opt.get_value(), good, "Should parse None from [0x00]");
+        assert_eq!(opt.get_bytes(), bool.get_bytes(), "Bytes should be [0x00]");
+        assert_eq!(opt.size(), 1, "Length should be 1 for None");
     }
 
     #[test]
@@ -2511,7 +2502,7 @@ mod tests {
             _ => panic!("Expected Boolean variant"),
         }
         assert_eq!(opt.get_bytes(), &[0x01], "Bytes should be [0x01]");
-        assert_eq!(opt.len(), 1, "Length of Boolean(true) is 1 byte");
+        assert_eq!(opt.size(), 1, "Length of Boolean(true) is 1 byte");
     }
 
     #[test]
@@ -2519,7 +2510,10 @@ mod tests {
         let mut data: &[u8] = &[0x00, 0xFF];
         let opt = Optional::consume_from_bytes(&mut data, DataType::Boolean)
             .expect("Should consume None (0x00) from the bytes");
-        assert_eq!(opt.get_value(), None, "Optional should be None");
+        let good = Some(DataTypeContent::Boolean(
+            super::Boolean::from_value(false).unwrap(),
+        ));
+        assert_eq!(opt.get_value(), good, "Optional should be None");
         assert_eq!(data, &[0xFF], "Should have consumed 1 byte of data");
     }
 
