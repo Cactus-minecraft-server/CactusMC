@@ -25,7 +25,7 @@ pub async fn handle_input() -> ! {
         if buffer.trim().to_lowercase() == "stop" {
             let content = "Server will stop in few second…";
             warn!("{}", content.red().bold());
-            gracefully_exit(crate::ExitCode::Failure)
+            gracefully_exit(crate::ExitCode::Success)
         }
 
         if buffer.trim().to_lowercase().starts_with("op") {

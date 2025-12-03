@@ -538,15 +538,15 @@ pub mod configuration {
                         &mut data,
                         (&ClientboundKnownPacks::PACK_DATA_TYPES[..]).into(),
                     )
-                        .map_err(|e| {
-                            CodecError::Decoding(
-                                DataType::Array(ClientboundKnownPacks::PACK_DATA_TYPES.to_vec()),
-                                ErrorReason::InvalidFormat(format!(
-                                    "Failed to parse known pack at index {}. Reason: {e}",
-                                    i
-                                )),
-                            )
-                        })
+                    .map_err(|e| {
+                        CodecError::Decoding(
+                            DataType::Array(ClientboundKnownPacks::PACK_DATA_TYPES.to_vec()),
+                            ErrorReason::InvalidFormat(format!(
+                                "Failed to parse known pack at index {}. Reason: {e}",
+                                i
+                            )),
+                        )
+                    })
                 })
                 .collect::<Result<_, _>>()?;
 
