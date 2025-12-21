@@ -36,7 +36,7 @@ async fn main() {
     info!("{}", *messages::SERVER_SHUTDOWN_SUCCESS);
 }
 #[cfg(debug_assertions)]
-const DISABLE_LOGGING_COLOR_AND_SAVE_TO_FILE: bool = false;
+const ENABLE_LOGGING_COLOR_AND_SAVE_TO_FILE: bool = true;
 
 #[cfg(not(debug_assertions))]
 const DISABLE_LOGGING_COLOR_AND_SAVE_TO_FILE: bool = true;
@@ -45,7 +45,7 @@ async fn early_init() -> Result<(), Box<dyn std::error::Error>> {
     // This must executes as early as possible
     logging::init(
         log::LevelFilter::Debug,
-        DISABLE_LOGGING_COLOR_AND_SAVE_TO_FILE,
+        ENABLE_LOGGING_COLOR_AND_SAVE_TO_FILE,
     );
 
     args::init();

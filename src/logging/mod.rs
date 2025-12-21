@@ -1,41 +1,41 @@
-use env_logger::{Builder, Env, Target};
+use flexi_logger::{Age, Cleanup, Criterion, Duplicate, FileSpec, Logger, Naming, WriteMode};
+
 use log::LevelFilter;
-use std::fs::File;
-use std::io::{self, Write};
 
 use crate::fs_manager;
-struct Tee<W1: Write, W2: Write> {
-    a: W1,
-    b: W2,
-}
-
-impl<W1: Write, W2: Write> Write for Tee<W1, W2> {
-    fn write(&mut self, buf: &[u8]) -> io::Result<usize> {
-        let n = self.a.write(buf)?;
-        let _ = self.b.write(buf)?;
-        Ok(n)
-    }
-    fn flush(&mut self) -> io::Result<()> {
-        self.a.flush()?;
-        self.b.flush()
-    }
-}
-
+/// TODO: resolve the issue where info doesn't have color (minor issue)
 pub fn init(log_level: LevelFilter, to_file: bool) {
-    // TODO fix the colors when saving to file
+    // Call init ONLY once else result in panic
+
     if to_file {
         fs_manager::create_dirs();
-        let file = File::create("logs/latest.log").unwrap();
-        let stderr = io::stderr();
-        let tee = Tee { a: file, b: stderr };
 
-        Builder::from_env(Env::default())
-            .target(Target::Pipe(Box::new(tee)))
-            .filter_level(log_level)
-            .init();
+        Logger::try_with_str(log_level.as_str())
+            .unwrap()
+            .log_to_file(
+                FileSpec::default()
+                    .directory("logs")
+                    .basename("app")
+                    .suffix("log"),
+            )
+            .rotate(
+                Criterion::AgeOrSize(Age::Day, 10_000_000),
+                Naming::Timestamps,
+                Cleanup::KeepLogFiles(10),
+            )
+            .duplicate_to_stderr(Duplicate::All)
+            .write_mode(WriteMode::BufferAndFlush)
+            .start()
+            .unwrap();
+
         return;
     }
-    let mut builder = Builder::new();
-    builder.filter_level(log_level);
-    builder.init();
+
+    Logger::try_with_str(log_level.as_str())
+        .unwrap()
+        .duplicate_to_stderr(Duplicate::All)
+        .format_for_stderr(flexi_logger::colored_default_format)
+        .write_mode(WriteMode::BufferAndFlush)
+        .start()
+        .unwrap();
 }
