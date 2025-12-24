@@ -2,6 +2,7 @@
 
 use super::utils;
 use core::fmt;
+use std::borrow::Cow;
 use std::sync::OnceLock;
 
 use super::{
@@ -76,27 +77,12 @@ pub trait EmptyPayloadPacket: GenericPacket + TryFrom<Packet> {
     /// Huh? What's this load of crap, why are we even leaking memory here?
     /// ?? bullshit me what did I do....
     fn get_packet(&self) -> &Packet {
-        // Thread-safe static HashMap to store OnceLocks for each type
-        static PACKET_MAP: OnceLock<DashMap<i32, &'static OnceLock<Packet>>> = OnceLock::new();
+        static PACKET: OnceLock<Packet> = OnceLock::new();
 
-        // Initialize the map if not already done
-        let map = PACKET_MAP.get_or_init(|| DashMap::new());
-
-        // Retrieve or initialize the OnceLock for this type
-        let key: i32 = Self::PACKET_ID;
-        let once_lock = map.entry(key).or_insert_with(|| {
-            // Box::leak() ensures the OnceLock has a static lifetime
-            // (In actuality causes a true memory leak each time it's called)
-            warn!("Leaking memory!");
-            Box::leak(Box::new(OnceLock::new()))
-        });
-
-        // Initialize the packet if it's not already created
-        once_lock.get_or_init(|| {
+        PACKET.get_or_init(|| {
             let mut packet = Packet::default();
-            let packet_id =
+            packet.id =
                 VarInt::from_value(Self::PACKET_ID).expect("PACKET_ID must be a valid VarInt");
-            packet.id = packet_id;
             packet
         })
     }
@@ -107,7 +93,7 @@ pub trait EmptyPayloadPacket: GenericPacket + TryFrom<Packet> {
         let data: &[u8] = bytes.as_ref();
         if !data.is_empty() {
             Err(PacketError::Codec(CodecError::Decoding(
-                DataType::Other("Empty payload packet"),
+                DataType::Other(Cow::Borrowed("Empty payload packet")),
                 ErrorReason::InvalidFormat(format!(
                     "The packet payload must be empty. Current is: {data:?}"
                 )),
@@ -143,7 +129,7 @@ impl NextState {
             0x02 => Ok(NextState::Login(next_state)),
             0x03 => Ok(NextState::Transfer(next_state)),
             _ => Err(CodecError::Decoding(
-                DataType::Other("NextState"),
+                DataType::Other(Cow::Borrowed("NextState")),
                 ErrorReason::UnknownValue(format!("Got {}.", next_state.get_value())),
             )),
         }
@@ -442,7 +428,7 @@ pub mod configuration {
             // Returning an error is just soo loooong
             if known_pack_count.get_value() as usize != known_packs.len() {
                 return Err(PacketError::Codec(CodecError::Encoding(
-                    DataType::Other("Clientbound Know Packs packet"),
+                    DataType::Other(Cow::Borrowed("Clientbound Know Packs packet")),
                     ErrorReason::InvalidFormat(format!(
                         "Mismatch: number of packs: {}, actual provided number of packs: {}",
                         known_pack_count.get_value(),
@@ -470,7 +456,7 @@ pub mod configuration {
                     if cast_type != DataType::StringProtocol {
                         return Err(
                             PacketError::Codec(
-                                CodecError::Encoding(DataType::Other("ClientboundKnownPacks"), ErrorReason::InvalidFormat(
+                                CodecError::Encoding(DataType::Other(Cow::Borrowed("ClientboundKnownPacks")), ErrorReason::InvalidFormat(
                                     format!("The pack array data types must be three consecutive StringProtocol. Pack: {pack:?}")
                                 ))
                             )

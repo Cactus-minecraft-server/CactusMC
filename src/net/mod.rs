@@ -2,7 +2,7 @@
 pub mod packet;
 pub mod slp;
 
-use crate::config;
+use crate::net::packet::data_types::Uuid;
 use crate::net::packet::{data_types, utils};
 use bytes::{Buf, BytesMut};
 use log::{debug, error, info, warn};
@@ -10,17 +10,24 @@ use packet::data_types::{CodecError, Encodable};
 use packet::{Packet, PacketError, Response};
 use std::cmp::min;
 use std::io;
+use std::net::Ipv4Addr;
 use std::sync::Arc;
 use thiserror::Error;
 use tokio::io::{AsyncReadExt, AsyncWriteExt};
-use tokio::net::TcpListener;
 use tokio::net::TcpStream;
 use tokio::sync::Mutex;
 
-/// Listening address
-/// TODO: Change this. Use config files.
-const ADDRESS: &str = "0.0.0.0";
+use std::sync::OnceLock;
+const DEFAULT_ADDR: &str = "0.0.0.0";
+static ADDRESS: OnceLock<Ipv4Addr> = OnceLock::new();
 
+fn address() -> &'static Ipv4Addr {
+    ADDRESS.get_or_init(|| {
+        crate::config::Settings::new()
+            .server_ip
+            .unwrap_or_else(|| DEFAULT_ADDR.parse().unwrap())
+    })
+}
 #[derive(Error, Debug)]
 pub enum NetError {
     #[error("Connection closed: {0}")]
@@ -45,17 +52,25 @@ pub enum NetError {
     UnknownPacketId(String),
 }
 
+#[derive(Debug, Clone)]
+pub struct PlayerInfo {
+    pub uuid: Uuid,
+    pub name: String,
+    pub entity_id: i32,
+}
+
 /// Listens for every incoming TCP connection.
 pub async fn listen() -> Result<(), Box<dyn std::error::Error>> {
-    let config = config::Settings::new();
-    let server_address = format!("{}:{}", ADDRESS, config.server_port);
-    let listener = TcpListener::bind(server_address).await?;
+    let config = crate::config::Settings::new();
+
+    let server_address = format!("{}:{}", address(), config.server_port);
+    let listener = tokio::net::TcpListener::bind(server_address).await?;
 
     loop {
         let (socket, addr) = listener.accept().await?;
         tokio::spawn(async move {
             if let Err(e) = handle_connection(socket).await {
-                warn!("Error handling connection from {addr}: {e}");
+                log::warn!("Error handling connection from {addr}: {e}");
             }
         });
     }
@@ -83,6 +98,7 @@ struct Connection {
     state: Arc<Mutex<ConnectionState>>,
     socket: Arc<Mutex<TcpStream>>,
     buffer: Mutex<BytesMut>,
+    player: Arc<Mutex<Option<PlayerInfo>>>,
 }
 
 impl Connection {
@@ -94,6 +110,7 @@ impl Connection {
             state: Arc::new(Mutex::new(ConnectionState::default())),
             socket: Arc::new(Mutex::new(socket)),
             buffer: Mutex::new(BytesMut::with_capacity(Self::BUFFER_SIZE)),
+            player: Arc::new(Mutex::new(None)),
         }
     }
 
@@ -476,20 +493,13 @@ async fn handle_connection(socket: TcpStream) -> Result<(), NetError> {
         let response: Response = handle_packet(&connection, packet).await?;
 
         if let Some(packet) = response.get_packet() {
-            // TODO: Make sure that sent packets are big endians (data types).
             connection.write(packet).await?;
-            debug!("Sent a packet: {packet}");
-
             if response.does_close_conn() {
-                info!("Connection closed.");
                 connection.close().await?;
                 return Ok(());
             }
         } else {
-            // Temp warn
-            error!("THIS MUST BE FIXED/MORE INFO!!! PLEASE PAY ATTENTION TO ME~~~!");
-            warn!("Got response None. Not sending any packet to the MC client");
-            //connection.close().await?;
+            debug!("No response packet for this serverbound packet/state");
         }
     }
 }
@@ -523,6 +533,8 @@ async fn handle_packet(conn: &Connection, packet: Packet) -> Result<Response, Ne
 /// 2: we switch the connection state to 'Login'.
 /// 3: we switch the connection state to 'Transfer'.
 mod dispatch {
+    use std::borrow::Cow;
+
     use super::*;
     use crate::net::slp::ip_logger::ClientIpLoggerInfo;
     use packet::packet_types::configuration::*;
@@ -557,7 +569,7 @@ mod dispatch {
             }
             packet::packet_types::NextState::Handshake(_) => {
                 return Err(NetError::Codec(CodecError::Decoding(
-                    packet::data_types::DataType::Other("Handshake packet"),
+                    packet::data_types::DataType::Other(Cow::Borrowed("Handshake packet")),
                     packet::data_types::ErrorReason::UnknownValue(
                         "Got handshake next_state.".to_string(),
                     ),
@@ -613,6 +625,12 @@ mod dispatch {
             0x00 => {
                 let login_start: LoginStart = packet.try_into()?;
 
+                let entity_id = 1;
+                *conn.player.lock().await = Some(PlayerInfo {
+                    uuid: login_start.player_uuid.clone(),
+                    name: login_start.name.get_value().clone(),
+                    entity_id,
+                });
                 debug!("Got login Start packet: {login_start:#?}");
 
                 let args = (
@@ -654,9 +672,16 @@ mod dispatch {
     }
 
     /// https://minecraft.wiki/w/Java_Edition_protocol/Packets#Transfer
-    /// I don't really know which packets should be handled here.
+    /// État non standard côté serveur (selon version/proxy). Par défaut: ignorer proprement.
     pub async fn transfer(conn: &Connection, packet: Packet) -> Result<Response, NetError> {
-        todo!()
+        warn!(
+            "Transfer state: ignoring packet id=0x{:02X} (len={}) from {}",
+            packet.get_id().get_value(),
+            packet.get_full_packet().len(),
+            conn
+        );
+
+        Ok(Response::new(None))
     }
 
     /// https://minecraft.wiki/w/Java_Edition_protocol/Packets#Configuration

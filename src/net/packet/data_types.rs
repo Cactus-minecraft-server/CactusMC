@@ -1,6 +1,7 @@
 use crate::net;
 use core::str;
 use log::{debug, warn};
+use std::borrow::Cow;
 use std::fmt;
 use std::fmt::{Debug, Display, Formatter};
 use std::sync::Arc;
@@ -60,7 +61,7 @@ pub enum DataType {
     Boolean,
     Optional(Box<DataType>),
     Byte,
-    Other(&'static str),
+    Other(Cow<'static, str>),
 }
 
 impl Display for DataType {
@@ -75,7 +76,7 @@ impl Display for DataType {
             DataType::Boolean => write!(f, "Boolean"),
             DataType::Optional(optional) => write!(f, "Optional of {:?}", *optional),
             DataType::Byte => write!(f, "Byte"),
-            DataType::Other(name) => write!(f, "{}", name),
+            DataType::Other(name) => write!(f, "{name}"),
         }
     }
 }
@@ -84,31 +85,28 @@ impl From<DataTypeContent> for DataType {
     fn from(value: DataTypeContent) -> Self {
         match value {
             DataTypeContent::VarInt(_) => Self::VarInt,
-            DataTypeContent::VarLong(_) => DataType::VarLong,
-            DataTypeContent::StringProtocol(_) => DataType::StringProtocol,
-            DataTypeContent::UnsignedShort(_) => DataType::UnsignedShort,
-            DataTypeContent::Uuid(_) => DataType::Uuid,
+            DataTypeContent::VarLong(_) => Self::VarLong,
+            DataTypeContent::StringProtocol(_) => Self::StringProtocol,
+            DataTypeContent::UnsignedShort(_) => Self::UnsignedShort,
+            DataTypeContent::Uuid(_) => Self::Uuid,
             DataTypeContent::Array(array) => {
                 let data_types: Vec<DataType> = array
                     .get_value()
                     .iter()
                     .map(|d| (*d).clone().into())
                     .collect();
-                DataType::Array(data_types)
+                Self::Array(data_types)
             }
-            DataTypeContent::Boolean(_) => DataType::Boolean,
+            DataTypeContent::Boolean(_) => Self::Boolean,
             DataTypeContent::Optional(optional) => {
                 if let Some(data_type) = optional.get_value() {
-                    DataType::Optional(Box::new((*data_type).clone().into()))
+                    Self::Optional(Box::new((*data_type).clone().into()))
                 } else {
-                    // NOT FINE!
-                    // We lose some information here, even though not really.
-                    // I'm not clever enough, but, in the end, maybe it is fine?
-                    DataType::Optional(Box::new(Self::Other("")))
+                    Self::Optional(Box::new(Self::Other(Cow::Borrowed("None"))))
                 }
             }
-            DataTypeContent::Byte(_) => DataType::Byte,
-            DataTypeContent::Other(_) => DataType::Other(""), // Or however you handle "Other"
+            DataTypeContent::Byte(_) => Self::Byte,
+            DataTypeContent::Other(name) => Self::Other(Cow::Owned(name)),
         }
     }
 }
@@ -2237,7 +2235,7 @@ mod tests {
     #[test]
     fn test_array_from_bytes_error_unknown_other() {
         // Provide a single DataType::Other entry.
-        let data_types = vec![DataType::Other("test")];
+        let data_types = vec![DataType::Other(Cow::Borrowed("test"))];
         let some_bytes = vec![0x01, 0x02, 0x03];
 
         let result = Array::from_bytes(&some_bytes, data_types.into());

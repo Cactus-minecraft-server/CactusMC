@@ -39,7 +39,7 @@ async fn main() {
 const ENABLE_LOGGING_COLOR_AND_SAVE_TO_FILE: bool = true;
 
 #[cfg(not(debug_assertions))]
-const DISABLE_LOGGING_COLOR_AND_SAVE_TO_FILE: bool = true;
+const ENABLE_LOGGING_COLOR_AND_SAVE_TO_FILE: bool = true;
 /// Logic that must executes as early as possibe
 async fn early_init() -> Result<(), Box<dyn std::error::Error>> {
     // This must executes as early as possible
